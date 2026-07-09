@@ -344,17 +344,35 @@
         <input type="text" id="film" list="films" placeholder="Portra 400">
         <datalist id="films"></datalist>
       </div>
+      <div class="field">
+        <span>날짜</span>
+        <input type="text" id="date" placeholder="2026.07">
+      </div>
       <details class="disp">
         <summary>표시 설정</summary>
         <div class="inner">
           <label class="check"><input type="checkbox" id="showBody" checked> 바디 표시</label>
           <label class="check"><input type="checkbox" id="showLens" checked> 렌즈 표시</label>
           <label class="check"><input type="checkbox" id="showFilm" checked> 필름 표시</label>
+          <label class="check"><input type="checkbox" id="showDate" checked> 날짜 표시</label>
           <div class="field" style="margin:8px 0 0">
             <span>레이아웃 (필름 스트립·여백 띠)</span>
             <select id="lines">
               <option value="1">한 줄</option>
-              <option value="2">두 줄 — 윗줄 장비 / 아랫줄 필름</option>
+              <option value="2">두 줄 — 윗줄 장비 / 아랫줄 필름·날짜</option>
+            </select>
+          </div>
+          <div class="row" style="margin-top:8px">
+            <div class="field"><span>글자 크기 %</span><input type="number" id="fontScale" min="50" max="200" value="100"></div>
+            <div class="field"><span>하단 공간 %</span><input type="number" id="bandScale" min="50" max="250" value="100"></div>
+          </div>
+          <div class="field" style="margin:0">
+            <span>텍스트 위치</span>
+            <select id="align">
+              <option value="auto">기본 (스타일별)</option>
+              <option value="left">왼쪽</option>
+              <option value="center">가운데</option>
+              <option value="right">오른쪽</option>
             </select>
           </div>
         </div>
@@ -479,12 +497,18 @@ function meta(o){
   return [o.show.body && o.body, o.show.lens && o.lens].filter(Boolean).join('  ·  ');
 }
 function metaLines(o){
-  // 표시 토글을 거친 텍스트 줄 배열: 한 줄이면 [장비·필름], 두 줄이면 [장비, 필름]
+  // 표시 토글을 거친 텍스트 줄 배열: 한 줄이면 [장비·필름·날짜], 두 줄이면 [장비, 필름·날짜]
   const equip = meta(o);
-  const film  = o.show.film ? o.film : '';
-  if (o.lines === 2) return [equip, film].filter(Boolean);
-  const one = [equip, film].filter(Boolean).join('   ·   ');
+  const filmDate = [o.show.film && o.film, o.show.date && o.date].filter(Boolean).join('   ·   ');
+  if (o.lines === 2) return [equip, filmDate].filter(Boolean);
+  const one = [equip, filmDate].filter(Boolean).join('   ·   ');
   return one ? [one] : [];
+}
+
+function alignX(o, def, left, center, right){
+  // 텍스트 위치: 'auto'면 스타일별 기본 정렬, 아니면 사용자 지정
+  const a = o.align === 'auto' ? def : o.align;
+  return { a, x: a === 'left' ? left : a === 'center' ? center : right };
 }
 
 /* 브라우저 캔버스 한계 — 초과하면 조용히 빈 이미지가 나오므로 사전 축소한다.
@@ -498,9 +522,9 @@ const CANVAS_LIMIT = (() => {
 
 function frameDims(W, H, o){
   const two = metaLines(o).length > 1;
-  if (o.style === 'film')   return { w: W,        h: H + W * 0.088 * (two ? 3.3 : 2.75) };
-  if (o.style === 'instax') return { w: W * 1.11, h: H + W * 0.055 + W * 0.27 };
-  return { w: W, h: H + W * (two ? 0.112 : 0.078) };
+  if (o.style === 'film')   return { w: W,        h: H + W * 0.088 * (1 + (two ? 2.3 : 1.75) * o.bandScale) };
+  if (o.style === 'instax') return { w: W * 1.11, h: H + W * 0.055 + W * 0.27 * o.bandScale };
+  return { w: W, h: H + W * (two ? 0.112 : 0.078) * o.bandScale };
 }
 
 function safeScale(W, H, o){
@@ -522,7 +546,7 @@ function render(img, o, info){
     const bar = W * 0.088;
     const lines = metaLines(o).map(t => t.toUpperCase());
     const two = lines.length > 1;
-    const botBar = bar * (two ? 2.3 : 1.75);   // 두 줄이면 엣지 프린트 공간 확장
+    const botBar = bar * (two ? 2.3 : 1.75) * o.bandScale;   // 두 줄이면 엣지 프린트 공간 확장
     cv.width = W; cv.height = H + bar + botBar;
     ctx.fillStyle = C.base; ctx.fillRect(0,0,cv.width,cv.height);
     ctx.drawImage(img, 0, bar, W, H);
@@ -544,42 +568,46 @@ function render(img, o, info){
     holes(H + bar + bar*0.70);   // 사진 바로 아래 고정 (줄 수와 무관하게 같은 위치)
 
     // 엣지 프린트 — 두 줄이면 퍼포레이션 아래로 장비/필름을 나눠 쌓는다
-    const baseY = H + bar + (two ? bar*2.0 : botBar*0.82);
+    const baseY = H + bar + botBar*(two ? 0.87 : 0.82);
+    const fs = bar*0.33*o.fontScale;
+    const pos = alignX(o, 'right', W*0.022, W/2, W - W*0.022);
     ctx.textBaseline = 'alphabetic';
-    ctx.font = `500 ${bar*0.33}px ${MONO}`;
-    ctx.fillStyle = C.rebate; ctx.textAlign = 'right';
+    ctx.font = `500 ${fs}px ${MONO}`;
+    ctx.fillStyle = C.rebate; ctx.textAlign = pos.a;
     if (two)
-      trackedText(ctx, lines[0], W - W*0.022, H + bar + bar*1.45, bar*0.05);
+      trackedText(ctx, lines[0], pos.x, H + bar + botBar*0.63, fs*0.15);
     if (lines.length)
-      trackedText(ctx, lines[lines.length-1], W - W*0.022, baseY, bar*0.05);
+      trackedText(ctx, lines[lines.length-1], pos.x, baseY, fs*0.15);
   }
 
   else if (o.style === 'instax') {
-    const side = W*0.055, top = W*0.055, bot = W*0.27;
+    const side = W*0.055, top = W*0.055, bot = W*0.27*o.bandScale;
     cv.width = W + side*2; cv.height = H + top + bot;
     ctx.fillStyle = C.paper; ctx.fillRect(0,0,cv.width,cv.height);
     ctx.drawImage(img, side, top, W, H);
     ctx.strokeStyle = 'rgba(0,0,0,.13)'; ctx.lineWidth = Math.max(1, W*0.0012);
     ctx.strokeRect(side, top, W, H);
 
-    const cx = cv.width/2, cy = H + top + bot*0.50;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const cy = H + top + bot*0.50;
+    const pos = alignX(o, 'center', side + W*0.02, cv.width/2, side + W - W*0.02);
+    ctx.textAlign = pos.a; ctx.textBaseline = 'middle';
     const m = meta(o);
     if (m){
-      ctx.font = `500 ${bot*0.145}px ${SANS}`;
+      ctx.font = `500 ${W*0.0392*o.fontScale}px ${SANS}`;   // 기본 하단 여백(0.27W)의 14.5%
       ctx.fillStyle = C.ink;
-      ctx.fillText(m, cx, cy - bot*0.11);
+      ctx.fillText(m, pos.x, cy - bot*0.11);
     }
-    if (o.show.film && o.film){
-      ctx.font = `600 ${bot*0.105}px ${MONO}`;
+    const filmDate = [o.show.film && o.film, o.show.date && o.date].filter(Boolean).join(' · ');
+    if (filmDate){
+      ctx.font = `600 ${W*0.0284*o.fontScale}px ${MONO}`;   // 기본 하단 여백의 10.5%
       ctx.fillStyle = '#9a9288';
-      ctx.fillText(o.film.toUpperCase(), cx, cy + bot*0.14);
+      ctx.fillText(filmDate.toUpperCase(), pos.x, cy + bot*0.14);
     }
   }
 
   else { // bottom / top
     const lines = metaLines(o).map(t => t.toUpperCase());
-    const band = W * (lines.length > 1 ? 0.112 : 0.078);
+    const band = W * (lines.length > 1 ? 0.112 : 0.078) * o.bandScale;
     cv.width = W; cv.height = H + band;
     const dark = o.tone === 'dark';
     ctx.fillStyle = dark ? C.bandDark : '#f2efe8';
@@ -588,15 +616,16 @@ function render(img, o, info){
 
     const bandTop = o.style === 'top' ? 0 : H;
     ctx.textBaseline = 'middle';
-    const fs = W * 0.0234;   // 한 줄 띠(0.078W)의 30% — 줄 수와 무관하게 같은 글자 크기
-    ctx.textAlign = 'left';
+    const fs = W * 0.0234 * o.fontScale;   // 기본 한 줄 띠(0.078W)의 30% — 띠 높이와 독립
+    const pos = alignX(o, 'left', W*0.018, W/2, W - W*0.018);
+    ctx.textAlign = pos.a;
     ctx.font = `500 ${fs}px ${MONO}`;
     ctx.fillStyle = dark ? C.bandDarkText : '#4a453d';
     if (lines.length > 1){
-      trackedText(ctx, lines[0], W*0.018, bandTop + band*0.33, fs*0.15);
-      trackedText(ctx, lines[1], W*0.018, bandTop + band*0.67, fs*0.15);
+      trackedText(ctx, lines[0], pos.x, bandTop + band*0.33, fs*0.15);
+      trackedText(ctx, lines[1], pos.x, bandTop + band*0.67, fs*0.15);
     } else if (lines.length){
-      trackedText(ctx, lines[0], W*0.018, bandTop + band/2, fs*0.15);
+      trackedText(ctx, lines[0], pos.x, bandTop + band/2, fs*0.15);
     }
   }
   return cv;
@@ -619,14 +648,21 @@ function downscale(cv, longEdge){
    설정 읽기
    ============================================================ */
 function opts(){
+  const pct = (id, min, max) =>
+    Math.min(max, Math.max(min, Number($(id).value) || 100)) / 100;
   return {
     style: state.style,
     tone:  state.tone,
     body:  $('body').value.trim(),
     lens:  $('lens').value.trim(),
     film:  $('film').value.trim(),
-    show:  { body: $('showBody').checked, lens: $('showLens').checked, film: $('showFilm').checked },
+    date:  $('date').value.trim(),
+    show:  { body: $('showBody').checked, lens: $('showLens').checked,
+             film: $('showFilm').checked, date: $('showDate').checked },
     lines: Number($('lines').value),
+    fontScale: pct('fontScale', 50, 200),
+    bandScale: pct('bandScale', 50, 250),
+    align: $('align').value,
   };
 }
 
@@ -875,8 +911,12 @@ function setStyle(style){
 function saveSettings(){
   store.write('frame.settings', {
     body: $('body').value, lens: $('lens').value, film: $('film').value,
-    show: { body: $('showBody').checked, lens: $('showLens').checked, film: $('showFilm').checked },
+    date: $('date').value,
+    show: { body: $('showBody').checked, lens: $('showLens').checked,
+            film: $('showFilm').checked, date: $('showDate').checked },
     lines: Number($('lines').value),
+    fontScale: $('fontScale').value, bandScale: $('bandScale').value,
+    align: $('align').value,
     style: state.style, tone: state.tone,
     size: $('size').value, fmt: $('fmt').value, quality: $('quality').value,
   });
@@ -891,12 +931,17 @@ function loadSettings(){
     return;
   }
   $('body').value = s.body ?? ''; $('lens').value = s.lens ?? ''; $('film').value = s.film ?? '';
+  $('date').value = s.date ?? '';
   if (s.show){
     $('showBody').checked = !!s.show.body;
     $('showLens').checked = !!s.show.lens;
     $('showFilm').checked = !!s.show.film;
+    $('showDate').checked = s.show.date ?? true;
   }
   if (s.lines) $('lines').value = s.lines;
+  if (s.fontScale) $('fontScale').value = s.fontScale;
+  if (s.bandScale) $('bandScale').value = s.bandScale;
+  if (s.align) $('align').value = s.align;
   if (s.style) setStyle(s.style);
   if (s.tone){ state.tone = s.tone; $('tone').value = s.tone; }
   if (s.size) $('size').value = s.size;
@@ -911,10 +956,10 @@ $('styleSeg').onclick = e => {
   refresh();   // 스타일이 바뀌면 캔버스 비율이 바뀌므로 화면 맞춤으로 리셋
 };
 $('tone').onchange = e => { state.tone = e.target.value; saveSettings(); refresh(true); };
-['body','lens','film'].forEach(id => {
+['body','lens','film','date','fontScale','bandScale'].forEach(id => {
   $(id).addEventListener('input', () => { saveSettings(); refresh(true); });
 });
-['showBody','showLens','showFilm'].forEach(id => {
+['showBody','showLens','showFilm','showDate','align'].forEach(id => {
   $(id).addEventListener('change', () => { saveSettings(); refresh(true); });
 });
 $('lines').onchange = () => { saveSettings(); refresh(); };  // 띠 높이(비율)가 바뀌므로 맞춤 리셋
