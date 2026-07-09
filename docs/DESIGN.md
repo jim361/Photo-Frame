@@ -1,4 +1,4 @@
-# FilmFrame — 디자인 시스템
+# PhotoFrame — 디자인 시스템
 
 ## 컨셉: 암실 라이트테이블
 

@@ -1,4 +1,4 @@
-# FilmFrame — 구조와 마이그레이션 계획
+# PhotoFrame — 구조와 마이그레이션 계획
 
 ## 현재 구조 (v3, 단일 HTML)
 
@@ -27,6 +27,7 @@ index.html
 
 ```
 파일 드롭 → addFiles → state.shots[{img,url,name}]
+              ├ readExif (JPEG) → 카메라/렌즈/날짜 자동 입력
                           ↓
 입력 변경 → opts() ──→ render(img, opts) → 미리보기 캔버스
                           ↓
