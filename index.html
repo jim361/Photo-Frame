@@ -366,14 +366,25 @@
             <div class="field"><span>글자 크기 %</span><input type="number" id="fontScale" min="50" max="200" value="100"></div>
             <div class="field"><span>하단 공간 %</span><input type="number" id="bandScale" min="50" max="250" value="100"></div>
           </div>
-          <div class="field" style="margin:0">
-            <span>텍스트 위치</span>
-            <select id="align">
-              <option value="auto">기본 (스타일별)</option>
-              <option value="left">왼쪽</option>
-              <option value="center">가운데</option>
-              <option value="right">오른쪽</option>
-            </select>
+          <div class="row">
+            <div class="field" style="margin:0">
+              <span>촬영 정보 위치</span>
+              <select id="align">
+                <option value="auto">기본</option>
+                <option value="left">왼쪽</option>
+                <option value="center">가운데</option>
+                <option value="right">오른쪽</option>
+              </select>
+            </div>
+            <div class="field" style="margin:0">
+              <span>날짜 위치</span>
+              <select id="dateAlign">
+                <option value="auto">기본</option>
+                <option value="left">왼쪽</option>
+                <option value="center">가운데</option>
+                <option value="right">오른쪽</option>
+              </select>
+            </div>
           </div>
         </div>
       </details>
@@ -497,18 +508,33 @@ function meta(o){
   return [o.show.body && o.body, o.show.lens && o.lens].filter(Boolean).join('  ·  ');
 }
 function metaLines(o){
-  // 표시 토글을 거친 텍스트 줄 배열: 한 줄이면 [장비·필름·날짜], 두 줄이면 [장비, 필름·날짜]
+  // 표시 토글을 거친 촬영 정보 줄 배열 (날짜는 독립 요소라 여기 포함 안 됨)
   const equip = meta(o);
-  const filmDate = [o.show.film && o.film, o.show.date && o.date].filter(Boolean).join('   ·   ');
-  if (o.lines === 2) return [equip, filmDate].filter(Boolean);
-  const one = [equip, filmDate].filter(Boolean).join('   ·   ');
+  const film  = o.show.film ? o.film : '';
+  if (o.lines === 2) return [equip, film].filter(Boolean);
+  const one = [equip, film].filter(Boolean).join('   ·   ');
   return one ? [one] : [];
 }
 
-function alignX(o, def, left, center, right){
-  // 텍스트 위치: 'auto'면 스타일별 기본 정렬, 아니면 사용자 지정
-  const a = o.align === 'auto' ? def : o.align;
+function dateText(o){
+  return (o.show.date && o.date) ? o.date : '';
+}
+
+function alignX(mode, def, left, center, right){
+  // 위치 지정: 'auto'면 스타일별 기본 정렬, 아니면 사용자 지정
+  const a = mode === 'auto' ? def : mode;
   return { a, x: a === 'left' ? left : a === 'center' ? center : right };
+}
+
+function fitSize(ctx, text, size, weight, family, maxW, trackRatio = 0.15){
+  // maxW를 넘으면 폰트를 줄여서(최소 55%) 맞춘다. ctx.font를 설정하고 최종 크기를 돌려준다
+  ctx.font = `${weight} ${size}px ${family}`;
+  const w = ctx.measureText(text).width + text.length * size * trackRatio;
+  if (w > maxW && w > 0){
+    size = Math.max(size * 0.55, size * maxW / w);
+    ctx.font = `${weight} ${size}px ${family}`;
+  }
+  return size;
 }
 
 /* 브라우저 캔버스 한계 — 초과하면 조용히 빈 이미지가 나오므로 사전 축소한다.
@@ -570,14 +596,36 @@ function render(img, o, info){
     // 엣지 프린트 — 두 줄이면 퍼포레이션 아래로 장비/필름을 나눠 쌓는다
     const baseY = H + bar + botBar*(two ? 0.87 : 0.82);
     const fs = bar*0.33*o.fontScale;
-    const pos = alignX(o, 'right', W*0.022, W/2, W - W*0.022);
+    const pad = W*0.022;
+    const pos = alignX(o.align, 'right', pad, W/2, W - pad);
+    const dt = dateText(o);
+    const dpos = dt ? alignX(o.dateAlign, 'left', pad, W/2, W - pad) : null;
     ctx.textBaseline = 'alphabetic';
-    ctx.font = `500 ${fs}px ${MONO}`;
+
+    // 날짜와 정보가 서로 다른 쪽이면, 같은 줄의 정보를 남는 폭에 맞춰 자동 축소
+    let dateW = 0;
+    if (dt){
+      ctx.font = `600 ${fs}px ${MONO}`;
+      dateW = ctx.measureText(dt).width + dt.length*fs*0.15;
+    }
+    const maxBottom = (dt && dpos.a !== pos.a) ? W - 2*pad - dateW - W*0.03 : W - 2*pad;
+
     ctx.fillStyle = C.rebate; ctx.textAlign = pos.a;
-    if (two)
-      trackedText(ctx, lines[0], pos.x, H + bar + botBar*0.63, fs*0.15);
-    if (lines.length)
-      trackedText(ctx, lines[lines.length-1], pos.x, baseY, fs*0.15);
+    if (two){
+      const s0 = fitSize(ctx, lines[0], fs, 500, MONO, W - 2*pad);
+      trackedText(ctx, lines[0], pos.x, H + bar + botBar*0.63, s0*0.15);
+    }
+    if (lines.length){
+      const last = lines[lines.length-1];
+      const s1 = fitSize(ctx, last, fs, 500, MONO, maxBottom);
+      trackedText(ctx, last, pos.x, baseY, s1*0.15);
+    }
+    // 날짜 — 데이트 스탬프처럼 주황, 기본 왼쪽 (정보와 독립 배치)
+    if (dt){
+      ctx.font = `600 ${fs}px ${MONO}`;
+      ctx.fillStyle = C.edge; ctx.textAlign = dpos.a;
+      trackedText(ctx, dt, dpos.x, baseY, fs*0.15);
+    }
   }
 
   else if (o.style === 'instax') {
@@ -589,19 +637,27 @@ function render(img, o, info){
     ctx.strokeRect(side, top, W, H);
 
     const cy = H + top + bot*0.50;
-    const pos = alignX(o, 'center', side + W*0.02, cv.width/2, side + W - W*0.02);
+    const pos = alignX(o.align, 'center', side + W*0.02, cv.width/2, side + W - W*0.02);
+    const maxW = W - 2*W*0.02;
     ctx.textAlign = pos.a; ctx.textBaseline = 'middle';
     const m = meta(o);
     if (m){
-      ctx.font = `500 ${W*0.0392*o.fontScale}px ${SANS}`;   // 기본 하단 여백(0.27W)의 14.5%
+      fitSize(ctx, m, W*0.0392*o.fontScale, 500, SANS, maxW, 0);   // 기본 하단 여백(0.27W)의 14.5%
       ctx.fillStyle = C.ink;
       ctx.fillText(m, pos.x, cy - bot*0.11);
     }
-    const filmDate = [o.show.film && o.film, o.show.date && o.date].filter(Boolean).join(' · ');
-    if (filmDate){
-      ctx.font = `600 ${W*0.0284*o.fontScale}px ${MONO}`;   // 기본 하단 여백의 10.5%
+    if (o.show.film && o.film){
+      fitSize(ctx, o.film.toUpperCase(), W*0.0284*o.fontScale, 600, MONO, maxW, 0);   // 기본 하단 여백의 10.5%
       ctx.fillStyle = '#9a9288';
-      ctx.fillText(filmDate.toUpperCase(), pos.x, cy + bot*0.14);
+      ctx.fillText(o.film.toUpperCase(), pos.x, cy + bot*0.14);
+    }
+    // 날짜 — 카드 아래쪽에 손글씨 자리처럼, 기본 오른쪽 구석 (정보와 독립 배치)
+    const dt = dateText(o);
+    if (dt){
+      const dpos = alignX(o.dateAlign, 'right', side + W*0.02, cv.width/2, side + W - W*0.02);
+      ctx.font = `600 ${W*0.0284*o.fontScale}px ${MONO}`;
+      ctx.fillStyle = '#c2bab0'; ctx.textAlign = dpos.a;
+      ctx.fillText(dt, dpos.x, H + top + bot*0.86);
     }
   }
 
@@ -617,15 +673,36 @@ function render(img, o, info){
     const bandTop = o.style === 'top' ? 0 : H;
     ctx.textBaseline = 'middle';
     const fs = W * 0.0234 * o.fontScale;   // 기본 한 줄 띠(0.078W)의 30% — 띠 높이와 독립
-    const pos = alignX(o, 'left', W*0.018, W/2, W - W*0.018);
+    const pad = W*0.018;
+    const pos = alignX(o.align, 'left', pad, W/2, W - pad);
+    const dt = dateText(o);
+    const dpos = dt ? alignX(o.dateAlign, 'right', pad, W/2, W - pad) : null;
+
+    // 날짜와 정보가 서로 다른 쪽이면, 같은 줄의 정보를 남는 폭에 맞춰 자동 축소
+    let dateW = 0;
+    if (dt){
+      ctx.font = `600 ${fs}px ${MONO}`;
+      dateW = ctx.measureText(dt).width;
+    }
+    const maxBottom = (dt && dpos.a !== pos.a) ? W - 2*pad - dateW - W*0.03 : W - 2*pad;
+
     ctx.textAlign = pos.a;
-    ctx.font = `500 ${fs}px ${MONO}`;
     ctx.fillStyle = dark ? C.bandDarkText : '#4a453d';
     if (lines.length > 1){
-      trackedText(ctx, lines[0], pos.x, bandTop + band*0.33, fs*0.15);
-      trackedText(ctx, lines[1], pos.x, bandTop + band*0.67, fs*0.15);
+      const s0 = fitSize(ctx, lines[0], fs, 500, MONO, W - 2*pad);
+      trackedText(ctx, lines[0], pos.x, bandTop + band*0.33, s0*0.15);
+      const s1 = fitSize(ctx, lines[1], fs, 500, MONO, maxBottom);
+      trackedText(ctx, lines[1], pos.x, bandTop + band*0.67, s1*0.15);
     } else if (lines.length){
-      trackedText(ctx, lines[0], pos.x, bandTop + band/2, fs*0.15);
+      const s1 = fitSize(ctx, lines[0], fs, 500, MONO, maxBottom);
+      trackedText(ctx, lines[0], pos.x, bandTop + band/2, s1*0.15);
+    }
+    // 날짜 — 데이트 스탬프처럼 주황, 기본 오른쪽 (정보와 독립 배치)
+    if (dt){
+      ctx.font = `600 ${fs}px ${MONO}`;
+      ctx.fillStyle = C.edge; ctx.textAlign = dpos.a;
+      const dy = lines.length > 1 ? band*0.67 : band/2;   // 두 줄이면 아랫줄에 맞춤
+      ctx.fillText(dt, dpos.x, bandTop + dy);
     }
   }
   return cv;
@@ -663,6 +740,7 @@ function opts(){
     fontScale: pct('fontScale', 50, 200),
     bandScale: pct('bandScale', 50, 250),
     align: $('align').value,
+    dateAlign: $('dateAlign').value,
   };
 }
 
@@ -916,7 +994,7 @@ function saveSettings(){
             film: $('showFilm').checked, date: $('showDate').checked },
     lines: Number($('lines').value),
     fontScale: $('fontScale').value, bandScale: $('bandScale').value,
-    align: $('align').value,
+    align: $('align').value, dateAlign: $('dateAlign').value,
     style: state.style, tone: state.tone,
     size: $('size').value, fmt: $('fmt').value, quality: $('quality').value,
   });
@@ -942,6 +1020,7 @@ function loadSettings(){
   if (s.fontScale) $('fontScale').value = s.fontScale;
   if (s.bandScale) $('bandScale').value = s.bandScale;
   if (s.align) $('align').value = s.align;
+  if (s.dateAlign) $('dateAlign').value = s.dateAlign;
   if (s.style) setStyle(s.style);
   if (s.tone){ state.tone = s.tone; $('tone').value = s.tone; }
   if (s.size) $('size').value = s.size;
@@ -959,7 +1038,7 @@ $('tone').onchange = e => { state.tone = e.target.value; saveSettings(); refresh
 ['body','lens','film','date','fontScale','bandScale'].forEach(id => {
   $(id).addEventListener('input', () => { saveSettings(); refresh(true); });
 });
-['showBody','showLens','showFilm','showDate','align'].forEach(id => {
+['showBody','showLens','showFilm','showDate','align','dateAlign'].forEach(id => {
   $(id).addEventListener('change', () => { saveSettings(); refresh(true); });
 });
 $('lines').onchange = () => { saveSettings(); refresh(); };  // 띠 높이(비율)가 바뀌므로 맞춤 리셋
