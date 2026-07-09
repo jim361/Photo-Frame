@@ -28,7 +28,7 @@ index.html
 ```
 파일 드롭 → addFiles → state.shots[{img,url,name}]
                           ↓
-입력 변경 → opts(i) ──→ render(img, opts) → 미리보기 캔버스
+입력 변경 → opts() ──→ render(img, opts) → 미리보기 캔버스
                           ↓
 내보내기 → render → downscale → toBlob → dirHandle 저장 or 다운로드
 ```
@@ -37,7 +37,7 @@ index.html
 
 ### 저장되는 것 / 되지 않는 것
 
-- localStorage: 프리셋(`frame.presets`)만. 접근 실패(iframe 등) 시 메모리 폴백.
+- localStorage: 장비 팔레트(`frame.gear`)와 입력·표시·내보내기 설정(`frame.settings`). 접근 실패(iframe 등) 시 메모리 폴백.
 - 사진: 절대 어디에도 저장·전송하지 않는다. objectURL은 썸네일 표시용이고 삭제 시 revoke.
 
 ## 알려진 한계
