@@ -340,6 +340,19 @@
           <option value="0">원본 그대로</option>
         </select>
       </div>
+      <div class="row">
+        <div class="field">
+          <span>형식</span>
+          <select id="fmt">
+            <option value="png">PNG — 무손실</option>
+            <option value="jpeg">JPEG — 가벼움</option>
+          </select>
+        </div>
+        <div class="field" id="qualityField" style="visibility:hidden">
+          <span>품질 (50–100)</span>
+          <input type="number" id="quality" min="50" max="100" value="92">
+        </div>
+      </div>
       <button class="btn" id="pickDir">저장 폴더 선택</button>
       <p class="note" id="dirNote">폴더를 고르지 않으면 다운로드 폴더로 내려갑니다.</p>
       <button class="btn solid" id="exportAll" disabled style="margin-top:12px">전체 내보내기</button>
@@ -594,7 +607,7 @@ function filename(o, shot){
   if (o.frame != null) parts.push(String(o.frame).padStart(2,'0'));
   if (o.film) parts.push(slug(o.film));
   const stem = parts.length ? parts.join('-') : shot.name.replace(/\.[^.]+$/,'') + '_framed';
-  return stem + '.png';
+  return stem + ($('fmt').value === 'jpeg' ? '.jpg' : '.png');
 }
 
 /* ============================================================
@@ -901,7 +914,17 @@ $('pickDir').onclick = async () => {
   } catch { /* 사용자가 취소 */ }
 };
 
-function toBlob(cv){ return new Promise(r => cv.toBlob(r, 'image/png')); }
+function toBlob(cv){
+  if ($('fmt').value === 'jpeg'){
+    const q = Math.min(100, Math.max(50, Number($('quality').value) || 92)) / 100;
+    return new Promise(r => cv.toBlob(r, 'image/jpeg', q));
+  }
+  return new Promise(r => cv.toBlob(r, 'image/png'));
+}
+
+$('fmt').onchange = () => {
+  $('qualityField').style.visibility = $('fmt').value === 'jpeg' ? 'visible' : 'hidden';
+};
 
 async function save(blob, name){
   if (state.dirHandle){
