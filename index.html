@@ -431,17 +431,42 @@ function frameLabel(o){
   return String(o.frame).padStart(2,'0') + 'A';
 }
 
-function render(img, o){
+/* 브라우저 캔버스 한계 — 초과하면 조용히 빈 이미지가 나오므로 사전 축소한다.
+   iOS Safari는 면적 한계가 훨씬 낮고, 데스크톱은 Firefox 면적 한계(~1.24억px) 아래로 잡는다 */
+const CANVAS_LIMIT = (() => {
+  const ios = /iP(hone|ad|od)/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  return ios ? { side: 4096,  area: 4096 * 4096 }
+             : { side: 16384, area: 120e6 };
+})();
+
+function frameDims(W, H, o){
+  if (o.style === 'film')   return { w: W,        h: H + W * 0.088 * 2.75 };
+  if (o.style === 'instax') return { w: W * 1.11, h: H + W * 0.055 + W * 0.27 };
+  return { w: W, h: H + W * 0.078 };
+}
+
+function safeScale(W, H, o){
+  const { w, h } = frameDims(W, H, o);
+  return Math.min(1, CANVAS_LIMIT.side / Math.max(w, h), Math.sqrt(CANVAS_LIMIT.area / (w * h)));
+}
+
+function render(img, o, info){
   const cv = document.createElement('canvas');
   const ctx = cv.getContext('2d');
-  const W = img.naturalWidth || img.width, H = img.naturalHeight || img.height;
+  let W = img.naturalWidth || img.width, H = img.naturalHeight || img.height;
+  const s = safeScale(W, H, o);
+  if (s < 1){
+    W = Math.floor(W * s); H = Math.floor(H * s);
+    if (info) info.shrunk = Math.round(s * 100);
+  }
 
   if (o.style === 'film') {
     const bar = W * 0.088;
     const botBar = bar * 1.75;
     cv.width = W; cv.height = H + bar + botBar;
     ctx.fillStyle = C.base; ctx.fillRect(0,0,cv.width,cv.height);
-    ctx.drawImage(img, 0, bar);
+    ctx.drawImage(img, 0, bar, W, H);
 
     // 퍼포레이션
     const hw = bar*0.50, hh = bar*0.36, r = hh*0.24;
@@ -480,7 +505,7 @@ function render(img, o){
     const side = W*0.055, top = W*0.055, bot = W*0.27;
     cv.width = W + side*2; cv.height = H + top + bot;
     ctx.fillStyle = C.paper; ctx.fillRect(0,0,cv.width,cv.height);
-    ctx.drawImage(img, side, top);
+    ctx.drawImage(img, side, top, W, H);
     ctx.strokeStyle = 'rgba(0,0,0,.13)'; ctx.lineWidth = Math.max(1, W*0.0012);
     ctx.strokeRect(side, top, W, H);
 
@@ -511,7 +536,7 @@ function render(img, o){
     const dark = o.tone === 'dark';
     ctx.fillStyle = dark ? C.bandDark : '#f2efe8';
     ctx.fillRect(0,0,cv.width,cv.height);
-    ctx.drawImage(img, 0, o.style === 'top' ? band : 0);
+    ctx.drawImage(img, 0, o.style === 'top' ? band : 0, W, H);
 
     const bandY = o.style === 'top' ? band/2 : H + band/2;
     ctx.textBaseline = 'middle';
@@ -682,7 +707,12 @@ function refresh(keepZoom = false){
     $('toneField').style.display = (state.style==='bottom'||state.style==='top') ? '' : 'none';
     if (!has) return;
     const shot = state.shots[state.current];
-    const cv = render(shot.img, opts(state.current));
+    const info = {};
+    const cv = render(shot.img, opts(state.current), info);
+    if (info.shrunk && !shot.shrinkWarned){
+      shot.shrinkWarned = true;
+      toast(`원본이 커서 브라우저 한계에 맞춰 ${info.shrunk}% 크기로 합성됩니다`);
+    }
     pv.width = cv.width; pv.height = cv.height;
     pv.getContext('2d').drawImage(cv, 0, 0);
     if (keepZoom && zoom.mode === 'free') applyZoom();
@@ -887,12 +917,15 @@ async function save(blob, name){
 
 async function exportShots(list){
   const long = Number($('size').value);
+  let shrunk = 0;
   for (const { shot, i } of list){
-    const cv = downscale(render(shot.img, opts(i)), long);
+    const info = {};
+    const cv = downscale(render(shot.img, opts(i), info), long);
+    if (info.shrunk) shrunk++;
     await save(await toBlob(cv), filename(opts(i), shot));
     if (!state.dirHandle) await new Promise(r => setTimeout(r, 350)); // 다운로드 연타 방지
   }
-  toast(`${list.length}장 저장됨`);
+  toast(shrunk ? `${list.length}장 저장됨 (${shrunk}장은 브라우저 한계로 축소)` : `${list.length}장 저장됨`);
 }
 
 $('exportOne').onclick = () => exportShots([{ shot: state.shots[state.current], i: state.current }]);
