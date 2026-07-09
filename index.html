@@ -434,7 +434,7 @@ function frameLabel(o){
 function render(img, o){
   const cv = document.createElement('canvas');
   const ctx = cv.getContext('2d');
-  const W = img.naturalWidth, H = img.naturalHeight;
+  const W = img.naturalWidth || img.width, H = img.naturalHeight || img.height;
 
   if (o.style === 'film') {
     const bar = W * 0.088;
@@ -706,6 +706,7 @@ function drawStrip(){
     d.onclick = e => {
       if (e.target.classList.contains('x')){
         URL.revokeObjectURL(s.url);
+        s.img.close?.();
         state.shots.splice(i,1);
         if (state.current >= state.shots.length) state.current = state.shots.length - 1;
         drawStrip(); refresh(); return;
@@ -754,14 +755,30 @@ function drawStrip(){
 /* ============================================================
    파일 입력
    ============================================================ */
-async function addFiles(files){
-  const imgs = [...files].filter(f => f.type.startsWith('image/'));
-  for (const f of imgs){
-    const url = URL.createObjectURL(f);
+async function loadImage(file){
+  // EXIF 회전을 디코드 단계에서 확정 — 세로 사진이 눕지 않게
+  if (typeof createImageBitmap === 'function'){
+    try { return await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+    catch { /* 옵션 미지원 브라우저 → <img> 폴백 (최신 브라우저는 <img>도 EXIF 자동 반영) */ }
+  }
+  const url = URL.createObjectURL(file);
+  try {
     const img = new Image();
     await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
-    state.shots.push({ img, url, name: f.name });
+    return img;
+  } finally { URL.revokeObjectURL(url); }
+}
+
+async function addFiles(files){
+  const imgs = [...files].filter(f => f.type.startsWith('image/'));
+  let failed = 0;
+  for (const f of imgs){
+    try {
+      const img = await loadImage(f);
+      state.shots.push({ img, url: URL.createObjectURL(f), name: f.name });
+    } catch { failed++; }
   }
+  if (failed) toast(`${failed}장을 읽지 못했습니다`);
   if (state.current < 0 && state.shots.length) state.current = 0;
   drawStrip(); refresh();
 }
