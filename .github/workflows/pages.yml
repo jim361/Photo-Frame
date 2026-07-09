@@ -22,7 +22,10 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      # Pages가 꺼져 있으면 워크플로가 직접 활성화한다 (수동 설정 불필요)
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       # 정적 파일 그대로 배포 — 빌드 단계 없음 (단일 HTML 원칙)
       - uses: actions/upload-pages-artifact@v3
         with:
