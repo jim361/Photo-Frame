@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frame — 필름 프레임 합성기</title>
+<style>
+  :root{
+    --base:      #14130f;
+    --panel:     #1c1a15;
+    --panel-hi:  #24211b;
+    --rebate:    #6e6a5f;
+    --bone:      #efeae0;
+    --edge:      #e8873a;
+    --line:      #322e26;
+    --mono: ui-monospace, "SF Mono", Menlo, "Cascadia Mono", "Roboto Mono", monospace;
+    --sans: system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--base);
+    color:var(--bone);
+    font-family:var(--sans);
+    font-size:14px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+  }
+
+  .shell{display:grid;grid-template-columns:1fr 340px;height:100vh}
+
+  /* ---------- left: light table ---------- */
+  .table{
+    position:relative;
+    display:flex;flex-direction:column;
+    background:
+      radial-gradient(120% 90% at 50% 0%, #211e18 0%, #14130f 70%);
+    overflow:hidden;min-width:0;
+  }
+  .masthead{
+    display:flex;align-items:baseline;gap:14px;
+    padding:16px 24px;border-bottom:1px solid var(--line);
+    flex:0 0 auto;
+  }
+  .wordmark{
+    font-family:var(--mono);font-size:13px;font-weight:600;
+    letter-spacing:.42em;text-transform:uppercase;color:var(--edge);
+  }
+  .subtitle{font-size:12px;color:var(--rebate);letter-spacing:.02em}
+
+  /* ----- zoomable viewport ----- */
+  .viewport{
+    position:relative;flex:1;min-height:0;overflow:hidden;
+    touch-action:none;
+  }
+  .viewport.grabbable{cursor:grab}
+  .viewport.grabbing{cursor:grabbing}
+  #preview{
+    position:absolute;left:0;top:0;
+    transform-origin:0 0;
+    box-shadow:0 30px 70px -30px rgba(0,0,0,.9);
+  }
+
+  .dropzone{
+    position:absolute;inset:0;margin:auto;
+    width:min(560px, calc(100% - 64px));height:fit-content;
+    padding:56px 32px;text-align:center;
+    border:1px dashed var(--line);border-radius:2px;
+    transition:border-color .18s, background .18s;
+    cursor:pointer;
+  }
+  .dropzone:hover,.dropzone.hot{border-color:var(--edge);background:rgba(232,135,58,.04)}
+  .dropzone h2{
+    font-family:var(--mono);font-size:15px;font-weight:500;
+    letter-spacing:.08em;margin-bottom:10px;
+  }
+  .dropzone p{color:var(--rebate);font-size:13px}
+
+  /* ----- zoom toolbar ----- */
+  .zoombar{
+    position:absolute;left:50%;bottom:14px;transform:translateX(-50%);
+    display:flex;align-items:center;gap:1px;
+    background:var(--line);border:1px solid var(--line);
+    box-shadow:0 8px 24px rgba(0,0,0,.5);
+    z-index:5;
+  }
+  .zoombar[hidden]{display:none}
+  .zoombar button{
+    background:var(--panel-hi);border:0;color:var(--bone);cursor:pointer;
+    font-family:var(--mono);font-size:12px;padding:8px 13px;
+    transition:color .15s;
+    min-width:40px;
+  }
+  .zoombar button:hover{color:var(--edge)}
+  .zoombar .pct{
+    background:var(--panel);color:var(--rebate);
+    font-family:var(--mono);font-size:11px;padding:8px 10px;
+    min-width:58px;text-align:center;letter-spacing:.04em;
+    cursor:pointer;
+  }
+  .zoombar .pct:hover{color:var(--bone)}
+
+  /* ----- filmstrip of loaded frames ----- */
+  .strip{
+    display:flex;gap:3px;align-items:center;
+    padding:10px 14px;min-height:76px;
+    border-top:1px solid var(--line);
+    background:#0f0e0b;overflow-x:auto;flex:0 0 auto;
+  }
+  .strip:empty::before{
+    content:"불러온 사진 없음 — 드래그로 순서 조정, ×로 삭제";
+    font-family:var(--mono);font-size:11px;letter-spacing:.1em;
+    color:#3d3931;
+  }
+  .chip{
+    position:relative;flex:0 0 auto;width:72px;height:52px;
+    border:1px solid transparent;background:#000;cursor:grab;
+    opacity:.5;transition:opacity .16s,border-color .16s;
+    user-select:none;
+  }
+  .chip:active{cursor:grabbing}
+  .chip img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+  .chip.on{opacity:1;border-color:var(--edge)}
+  .chip.dragging{opacity:.25;border-style:dashed}
+  .chip.dropTarget::before{
+    content:"";position:absolute;left:-3px;top:-4px;bottom:-4px;width:2px;
+    background:var(--edge);
+  }
+  .chip.dropTarget.after::before{left:auto;right:-3px}
+  .chip b{
+    position:absolute;left:2px;bottom:1px;
+    font-family:var(--mono);font-size:9px;font-weight:600;
+    color:var(--edge);text-shadow:0 0 3px #000;pointer-events:none;
+  }
+  .chip .x{
+    position:absolute;top:-1px;right:0;width:18px;height:18px;
+    display:grid;place-items:center;
+    font-size:13px;line-height:1;
+    color:#fff;text-shadow:0 0 4px #000;opacity:0;
+    transition:opacity .12s;
+  }
+  .chip:hover .x{opacity:.9}
+  .chip .x:hover{color:#ff6b52}
+
+  /* ---------- right: rebate rail ---------- */
+  .rail{
+    position:relative;background:var(--panel);
+    border-left:1px solid var(--line);
+    overflow-y:auto;padding:20px 22px 28px 30px;
+  }
+  .rail::before{
+    content:"";position:absolute;top:0;left:0;width:14px;height:100%;
+    background:
+      repeating-linear-gradient(
+        to bottom,
+        transparent 0 7px,
+        var(--base) 7px 17px,
+        transparent 17px 24px
+      );
+    border-right:1px solid var(--line);
+  }
+
+  .group{margin-bottom:24px}
+  .group > label, .glabel{
+    display:block;font-family:var(--mono);font-size:10px;font-weight:600;
+    letter-spacing:.2em;text-transform:uppercase;color:var(--rebate);
+    margin-bottom:9px;
+  }
+
+  .seg{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line)}
+  .seg button{
+    background:var(--panel-hi);color:var(--rebate);border:0;cursor:pointer;
+    padding:11px 6px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;
+    transition:color .15s,background .15s;
+  }
+  .seg button:hover{color:var(--bone)}
+  .seg button[aria-pressed="true"]{background:var(--edge);color:#14130f;font-weight:600}
+
+  .field{margin-bottom:11px}
+  .field span{display:block;font-size:11px;color:var(--rebate);margin-bottom:4px}
+  input[type=text],input[type=number],select{
+    width:100%;background:#100f0c;color:var(--bone);
+    border:1px solid var(--line);border-radius:0;
+    padding:9px 10px;font-family:var(--mono);font-size:12px;
+  }
+  input:focus,select:focus,button:focus-visible{
+    outline:2px solid var(--edge);outline-offset:1px;
+  }
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+  .presets{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:9px}
+  .preset{
+    position:relative;background:var(--panel-hi);border:1px solid var(--line);
+    color:var(--bone);font-family:var(--mono);font-size:11px;
+    padding:6px 22px 6px 9px;cursor:pointer;transition:border-color .15s;
+  }
+  .preset:hover{border-color:var(--edge)}
+  .preset i{
+    position:absolute;right:6px;top:50%;transform:translateY(-50%);
+    font-style:normal;color:var(--rebate);font-size:12px;
+  }
+  .preset i:hover{color:#e05d4a}
+
+  .btn{
+    width:100%;padding:11px;border:1px solid var(--line);background:var(--panel-hi);
+    color:var(--bone);font-family:var(--mono);font-size:11px;letter-spacing:.12em;
+    text-transform:uppercase;cursor:pointer;transition:.15s;
+  }
+  .btn:hover{border-color:var(--edge);color:var(--edge)}
+  .btn.solid{background:var(--edge);color:#14130f;border-color:var(--edge);font-weight:700}
+  .btn.solid:hover{background:#f09849;color:#14130f}
+  .btn:disabled{opacity:.35;cursor:not-allowed}
+  .btn + .btn{margin-top:7px}
+
+  .note{font-size:11px;color:var(--rebate);margin-top:7px;line-height:1.45}
+  .note b{color:var(--edge);font-weight:600}
+  .warn{
+    border-left:2px solid var(--edge);padding:8px 10px;margin-top:10px;
+    background:rgba(232,135,58,.06);font-size:11px;color:#c9bfae;line-height:1.5;
+  }
+  hr{border:0;border-top:1px solid var(--line);margin:22px 0}
+
+  #toast{
+    position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);
+    background:var(--edge);color:#14130f;font-family:var(--mono);font-size:12px;
+    font-weight:600;padding:10px 18px;opacity:0;pointer-events:none;
+    transition:opacity .2s, transform .2s;letter-spacing:.04em;z-index:20;
+  }
+  #toast.on{opacity:1;transform:translate(-50%,0)}
+
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+  @media (max-width:900px){
+    body{overflow:auto}
+    .shell{grid-template-columns:1fr;height:auto}
+    .rail{border-left:0;border-top:1px solid var(--line);padding-left:22px}
+    .rail::before{display:none}
+    .viewport{min-height:52vh}
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ================= LIGHT TABLE ================= -->
+  <main class="table">
+    <div class="masthead">
+      <span class="wordmark">Frame</span>
+      <span class="subtitle">필름 스캔에 프레임과 촬영 정보를 얹습니다</span>
+    </div>
+
+    <div class="viewport" id="viewport">
+      <div class="dropzone" id="drop">
+        <h2>사진을 여기에 놓으세요</h2>
+        <p>클릭해서 고를 수도 있습니다 · JPG, PNG · 여러 장 한 번에</p>
+      </div>
+      <canvas id="preview" hidden></canvas>
+
+      <div class="zoombar" id="zoombar" hidden>
+        <button id="zOut" title="축소 (−)">−</button>
+        <div class="pct" id="zPct" title="클릭하면 화면 맞춤">100%</div>
+        <button id="zIn" title="확대 (+)">＋</button>
+        <button id="zFit" title="화면에 맞추기 (0)">맞춤</button>
+        <button id="z100" title="원본 크기 (1)">1:1</button>
+      </div>
+    </div>
+
+    <div class="strip" id="strip"></div>
+  </main>
+
+  <!-- ================= REBATE RAIL ================= -->
+  <aside class="rail">
+
+    <div class="group">
+      <span class="glabel">프레임 스타일</span>
+      <div class="seg" id="styleSeg">
+        <button data-style="film"   aria-pressed="true">필름 스트립</button>
+        <button data-style="instax" aria-pressed="false">인스탁스</button>
+        <button data-style="bottom" aria-pressed="false">하단 여백</button>
+        <button data-style="top"    aria-pressed="false">상단 여백</button>
+      </div>
+      <div class="field" id="toneField" style="margin-top:9px;display:none">
+        <span>여백 색</span>
+        <select id="tone">
+          <option value="light">밝게 (아이보리)</option>
+          <option value="dark">어둡게 (필름 베이스)</option>
+        </select>
+      </div>
+    </div>
+
+    <hr>
+
+    <div class="group">
+      <span class="glabel">프리셋</span>
+      <div class="presets" id="presetList"></div>
+      <button class="btn" id="savePreset">현재 설정 저장</button>
+    </div>
+
+    <hr>
+
+    <div class="group">
+      <span class="glabel">촬영 정보</span>
+      <div class="field">
+        <span>바디</span>
+        <input type="text" id="body" list="bodies" placeholder="Nikon F5">
+        <datalist id="bodies"></datalist>
+      </div>
+      <div class="field">
+        <span>렌즈</span>
+        <input type="text" id="lens" list="lenses" placeholder="50mm f/1.8G">
+        <datalist id="lenses"></datalist>
+      </div>
+      <div class="field">
+        <span>필름</span>
+        <input type="text" id="film" list="films" placeholder="Portra 400">
+        <datalist id="films"></datalist>
+      </div>
+      <div class="row">
+        <div class="field">
+          <span>롤 번호</span>
+          <input type="number" id="roll" min="0" placeholder="14">
+        </div>
+        <div class="field">
+          <span>시작 프레임</span>
+          <input type="number" id="frame" min="0" value="1">
+        </div>
+      </div>
+      <p class="note">여러 장을 불러오면 순서대로 프레임 번호가 <b>자동 증가</b>합니다. 아래 필름 스트립에서 드래그로 순서를 바꾸면 번호도 따라갑니다.</p>
+    </div>
+
+    <hr>
+
+    <div class="group">
+      <span class="glabel">내보내기</span>
+      <div class="field">
+        <span>긴 변 크기</span>
+        <select id="size">
+          <option value="2048">2048 px — 인스타 권장</option>
+          <option value="1440">1440 px</option>
+          <option value="0">원본 그대로</option>
+        </select>
+      </div>
+      <button class="btn" id="pickDir">저장 폴더 선택</button>
+      <p class="note" id="dirNote">폴더를 고르지 않으면 다운로드 폴더로 내려갑니다.</p>
+      <button class="btn solid" id="exportAll" disabled style="margin-top:12px">전체 내보내기</button>
+      <button class="btn" id="exportOne" disabled>현재 장만 내보내기</button>
+      <div class="warn" id="fsWarn" hidden>
+        이 브라우저(또는 iframe 미리보기)에서는 폴더 지정이 막혀 있습니다.
+        파일을 내려받아 <b>Chrome에서 직접 열면</b> 폴더 저장이 켜집니다.
+      </div>
+    </div>
+
+  </aside>
+</div>
+
+<input type="file" id="picker" accept="image/*" multiple hidden>
+<div id="toast"></div>
+
+<script>
+/* ============================================================
+   상수
+   ============================================================ */
+const MONO = '"SF Mono", Menlo, "Roboto Mono", "Courier New", monospace';
+const SANS = '"Helvetica Neue", Helvetica, Arial, sans-serif';
+
+const C = {
+  base:   '#0d0c0a',
+  edge:   '#e8873a',
+  rebate: '#8a8378',
+  paper:  '#f6f3ec',
+  ink:    '#2a2723',
+  bandDark:'#14130f',
+  bandDarkText:'#cfc9bd',
+};
+
+const SEED = {
+  bodies: ['Nikon F5'],
+  lenses: ['AF-S 50mm f/1.8G', 'AF-D 24-85mm f/2.8-4'],
+  films:  ['Portra 400','Fuji Superia 400','Cinestill 800T','Kodak Gold 200','Ultramax 400'],
+  presets: [
+    { name:'F5 · 50mm · Portra',  body:'Nikon F5', lens:'50mm f/1.8G',      film:'Portra 400',       style:'film' },
+    { name:'F5 · 24-85 · Superia',body:'Nikon F5', lens:'24-85mm f/2.8-4D', film:'Fuji Superia 400', style:'film' },
+    { name:'F5 · 50mm · 800T',    body:'Nikon F5', lens:'50mm f/1.8G',      film:'Cinestill 800T',   style:'bottom' },
+  ]
+};
+
+/* ============================================================
+   저장소 (iframe에서 localStorage가 막혀도 죽지 않게)
+   ============================================================ */
+const store = {
+  read(key, fallback){
+    try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+    catch { return this._mem[key] ?? fallback; }
+  },
+  write(key, val){
+    try { localStorage.setItem(key, JSON.stringify(val)); }
+    catch { this._mem[key] = val; }
+  },
+  _mem:{}
+};
+
+/* ============================================================
+   상태
+   ============================================================ */
+const state = {
+  shots: [],          // { img, url, name }
+  current: -1,
+  style: 'film',
+  tone: 'light',
+  dirHandle: null,
+};
+let presets = store.read('frame.presets', SEED.presets);
+
+const $ = id => document.getElementById(id);
+
+/* ============================================================
+   그리기
+   ============================================================ */
+function trackedText(ctx, text, x, y, track){
+  if (!track) { ctx.fillText(text, x, y); return; }
+  if ('letterSpacing' in ctx) { ctx.letterSpacing = track + 'px'; ctx.fillText(text, x, y); ctx.letterSpacing = '0px'; return; }
+  let cx = x;
+  for (const ch of text){ ctx.fillText(ch, cx, y); cx += ctx.measureText(ch).width + track; }
+}
+
+function meta(o){
+  return [o.body, o.lens].filter(Boolean).join('  ·  ');
+}
+function frameLabel(o){
+  if (o.frame == null || o.frame === '') return '';
+  return String(o.frame).padStart(2,'0') + 'A';
+}
+
+function render(img, o){
+  const cv = document.createElement('canvas');
+  const ctx = cv.getContext('2d');
+  const W = img.naturalWidth, H = img.naturalHeight;
+
+  if (o.style === 'film') {
+    const bar = W * 0.088;
+    const botBar = bar * 1.75;
+    cv.width = W; cv.height = H + bar + botBar;
+    ctx.fillStyle = C.base; ctx.fillRect(0,0,cv.width,cv.height);
+    ctx.drawImage(img, 0, bar);
+
+    // 퍼포레이션
+    const hw = bar*0.50, hh = bar*0.36, r = hh*0.24;
+    const n = Math.max(6, Math.round(W / (hw*2.15)));
+    const step = W / n;
+    const holes = (cy) => {
+      for (let i=0;i<n;i++){
+        const cx = step*(i+0.5);
+        ctx.beginPath();
+        ctx.roundRect(cx-hw/2, cy-hh/2, hw, hh, r);
+        ctx.fill();
+      }
+    };
+    ctx.fillStyle = '#050503';
+    holes(bar*0.50);
+    holes(H + bar + botBar*0.40);
+
+    // 엣지 프린트
+    const baseY = H + bar + botBar*0.82;
+    ctx.textBaseline = 'alphabetic';
+    const fno = frameLabel(o);
+    if (fno){
+      ctx.font = `600 ${bar*0.44}px ${MONO}`;
+      ctx.fillStyle = C.edge; ctx.textAlign = 'left';
+      trackedText(ctx, fno, W*0.022, baseY, bar*0.04);
+    }
+    const m = [meta(o), o.film].filter(Boolean).join('   ·   ').toUpperCase();
+    if (m){
+      ctx.font = `500 ${bar*0.33}px ${MONO}`;
+      ctx.fillStyle = C.rebate; ctx.textAlign = 'right';
+      trackedText(ctx, m, W - W*0.022, baseY, bar*0.05);
+    }
+  }
+
+  else if (o.style === 'instax') {
+    const side = W*0.055, top = W*0.055, bot = W*0.27;
+    cv.width = W + side*2; cv.height = H + top + bot;
+    ctx.fillStyle = C.paper; ctx.fillRect(0,0,cv.width,cv.height);
+    ctx.drawImage(img, side, top);
+    ctx.strokeStyle = 'rgba(0,0,0,.13)'; ctx.lineWidth = Math.max(1, W*0.0012);
+    ctx.strokeRect(side, top, W, H);
+
+    const cx = cv.width/2, cy = H + top + bot*0.50;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const m = meta(o);
+    if (m){
+      ctx.font = `500 ${bot*0.145}px ${SANS}`;
+      ctx.fillStyle = C.ink;
+      ctx.fillText(m, cx, cy - bot*0.11);
+    }
+    if (o.film){
+      ctx.font = `600 ${bot*0.105}px ${MONO}`;
+      ctx.fillStyle = '#9a9288';
+      ctx.fillText(o.film.toUpperCase(), cx, cy + bot*0.14);
+    }
+    const fno = frameLabel(o);
+    if (fno){
+      ctx.textAlign='right'; ctx.font = `600 ${bot*0.10}px ${MONO}`;
+      ctx.fillStyle = '#c2bab0';
+      ctx.fillText(fno, cv.width - side, H + top + bot*0.86);
+    }
+  }
+
+  else { // bottom / top
+    const band = W * 0.078;
+    cv.width = W; cv.height = H + band;
+    const dark = o.tone === 'dark';
+    ctx.fillStyle = dark ? C.bandDark : '#f2efe8';
+    ctx.fillRect(0,0,cv.width,cv.height);
+    ctx.drawImage(img, 0, o.style === 'top' ? band : 0);
+
+    const bandY = o.style === 'top' ? band/2 : H + band/2;
+    ctx.textBaseline = 'middle';
+    const m = [meta(o), o.film].filter(Boolean).join('   ·   ').toUpperCase();
+    if (m){
+      ctx.textAlign = 'left';
+      ctx.font = `500 ${band*0.30}px ${MONO}`;
+      ctx.fillStyle = dark ? C.bandDarkText : '#4a453d';
+      trackedText(ctx, m, W*0.018, bandY, band*0.045);
+    }
+    const fno = frameLabel(o);
+    if (fno){
+      ctx.textAlign = 'right';
+      ctx.font = `600 ${band*0.32}px ${MONO}`;
+      ctx.fillStyle = C.edge;
+      ctx.fillText(fno, W - W*0.018, bandY);
+    }
+  }
+  return cv;
+}
+
+function downscale(cv, longEdge){
+  if (!longEdge) return cv;
+  const long = Math.max(cv.width, cv.height);
+  if (long <= longEdge) return cv;
+  const s = longEdge / long;
+  const out = document.createElement('canvas');
+  out.width = Math.round(cv.width*s); out.height = Math.round(cv.height*s);
+  const c = out.getContext('2d');
+  c.imageSmoothingQuality = 'high';
+  c.drawImage(cv, 0, 0, out.width, out.height);
+  return out;
+}
+
+/* ============================================================
+   설정 읽기
+   ============================================================ */
+function opts(indexOffset = 0){
+  const startFrame = $('frame').value === '' ? null : Number($('frame').value);
+  return {
+    style: state.style,
+    tone:  state.tone,
+    body:  $('body').value.trim(),
+    lens:  $('lens').value.trim(),
+    film:  $('film').value.trim(),
+    roll:  $('roll').value.trim(),
+    frame: startFrame == null ? null : startFrame + indexOffset,
+  };
+}
+
+function filename(o, shot){
+  const slug = s => (s||'').toLowerCase().replace(/[^a-z0-9]+/g,'').slice(0,14);
+  const parts = [];
+  if (o.roll) parts.push('R' + String(o.roll).padStart(2,'0'));
+  if (o.frame != null) parts.push(String(o.frame).padStart(2,'0'));
+  if (o.film) parts.push(slug(o.film));
+  const stem = parts.length ? parts.join('-') : shot.name.replace(/\.[^.]+$/,'') + '_framed';
+  return stem + '.png';
+}
+
+/* ============================================================
+   줌 / 팬 뷰포트
+   ============================================================ */
+const vp = $('viewport'), pv = $('preview');
+const zoom = { scale:1, fit:1, x:0, y:0, mode:'fit' };  // mode: 'fit' | 'free'
+
+function vpSize(){ return { w: vp.clientWidth, h: vp.clientHeight }; }
+
+function fitScale(){
+  const { w, h } = vpSize();
+  if (!pv.width || !pv.height) return 1;
+  return Math.min((w - 48) / pv.width, (h - 72) / pv.height, 1);
+}
+
+function applyZoom(){
+  pv.style.transform = `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.scale})`;
+  $('zPct').textContent = Math.round(zoom.scale * 100) + '%';
+  vp.classList.toggle('grabbable', zoom.scale > zoom.fit + 0.001);
+}
+
+function centerAt(scale){
+  const { w, h } = vpSize();
+  zoom.scale = scale;
+  zoom.x = (w - pv.width * scale) / 2;
+  zoom.y = (h - pv.height * scale) / 2;
+  applyZoom();
+}
+
+function zoomFit(){
+  zoom.fit = fitScale();
+  zoom.mode = 'fit';
+  centerAt(zoom.fit);
+}
+
+function zoomTo(scale, px, py){
+  // px,py = 뷰포트 기준 고정점 (기본: 중앙)
+  const { w, h } = vpSize();
+  px = px ?? w/2; py = py ?? h/2;
+  const clamped = Math.min(4, Math.max(0.03, scale));
+  // 고정점이 가리키는 캔버스 좌표 유지
+  const cx = (px - zoom.x) / zoom.scale;
+  const cy = (py - zoom.y) / zoom.scale;
+  zoom.scale = clamped;
+  zoom.x = px - cx * clamped;
+  zoom.y = py - cy * clamped;
+  zoom.mode = 'free';
+  applyZoom();
+}
+
+$('zIn').onclick  = () => zoomTo(zoom.scale * 1.25);
+$('zOut').onclick = () => zoomTo(zoom.scale / 1.25);
+$('zFit').onclick = zoomFit;
+$('zPct').onclick = zoomFit;
+$('z100').onclick = () => zoomTo(1);
+
+vp.addEventListener('wheel', e => {
+  if (pv.hidden) return;
+  e.preventDefault();
+  const r = vp.getBoundingClientRect();
+  const factor = e.deltaY < 0 ? 1.12 : 1/1.12;
+  zoomTo(zoom.scale * factor, e.clientX - r.left, e.clientY - r.top);
+}, { passive:false });
+
+// 드래그 팬
+let panning = null;
+vp.addEventListener('pointerdown', e => {
+  if (pv.hidden || e.target.closest('.zoombar') || e.target.closest('.dropzone')) return;
+  panning = { x: e.clientX, y: e.clientY, ox: zoom.x, oy: zoom.y };
+  vp.classList.add('grabbing');
+  vp.setPointerCapture(e.pointerId);
+});
+vp.addEventListener('pointermove', e => {
+  if (!panning) return;
+  zoom.x = panning.ox + (e.clientX - panning.x);
+  zoom.y = panning.oy + (e.clientY - panning.y);
+  zoom.mode = 'free';
+  applyZoom();
+});
+['pointerup','pointercancel'].forEach(t => vp.addEventListener(t, () => {
+  panning = null; vp.classList.remove('grabbing');
+}));
+
+// 키보드
+window.addEventListener('keydown', e => {
+  if (pv.hidden) return;
+  if (e.target.matches('input,select,textarea')) return;
+  if (e.key === '+' || e.key === '=') zoomTo(zoom.scale * 1.25);
+  else if (e.key === '-') zoomTo(zoom.scale / 1.25);
+  else if (e.key === '0') zoomFit();
+  else if (e.key === '1') zoomTo(1);
+});
+
+new ResizeObserver(() => { if (!pv.hidden && zoom.mode === 'fit') zoomFit(); }).observe(vp);
+
+/* ============================================================
+   미리보기
+   ============================================================ */
+let raf = 0;
+function refresh(keepZoom = false){
+  cancelAnimationFrame(raf);
+  raf = requestAnimationFrame(() => {
+    const has = state.current >= 0;
+    $('drop').hidden = has;
+    pv.hidden = !has;
+    $('zoombar').hidden = !has;
+    $('exportAll').disabled = !state.shots.length;
+    $('exportOne').disabled = !has;
+    $('toneField').style.display = (state.style==='bottom'||state.style==='top') ? '' : 'none';
+    if (!has) return;
+    const shot = state.shots[state.current];
+    const cv = render(shot.img, opts(state.current));
+    pv.width = cv.width; pv.height = cv.height;
+    pv.getContext('2d').drawImage(cv, 0, 0);
+    if (keepZoom && zoom.mode === 'free') applyZoom();
+    else zoomFit();
+  });
+}
+
+/* ============================================================
+   필름 스트립: 선택 / 삭제 / 드래그 정렬
+   ============================================================ */
+function drawStrip(){
+  const el = $('strip'); el.innerHTML = '';
+  state.shots.forEach((s, i) => {
+    const d = document.createElement('div');
+    d.className = 'chip' + (i===state.current ? ' on' : '');
+    d.draggable = true;
+    d.dataset.i = i;
+    const f = opts(i).frame;
+    d.innerHTML = `<img src="${s.url}" alt=""><b>${f==null?'':String(f).padStart(2,'0')}</b><span class="x" title="삭제">×</span>`;
+
+    d.onclick = e => {
+      if (e.target.classList.contains('x')){
+        URL.revokeObjectURL(s.url);
+        state.shots.splice(i,1);
+        if (state.current >= state.shots.length) state.current = state.shots.length - 1;
+        drawStrip(); refresh(); return;
+      }
+      state.current = i; drawStrip(); refresh(true);
+    };
+
+    // --- drag reorder ---
+    d.addEventListener('dragstart', e => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(i));
+      requestAnimationFrame(() => d.classList.add('dragging'));
+    });
+    d.addEventListener('dragend', () => {
+      d.classList.remove('dragging');
+      [...el.children].forEach(c => c.classList.remove('dropTarget','after'));
+    });
+    d.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const r = d.getBoundingClientRect();
+      const after = e.clientX > r.left + r.width/2;
+      [...el.children].forEach(c => c.classList.remove('dropTarget','after'));
+      d.classList.add('dropTarget');
+      if (after) d.classList.add('after');
+    });
+    d.addEventListener('drop', e => {
+      e.preventDefault();
+      const from = Number(e.dataTransfer.getData('text/plain'));
+      const r = d.getBoundingClientRect();
+      const after = e.clientX > r.left + r.width/2;
+      let to = i + (after ? 1 : 0);
+      if (from < to) to--;                      // 뽑힌 자리 보정
+      if (from === to) { drawStrip(); return; }
+      const wasCurrent = state.shots[state.current];
+      const [moved] = state.shots.splice(from, 1);
+      state.shots.splice(to, 0, moved);
+      state.current = state.shots.indexOf(wasCurrent);
+      drawStrip(); refresh(true);
+    });
+
+    el.appendChild(d);
+  });
+}
+
+/* ============================================================
+   파일 입력
+   ============================================================ */
+async function addFiles(files){
+  const imgs = [...files].filter(f => f.type.startsWith('image/'));
+  for (const f of imgs){
+    const url = URL.createObjectURL(f);
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+    state.shots.push({ img, url, name: f.name });
+  }
+  if (state.current < 0 && state.shots.length) state.current = 0;
+  drawStrip(); refresh();
+}
+
+const drop = $('drop');
+drop.onclick = () => $('picker').click();
+$('picker').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
+['dragenter','dragover'].forEach(t => vp.addEventListener(t, e => {
+  if (e.dataTransfer?.types.includes('Files')) { e.preventDefault(); drop.classList.add('hot'); }
+}));
+['dragleave','drop'].forEach(t => vp.addEventListener(t, e => {
+  if (e.dataTransfer?.types.includes('Files')) { e.preventDefault(); drop.classList.remove('hot'); }
+}));
+vp.addEventListener('drop', e => {
+  if (e.dataTransfer?.files.length) addFiles(e.dataTransfer.files);
+});
+
+/* ============================================================
+   스타일 / 입력 바인딩
+   ============================================================ */
+$('styleSeg').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  [...$('styleSeg').children].forEach(x => x.setAttribute('aria-pressed', x===b));
+  state.style = b.dataset.style;
+  refresh();   // 스타일이 바뀌면 캔버스 비율이 바뀌므로 화면 맞춤으로 리셋
+};
+$('tone').onchange = e => { state.tone = e.target.value; refresh(true); };
+['body','lens','film','roll','frame'].forEach(id => {
+  $(id).addEventListener('input', () => { drawStrip(); refresh(true); });
+});
+
+/* ============================================================
+   프리셋
+   ============================================================ */
+function fillDatalists(){
+  const uniq = (seedKey, presetKey) =>
+    [...new Set([...SEED[seedKey], ...presets.map(p => p[presetKey])])].filter(Boolean);
+  const put = (id, arr) => $(id).innerHTML = arr.map(v => `<option value="${v}">`).join('');
+  put('bodies', uniq('bodies','body'));
+  put('lenses', uniq('lenses','lens'));
+  put('films',  uniq('films','film'));
+}
+
+function drawPresets(){
+  const el = $('presetList'); el.innerHTML = '';
+  if (!presets.length){
+    el.innerHTML = `<p class="note" style="margin:0">저장된 프리셋이 없습니다. 아래 정보를 채우고 저장하세요.</p>`;
+    return;
+  }
+  presets.forEach((p, i) => {
+    const b = document.createElement('button');
+    b.className = 'preset';
+    b.innerHTML = `${p.name}<i title="삭제">×</i>`;
+    b.onclick = e => {
+      if (e.target.tagName === 'I'){
+        presets.splice(i,1); store.write('frame.presets', presets); drawPresets(); return;
+      }
+      $('body').value = p.body; $('lens').value = p.lens; $('film').value = p.film;
+      if (p.style){
+        state.style = p.style;
+        [...$('styleSeg').children].forEach(x => x.setAttribute('aria-pressed', x.dataset.style===p.style));
+      }
+      drawStrip(); refresh(); toast('프리셋 적용됨');
+    };
+    el.appendChild(b);
+  });
+}
+
+$('savePreset').onclick = () => {
+  const o = opts();
+  if (!o.body && !o.lens && !o.film) return toast('저장할 정보가 없습니다');
+  const name = prompt('프리셋 이름', [o.body, o.lens, o.film].filter(Boolean).join(' · '));
+  if (!name) return;
+  presets.push({ name, body:o.body, lens:o.lens, film:o.film, style:o.style });
+  store.write('frame.presets', presets);
+  drawPresets(); fillDatalists(); toast('프리셋 저장됨');
+};
+
+/* ============================================================
+   저장
+   ============================================================ */
+const canPickDir = typeof window.showDirectoryPicker === 'function';
+if (!canPickDir){ $('pickDir').disabled = true; $('fsWarn').hidden = false; }
+
+$('pickDir').onclick = async () => {
+  try {
+    state.dirHandle = await window.showDirectoryPicker({ mode:'readwrite' });
+    $('dirNote').innerHTML = `저장 위치 <b>${state.dirHandle.name}/</b>`;
+    toast('폴더 연결됨');
+  } catch { /* 사용자가 취소 */ }
+};
+
+function toBlob(cv){ return new Promise(r => cv.toBlob(r, 'image/png')); }
+
+async function save(blob, name){
+  if (state.dirHandle){
+    const fh = await state.dirHandle.getFileHandle(name, { create:true });
+    const w = await fh.createWritable();
+    await w.write(blob); await w.close();
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+async function exportShots(list){
+  const long = Number($('size').value);
+  for (const { shot, i } of list){
+    const cv = downscale(render(shot.img, opts(i)), long);
+    await save(await toBlob(cv), filename(opts(i), shot));
+    if (!state.dirHandle) await new Promise(r => setTimeout(r, 350)); // 다운로드 연타 방지
+  }
+  toast(`${list.length}장 저장됨`);
+}
+
+$('exportOne').onclick = () => exportShots([{ shot: state.shots[state.current], i: state.current }]);
+$('exportAll').onclick = () => exportShots(state.shots.map((shot,i) => ({ shot, i })));
+
+/* ============================================================
+   토스트
+   ============================================================ */
+let tt;
+function toast(msg){
+  const t = $('toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), 1800);
+}
+
+/* ============================================================
+   초기화
+   ============================================================ */
+$('body').value = 'Nikon F5';
+$('lens').value = '50mm f/1.8G';
+$('film').value = 'Portra 400';
+fillDatalists();
+drawPresets();
+refresh();
+</script>
+</body>
+</html>
