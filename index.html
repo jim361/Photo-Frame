@@ -195,16 +195,18 @@
   .eye:hover{color:var(--bone)}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 
-  /* 고급 설정 — 우상단 톱니바퀴 + 팝오버 */
+  /* 고급 설정 — 마스트헤드 우측 톱니바퀴(테두리 없음) + 팝오버 */
   .gearbtn{
-    position:fixed;top:10px;right:12px;z-index:30;
-    width:34px;height:34px;display:grid;place-items:center;
-    background:var(--panel-hi);border:1px solid var(--line);color:var(--rebate);
-    cursor:pointer;transition:color .15s,border-color .15s,transform .25s;
+    margin-left:auto;align-self:center;
+    width:30px;height:30px;display:grid;place-items:center;
+    background:none;border:0;padding:0;color:var(--rebate);
+    cursor:pointer;transition:color .15s,transform .25s;
   }
-  .gearbtn:hover{color:var(--edge);border-color:var(--edge);transform:rotate(30deg)}
+  .gearbtn:hover{color:var(--edge);transform:rotate(30deg)}
   .advpanel{
-    position:fixed;top:50px;right:12px;z-index:30;width:264px;
+    position:fixed;z-index:30;
+    width:min(272px, calc(100vw - 20px));
+    max-height:calc(100vh - 70px);overflow-y:auto;
     background:var(--panel);border:1px solid var(--line);
     box-shadow:0 18px 50px rgba(0,0,0,.55);
     padding:14px 14px 16px;
@@ -289,6 +291,9 @@
     <div class="masthead">
       <span class="wordmark">PhotoFrame</span>
       <span class="subtitle">사진에 프레임과 촬영 정보를 얹습니다</span>
+      <button type="button" class="gearbtn" id="gearBtn" title="고급 설정">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
     </div>
 
     <div class="viewport" id="viewport">
@@ -440,9 +445,6 @@
 
 <input type="file" id="picker" accept="image/*" multiple hidden>
 
-<button type="button" class="gearbtn" id="gearBtn" title="고급 설정">
-  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-</button>
 <div class="advpanel" id="advPanel" hidden>
   <h3>고급 설정</h3>
   <div class="field">
@@ -1361,8 +1363,16 @@ $('tone').onchange = e => { state.tone = e.target.value; saveSettings(); refresh
   $(id).addEventListener('input', () => { saveSettings(); refresh(true); });
 });
 
-/* 고급 설정 팝오버 — 톱니바퀴 토글, 바깥 클릭으로 닫힘 */
-$('gearBtn').onclick = () => { $('advPanel').hidden = !$('advPanel').hidden; };
+/* 고급 설정 팝오버 — 톱니바퀴 토글, 버튼 위치 기준으로 열림, 바깥 클릭으로 닫힘 */
+$('gearBtn').onclick = () => {
+  const p = $('advPanel');
+  p.hidden = !p.hidden;
+  if (!p.hidden){
+    const r = $('gearBtn').getBoundingClientRect();
+    p.style.top = Math.round(r.bottom + 8) + 'px';
+    p.style.right = Math.max(10, Math.round(window.innerWidth - r.right - 4)) + 'px';
+  }
+};
 document.addEventListener('click', e => {
   if (!$('advPanel').hidden && !e.target.closest('#advPanel') && !e.target.closest('#gearBtn'))
     $('advPanel').hidden = true;
