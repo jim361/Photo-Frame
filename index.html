@@ -187,6 +187,14 @@
     outline:2px solid var(--edge);outline-offset:1px;
   }
   input.dim,textarea.dim{opacity:.45}
+  .lbl{display:flex;align-items:center;gap:6px;font-weight:400}
+  .exifbadge{
+    font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:.08em;
+    font-style:normal;color:#14130f;background:var(--edge);
+    padding:1px 5px;border-radius:2px;cursor:pointer;
+  }
+  .exifbadge:hover{background:#f09849}
+  .exifbadge[hidden]{display:none}
   .eye{
     background:none;border:0;cursor:pointer;padding:0 2px;line-height:0;
     color:var(--edge);transition:color .15s;
@@ -351,13 +359,13 @@
       <span class="glabel">촬영 정보</span>
       <div class="row">
         <div class="field">
-          <span>카메라 <button type="button" class="eye" data-for="showBody" title="결과물에 표시/숨김"></button></span>
+          <span><b class="lbl">카메라 <i class="exifbadge" data-k="body" title="이 사진의 EXIF 원본으로 되돌리기" hidden>EXIF</i></b><button type="button" class="eye" data-for="showBody" title="결과물에 표시/숨김"></button></span>
           <input type="text" id="body" list="bodies" placeholder="Nikon F5">
           <datalist id="bodies"></datalist>
           <input type="checkbox" id="showBody" checked hidden>
         </div>
         <div class="field">
-          <span>렌즈 <button type="button" class="eye" data-for="showLens" title="결과물에 표시/숨김"></button></span>
+          <span><b class="lbl">렌즈 <i class="exifbadge" data-k="lens" title="이 사진의 EXIF 원본으로 되돌리기" hidden>EXIF</i></b><button type="button" class="eye" data-for="showLens" title="결과물에 표시/숨김"></button></span>
           <input type="text" id="lens" list="lenses" placeholder="50mm f/1.8G">
           <datalist id="lenses"></datalist>
           <input type="checkbox" id="showLens" checked hidden>
@@ -371,7 +379,7 @@
           <input type="checkbox" id="showFilm" checked hidden>
         </div>
         <div class="field">
-          <span>날짜 <button type="button" class="eye" data-for="showDate" title="결과물에 표시/숨김"></button></span>
+          <span><b class="lbl">날짜 <i class="exifbadge" data-k="date" title="이 사진의 EXIF 원본으로 되돌리기" hidden>EXIF</i></b><button type="button" class="eye" data-for="showDate" title="결과물에 표시/숨김"></button></span>
           <input type="text" id="date" placeholder="2026.07">
           <input type="checkbox" id="showDate" checked hidden>
         </div>
@@ -604,6 +612,34 @@ function metaLines(o){
 
 function dateText(o){
   return (o.show.date && o.date) ? o.date : '';
+}
+
+/* 카메라/렌즈/날짜의 전역값 — 입력 필드는 선택된 사진에 따라 전역 또는
+   장별(EXIF) 값을 보여주는 뷰이므로, 전역값은 별도로 보관한다 */
+const gInfo = { body: '', lens: '', date: '' };
+
+function pick(...vals){ return vals.find(v => v != null && v !== '') ?? ''; }
+
+function withShot(o, shot){
+  // EXIF가 있는 사진은 자기 정보(사용자 수정분 own > EXIF)로 렌더.
+  // 전역값으로 폴백하지 않는다 — 필름용 전역 입력이 디지털 사진에 섞이지 않게
+  if (!shot || !shot.exif) return o;
+  const own = shot.own || {};
+  return { ...o,
+    body: pick(own.body, shot.exif.body),
+    lens: pick(own.lens, shot.exif.lens),
+    date: pick(own.date, shot.exif.date),
+  };
+}
+
+function syncFields(){
+  const s = state.shots[state.current];
+  const hasExif = !!(s && s.exif);
+  const own = hasExif ? (s.own || {}) : {};
+  $('body').value = hasExif ? pick(own.body, s.exif.body) : gInfo.body;
+  $('lens').value = hasExif ? pick(own.lens, s.exif.lens) : gInfo.lens;
+  $('date').value = hasExif ? pick(own.date, s.exif.date) : gInfo.date;
+  document.querySelectorAll('.exifbadge').forEach(b => b.hidden = !hasExif);
 }
 
 function captionLines(o){
@@ -966,10 +1002,10 @@ function opts(){
   return {
     style: state.style,
     tone:  state.tone,
-    body:  $('body').value.trim(),
-    lens:  $('lens').value.trim(),
+    body:  gInfo.body.trim(),
+    lens:  gInfo.lens.trim(),
     film:  $('film').value.trim(),
-    date:  $('date').value.trim(),
+    date:  gInfo.date.trim(),
     caption: $('caption').value.replace(/\s+$/,''),
     show:  { body: $('showBody').checked, lens: $('showLens').checked,
              film: $('showFilm').checked, date: $('showDate').checked,
@@ -1106,7 +1142,7 @@ function refresh(keepZoom = false){
     const shot = state.shots[state.current];
     const info = {};
     const o = opts();
-    const cv = padToRatio(render(shot.img, o, info), o);
+    const cv = padToRatio(render(shot.img, withShot(o, shot), info), o);
     if (info.shrunk && !shot.shrinkWarned){
       shot.shrinkWarned = true;
       toast(`원본이 커서 브라우저 한계에 맞춰 ${info.shrunk}% 크기로 합성됩니다`);
@@ -1136,9 +1172,9 @@ function drawStrip(){
         s.img.close?.();
         state.shots.splice(i,1);
         if (state.current >= state.shots.length) state.current = state.shots.length - 1;
-        drawStrip(); refresh(); return;
+        drawStrip(); syncFields(); refresh(); return;
       }
-      state.current = i; drawStrip(); refresh(true);
+      state.current = i; drawStrip(); syncFields(); refresh(true);
     };
 
     // --- drag reorder ---
@@ -1255,28 +1291,23 @@ async function loadImage(file){
 
 async function addFiles(files){
   const imgs = [...files].filter(f => f.type.startsWith('image/'));
-  let failed = 0, exifApplied = false;
+  let failed = 0, exifCount = 0;
   for (const f of imgs){
     try {
       const img = await loadImage(f);
-      state.shots.push({ img, url: URL.createObjectURL(f), name: f.name });
-      if (!exifApplied){
-        const x = await readExif(f);
-        // 렌즈 정보까지 있어야 실제 카메라 EXIF로 신뢰 — 필름 스캐너가 남긴
-        // 기기명(Noritsu 등)으로 장비 입력을 덮어쓰는 것을 방지
-        if (x && x.lens){
-          $('body').value = x.camera;
-          $('lens').value = x.lens;
-          if (x.date) $('date').value = x.date;
-          exifApplied = true;
-        }
-      }
+      const shot = { img, url: URL.createObjectURL(f), name: f.name };
+      const x = await readExif(f);
+      // 렌즈 정보까지 있어야 실제 카메라 EXIF로 신뢰 — 필름 스캐너가 남긴
+      // 기기명(Noritsu 등)을 걸러낸다. EXIF는 전역 입력을 건드리지 않고
+      // 이 사진에만 붙는다 (필름/디지털 혼합 작업 시 서로 오염 방지)
+      if (x && x.lens){ shot.exif = { body: x.camera, lens: x.lens, date: x.date }; exifCount++; }
+      state.shots.push(shot);
     } catch { failed++; }
   }
-  if (exifApplied){ saveSettings(); toast('EXIF에서 카메라·렌즈·날짜를 불러왔습니다'); }
+  if (exifCount) toast(`${exifCount}장은 EXIF 촬영 정보를 사용합니다`);
   if (failed) toast(`${failed}장을 읽지 못했습니다`);
   if (state.current < 0 && state.shots.length) state.current = 0;
-  drawStrip(); refresh();
+  drawStrip(); syncFields(); refresh();
 }
 
 const drop = $('drop');
@@ -1304,8 +1335,8 @@ function setStyle(style){
    (시작 프레임은 롤마다 달라 저장하지 않는다) */
 function saveSettings(){
   store.write('frame.settings', {
-    body: $('body').value, lens: $('lens').value, film: $('film').value,
-    date: $('date').value, caption: $('caption').value,
+    body: gInfo.body, lens: gInfo.lens, film: $('film').value,
+    date: gInfo.date, caption: $('caption').value,
     show: { body: $('showBody').checked, lens: $('showLens').checked,
             film: $('showFilm').checked, date: $('showDate').checked,
             caption: $('showCaption').checked },
@@ -1324,13 +1355,13 @@ function saveSettings(){
 function loadSettings(){
   const s = store.read('frame.settings', null);
   if (!s){
-    $('body').value = 'Nikon F5';
-    $('lens').value = '50mm f/1.8G';
+    gInfo.body = 'Nikon F5';
+    gInfo.lens = '50mm f/1.8G';
     $('film').value = 'Portra 400';
     return;
   }
-  $('body').value = s.body ?? ''; $('lens').value = s.lens ?? ''; $('film').value = s.film ?? '';
-  $('date').value = s.date ?? '';
+  gInfo.body = s.body ?? ''; gInfo.lens = s.lens ?? ''; $('film').value = s.film ?? '';
+  gInfo.date = s.date ?? '';
   $('caption').value = s.caption ?? '';
   if (s.show){
     $('showBody').checked = !!s.show.body;
@@ -1364,8 +1395,25 @@ $('styleSeg').onclick = e => {
   refresh();   // 스타일이 바뀌면 캔버스 비율이 바뀌므로 화면 맞춤으로 리셋
 };
 $('tone').onchange = e => { state.tone = e.target.value; saveSettings(); refresh(true); };
-['body','lens','film','date','caption','fontScale','bandScale','borderScale'].forEach(id => {
+/* 카메라/렌즈/날짜: EXIF 사진이 선택돼 있으면 그 사진에만(own), 아니면 전역에 기록 */
+['body','lens','date'].forEach(id => {
+  $(id).addEventListener('input', () => {
+    const s = state.shots[state.current];
+    if (s && s.exif){ (s.own ||= {})[id] = $(id).value.trim(); }
+    else { gInfo[id] = $(id).value; saveSettings(); }
+    refresh(true);
+  });
+});
+['film','caption','fontScale','bandScale','borderScale'].forEach(id => {
   $(id).addEventListener('input', () => { saveSettings(); refresh(true); });
+});
+
+/* EXIF 배지 클릭 = 해당 필드를 EXIF 원본으로 되돌리기 */
+document.querySelectorAll('.exifbadge').forEach(b => b.onclick = () => {
+  const s = state.shots[state.current];
+  if (s && s.own) delete s.own[b.dataset.k];
+  syncFields(); refresh(true);
+  toast('EXIF 원본으로 되돌렸습니다');
 });
 
 /* 고급 설정 팝오버 — 톱니바퀴 토글, 버튼 위치 기준으로 열림, 바깥 클릭으로 닫힘 */
@@ -1522,7 +1570,7 @@ async function exportShots(list){
   let shrunk = 0;
   for (const shot of list){
     const info = {};
-    const cv = downscale(padToRatio(render(shot.img, o, info), o), long);
+    const cv = downscale(padToRatio(render(shot.img, withShot(o, shot), info), o), long);
     if (info.shrunk) shrunk++;
     // 순번은 스트립 순서 기준 — 한 장만 내보내도 전체 순서와 번호가 일치한다
     await save(await toBlob(cv), filename(shot, state.shots.indexOf(shot) + 1));
@@ -1547,6 +1595,7 @@ function toast(msg){
    초기화
    ============================================================ */
 loadSettings();
+syncFields();
 updateEyes();
 fillDatalists();
 drawGear();
