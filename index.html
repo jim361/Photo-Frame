@@ -376,6 +376,27 @@
 
     <div class="group">
       <span class="glabel">내보내기</span>
+      <div class="row">
+        <div class="field">
+          <span>비율 맞춤</span>
+          <select id="ratio">
+            <option value="auto">인스타 자동</option>
+            <option value="none">원본 비율</option>
+            <option value="4:5">4:5 세로</option>
+            <option value="1:1">1:1 정방형</option>
+            <option value="1.91:1">1.91:1 가로</option>
+          </select>
+        </div>
+        <div class="field">
+          <span>비율 여백 색</span>
+          <select id="ratioBg">
+            <option value="#ffffff">흰색</option>
+            <option value="#f6f3ec">아이보리</option>
+            <option value="#0d0c0a">검정</option>
+          </select>
+        </div>
+      </div>
+      <p class="note">인스타 자동: 피드 허용 범위(4:5~1.91:1)를 벗어날 때만 여백을 붙여 잘림을 막습니다.</p>
       <div class="field">
         <span>긴 변 크기</span>
         <select id="size">
@@ -618,8 +639,35 @@ function frameDims(W, H, o){
   return { w: W, h: H + W * (two ? 0.112 : 0.078) * o.bandScale + capExtra(W*0.0234*o.fontScale*0.95) };
 }
 
+/* 인스타 피드 허용 비율(4:5 ~ 1.91:1)에 맞춘 패딩 — 업로드 시 강제 크롭 방지 */
+function targetRatio(r, mode){
+  if (mode === 'auto') return r < 0.8 ? 0.8 : r > 1.91 ? 1.91 : null;
+  if (mode === '4:5')    return 0.8;
+  if (mode === '1:1')    return 1;
+  if (mode === '1.91:1') return 1.91;
+  return null;   // 'none'
+}
+
+function ratioDims(d, mode){
+  const t = targetRatio(d.w / d.h, mode);
+  if (!t) return d;
+  return d.w / d.h < t ? { w: d.h * t, h: d.h } : { w: d.w, h: d.w / t };
+}
+
+function padToRatio(cv, o){
+  const t = targetRatio(cv.width / cv.height, o.ratio);
+  if (!t) return cv;
+  const { w, h } = ratioDims({ w: cv.width, h: cv.height }, o.ratio);
+  const out = document.createElement('canvas');
+  out.width = Math.round(w); out.height = Math.round(h);
+  const g = out.getContext('2d');
+  g.fillStyle = o.ratioBg; g.fillRect(0, 0, out.width, out.height);
+  g.drawImage(cv, Math.round((out.width - cv.width) / 2), Math.round((out.height - cv.height) / 2));
+  return out;
+}
+
 function safeScale(W, H, o){
-  const { w, h } = frameDims(W, H, o);
+  const { w, h } = ratioDims(frameDims(W, H, o), o.ratio);
   return Math.min(1, CANVAS_LIMIT.side / Math.max(w, h), Math.sqrt(CANVAS_LIMIT.area / (w * h)));
 }
 
@@ -920,6 +968,8 @@ function opts(){
     sideText: $('sideText').value,
     align: $('align').value,
     dateAlign: $('dateAlign').value,
+    ratio: $('ratio').value,
+    ratioBg: $('ratioBg').value,
   };
 }
 
@@ -1038,7 +1088,8 @@ function refresh(keepZoom = false){
     if (!has) return;
     const shot = state.shots[state.current];
     const info = {};
-    const cv = render(shot.img, opts(), info);
+    const o = opts();
+    const cv = padToRatio(render(shot.img, o, info), o);
     if (info.shrunk && !shot.shrinkWarned){
       shot.shrinkWarned = true;
       toast(`원본이 커서 브라우저 한계에 맞춰 ${info.shrunk}% 크기로 합성됩니다`);
@@ -1246,6 +1297,7 @@ function saveSettings(){
     borderScale: $('borderScale').value,
     font: $('font').value, sideText: $('sideText').value,
     align: $('align').value, dateAlign: $('dateAlign').value,
+    ratio: $('ratio').value, ratioBg: $('ratioBg').value,
     style: state.style, tone: state.tone,
     size: $('size').value, fmt: $('fmt').value, quality: $('quality').value,
   });
@@ -1275,6 +1327,8 @@ function loadSettings(){
   if (s.borderScale != null && s.borderScale !== '') $('borderScale').value = s.borderScale;
   if (s.font) $('font').value = s.font;
   if (s.sideText) $('sideText').value = s.sideText;
+  if (s.ratio) $('ratio').value = s.ratio;
+  if (s.ratioBg) $('ratioBg').value = s.ratioBg;
   if (s.align) $('align').value = s.align;
   if (s.dateAlign) $('dateAlign').value = s.dateAlign;
   if (s.style) setStyle(s.style);
@@ -1326,6 +1380,8 @@ document.querySelectorAll('.eye').forEach(b => b.onclick = () => {
   updateEyes();
 });
 $('lines').onchange = () => { saveSettings(); refresh(); };  // 띠 높이(비율)가 바뀌므로 맞춤 리셋
+$('ratio').onchange  = () => { saveSettings(); refresh(); }; // 캔버스 비율이 바뀌므로 맞춤 리셋
+$('ratioBg').onchange = () => { saveSettings(); refresh(true); };
 ['size','quality'].forEach(id => $(id).addEventListener('change', saveSettings));
 $('fmt').addEventListener('change', saveSettings);
 
@@ -1438,7 +1494,7 @@ async function exportShots(list){
   let shrunk = 0;
   for (const shot of list){
     const info = {};
-    const cv = downscale(render(shot.img, o, info), long);
+    const cv = downscale(padToRatio(render(shot.img, o, info), o), long);
     if (info.shrunk) shrunk++;
     await save(await toBlob(cv), filename(shot));
     if (!state.dirHandle) await new Promise(r => setTimeout(r, 350)); // 다운로드 연타 방지
