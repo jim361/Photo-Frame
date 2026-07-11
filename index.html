@@ -175,7 +175,7 @@
 
   .field{margin-bottom:9px}
   .field span{
-    display:flex;align-items:center;justify-content:space-between;
+    display:flex;align-items:center;gap:7px;
     font-size:11px;color:var(--rebate);margin-bottom:4px;
   }
   input[type=text],input[type=number],select,textarea{
@@ -441,7 +441,7 @@
           <input type="text" id="title" placeholder="예: 강릉여행">
         </div>
       </div>
-      <p class="note">인스타 자동: 피드 허용 비율(4:5~1.91:1)을 벗어날 때만 여백을 붙입니다 · 제목을 쓰면 스트립 순서대로 <b>제목(1), 제목(2)…</b>로 저장</p>
+      <p class="note" id="exportNote"></p>
       <div class="row3" style="margin-top:10px">
         <button class="btn" id="pickDir">저장 폴더</button>
         <button class="btn solid" id="exportAll" disabled>전체 내보내기</button>
@@ -1495,10 +1495,24 @@ document.querySelectorAll('.eye').forEach(b => b.onclick = () => {
   cb.dispatchEvent(new Event('change'));   // 저장 + 미리보기 갱신
   updateEyes();
 });
-$('ratio').onchange  = () => { saveSettings(); refresh(); }; // 캔버스 비율이 바뀌므로 맞춤 리셋
+/* 내보내기 안내문 — 현재 선택(비율·제목)에 맞는 내용만 보여준다 */
+function updateExportNote(){
+  const r = $('ratio').value;
+  const ratioMsg =
+    r === 'auto' ? '인스타 자동: 피드 허용 비율(4:5~1.91:1)을 벗어날 때만 여백을 붙입니다' :
+    r === 'none' ? '원본 비율 그대로 저장합니다 — 인스타 허용 범위를 벗어나면 업로드 시 잘릴 수 있습니다' :
+    `모든 결과물을 ${r} 비율로 맞춥니다`;
+  const t = $('title').value.trim().replace(/[\\/:*?"<>|]/g, '');
+  const titleMsg = t
+    ? `스트립 순서대로 <b>${t}(1), ${t}(2)…</b>로 저장됩니다`
+    : '제목을 쓰면 스트립 순서대로 제목(1), 제목(2)…로 저장됩니다';
+  $('exportNote').innerHTML = `${ratioMsg} · ${titleMsg}`;
+}
+
+$('ratio').onchange  = () => { saveSettings(); updateExportNote(); refresh(); }; // 캔버스 비율이 바뀌므로 맞춤 리셋
 $('ratioBg').onchange = () => { saveSettings(); refresh(true); };
 ['size','quality'].forEach(id => $(id).addEventListener('change', saveSettings));
-$('title').addEventListener('input', saveSettings);
+$('title').addEventListener('input', () => { saveSettings(); updateExportNote(); });
 $('fmt').addEventListener('change', saveSettings);
 
 /* ============================================================
@@ -1514,7 +1528,7 @@ function fillDatalists(){
 const GEAR_COLS = [
   { key:'body', input:'body', label:'카메라' },
   { key:'lens', input:'lens', label:'렌즈' },
-  { key:'film', input:'film', label:'필름·메모' },
+  { key:'film', input:'film', label:'필름·기타' },
 ];
 
 function drawGear(){
@@ -1638,6 +1652,7 @@ loadSettings();
 syncFields();
 syncAdv();
 updateEyes();
+updateExportNote();
 fillDatalists();
 drawGear();
 refresh();
