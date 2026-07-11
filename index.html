@@ -28,7 +28,7 @@
     overflow:hidden;
   }
 
-  .shell{display:grid;grid-template-columns:1fr 510px;height:100vh}
+  .shell{display:grid;grid-template-columns:1fr 400px;height:100vh}
 
   /* ---------- left: light table ---------- */
   .table{
@@ -285,7 +285,7 @@
   #toast.on{opacity:1;transform:translate(-50%,0)}
 
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
-  @media (max-width:1080px){
+  @media (max-width:960px){
     body{overflow:auto}
     .shell{grid-template-columns:1fr;height:auto}
     .rail{border-left:0;border-top:1px solid var(--line);padding-left:22px}
@@ -418,7 +418,7 @@
         <div class="field">
           <span>긴 변 크기</span>
           <select id="size">
-            <option value="2048">2048 px — 인스타</option>
+            <option value="2048">2048 px (권장)</option>
             <option value="1440">1440 px</option>
             <option value="0">원본 그대로</option>
           </select>
