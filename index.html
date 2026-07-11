@@ -143,6 +143,7 @@
     position:relative;background:var(--panel);
     border-left:1px solid var(--line);
     overflow-y:auto;padding:16px 20px 20px 28px;
+    word-break:keep-all;   /* 한국어 어절 단위 줄바꿈 — 단어 중간 잘림 방지 */
   }
   .rail::before{
     content:"";position:absolute;top:0;left:0;width:14px;height:100%;
@@ -158,7 +159,7 @@
 
   .group{margin-bottom:12px}
   .group > label, .glabel{
-    display:block;font-family:var(--mono);font-size:10px;font-weight:600;
+    display:block;font-family:var(--mono);font-size:11px;font-weight:600;
     letter-spacing:.2em;text-transform:uppercase;color:var(--rebate);
     margin-bottom:9px;
   }
@@ -167,7 +168,8 @@
   .seg2{grid-template-columns:1fr 1fr}
   .seg button{
     background:var(--panel-hi);color:var(--rebate);border:0;cursor:pointer;
-    padding:11px 6px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;
+    padding:10px 6px;font-family:var(--mono);font-size:12px;letter-spacing:.06em;
+    line-height:1.35;
     transition:color .15s,background .15s;
   }
   .seg button:hover{color:var(--bone)}
@@ -176,12 +178,12 @@
   .field{margin-bottom:9px}
   .field span{
     display:flex;align-items:center;gap:7px;
-    font-size:11px;color:var(--rebate);margin-bottom:4px;
+    font-size:12px;color:var(--rebate);margin-bottom:4px;
   }
   input[type=text],input[type=number],select,textarea{
     width:100%;background:#100f0c;color:var(--bone);
     border:1px solid var(--line);border-radius:0;
-    padding:9px 10px;font-family:var(--mono);font-size:12px;
+    padding:9px 10px;font-family:var(--mono);font-size:13px;
   }
   textarea{font-family:var(--sans);resize:vertical;min-height:44px;line-height:1.5}
   input:focus,select:focus,textarea:focus,button:focus-visible{
@@ -223,21 +225,22 @@
     padding:14px 14px 16px;
   }
   .advpanel[hidden]{display:none}
+  .advpanel{word-break:keep-all}
   .advpanel h3{
-    font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.2em;
+    font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.2em;
     text-transform:uppercase;color:var(--rebate);margin-bottom:12px;
   }
 
   .gear3{display:flex;flex-direction:column;gap:6px}
   .gearcol{display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-width:0}
   .gearlabel{
-    flex:0 0 58px;
-    font-family:var(--mono);font-size:9px;font-weight:600;
+    flex:0 0 62px;
+    font-family:var(--mono);font-size:10px;font-weight:600;
     letter-spacing:.12em;text-transform:uppercase;color:var(--rebate);
   }
   .gear{
     position:relative;background:var(--panel-hi);border:1px solid var(--line);
-    color:var(--bone);font-family:var(--mono);font-size:10px;
+    color:var(--bone);font-family:var(--mono);font-size:11px;
     padding:5px 16px 5px 7px;cursor:pointer;text-align:left;
     transition:border-color .15s;max-width:160px;
   }
@@ -253,14 +256,15 @@
   .gear i:hover{color:#e05d4a}
   .gearadd{
     background:none;border:1px dashed var(--line);color:var(--rebate);
-    cursor:pointer;font-size:11px;padding:4px 9px;transition:.15s;
+    cursor:pointer;font-size:12px;padding:4px 9px;transition:.15s;
   }
   .gearadd:hover{border-color:var(--edge);color:var(--edge)}
 
   .btn{
-    width:100%;padding:11px;border:1px solid var(--line);background:var(--panel-hi);
-    color:var(--bone);font-family:var(--mono);font-size:11px;letter-spacing:.12em;
+    width:100%;padding:10px 8px;border:1px solid var(--line);background:var(--panel-hi);
+    color:var(--bone);font-family:var(--mono);font-size:12px;letter-spacing:.12em;
     text-transform:uppercase;cursor:pointer;transition:.15s;
+    line-height:1.35;
   }
   .btn:hover{border-color:var(--edge);color:var(--edge)}
   .btn.solid{background:var(--edge);color:#14130f;border-color:var(--edge);font-weight:700}
@@ -268,7 +272,7 @@
   .btn:disabled{opacity:.35;cursor:not-allowed}
   .btn + .btn{margin-top:7px}
 
-  .note{font-size:11px;color:var(--rebate);margin-top:7px;line-height:1.45}
+  .note{font-size:12px;color:var(--rebate);margin-top:7px;line-height:1.45}
   .note b{color:var(--edge);font-weight:600}
   .warn{
     border-left:2px solid var(--edge);padding:8px 10px;margin-top:10px;
@@ -428,8 +432,8 @@
         <div class="field">
           <span>형식</span>
           <select id="fmt">
-            <option value="png">PNG — 무손실</option>
-            <option value="jpeg">JPEG — 가벼움</option>
+            <option value="png">PNG</option>
+            <option value="jpeg">JPEG</option>
           </select>
         </div>
         <div class="field" id="qualityField" style="visibility:hidden">
