@@ -28,7 +28,7 @@
     overflow:hidden;
   }
 
-  .shell{display:grid;grid-template-columns:1fr 350px;height:100vh}
+  .shell{display:grid;grid-template-columns:1fr var(--railw, 350px);height:100vh}
 
   /* ---------- left: light table ---------- */
   .table{
@@ -226,6 +226,20 @@
   }
   .advpanel[hidden]{display:none}
   .advpanel{word-break:keep-all}
+
+  /* 표시·레이아웃 설정 — 촬영 정보 안의 접이식 섹션 */
+  details.disp{margin:2px 0 4px;border:1px solid var(--line);background:#17150f}
+  details.disp summary{
+    cursor:pointer;list-style:none;padding:9px 10px;
+    font-family:var(--mono);font-size:11px;font-weight:600;
+    letter-spacing:.16em;text-transform:uppercase;color:var(--rebate);
+    transition:color .15s;
+  }
+  details.disp summary:hover{color:var(--bone)}
+  details.disp summary::-webkit-details-marker{display:none}
+  details.disp summary::before{content:"▸ ";color:var(--edge)}
+  details.disp[open] summary::before{content:"▾ "}
+  details.disp .inner{padding:4px 10px 12px}
   .advpanel h3{
     font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.2em;
     text-transform:uppercase;color:var(--rebate);margin-bottom:12px;
@@ -306,7 +320,7 @@
     <div class="masthead">
       <span class="wordmark">PhotoFrame</span>
       <span class="subtitle">사진에 프레임과 촬영 정보를 얹습니다</span>
-      <button type="button" class="gearbtn" id="gearBtn" title="고급 설정">
+      <button type="button" class="gearbtn" id="gearBtn" title="개인 설정 (화면 표시)">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </button>
     </div>
@@ -394,6 +408,69 @@
         <textarea id="caption" rows="1" placeholder="사진 아래에 들어갈 짧은 글. 줄바꿈 가능 (최대 4줄 표시)"></textarea>
         <input type="checkbox" id="showCaption" checked hidden>
       </div>
+      <details class="disp" id="dispPanel">
+        <summary>표시 · 레이아웃 설정</summary>
+        <div class="inner">
+          <div class="seg seg2" id="advTab" style="margin-bottom:10px">
+            <button type="button" data-t="port" aria-pressed="true">세로 사진</button>
+            <button type="button" data-t="land" aria-pressed="false">가로 사진</button>
+          </div>
+          <div class="field">
+            <span>레이아웃 (필름 스트립·여백 띠)</span>
+            <select id="lines">
+              <option value="1">한 줄</option>
+              <option value="2">두 줄 — 윗줄 장비 / 아랫줄 필름·메모</option>
+            </select>
+          </div>
+          <div class="row">
+            <div class="field"><span>글자 크기 %</span><input type="number" id="fontScale" min="50" max="200" value="100"></div>
+            <div class="field"><span>하단 공간 %</span><input type="number" id="bandScale" min="50" max="250" value="100"></div>
+          </div>
+          <div class="field">
+            <span>테두리 여백 % (인스탁스)</span>
+            <input type="number" id="borderScale" min="0" max="300" value="100">
+          </div>
+          <div class="row">
+            <div class="field">
+              <span>글꼴</span>
+              <select id="font">
+                <option value="auto">기본 (스타일별)</option>
+                <option value="mono">모노스페이스</option>
+                <option value="sans">산세리프</option>
+                <option value="serif">세리프</option>
+                <option value="script">필기체</option>
+              </select>
+            </div>
+            <div class="field">
+              <span>가로 인스탁스 글씨</span>
+              <select id="sideText">
+                <option value="stack">가로 — 한 줄씩</option>
+                <option value="rotate">세로 — 회전</option>
+              </select>
+            </div>
+          </div>
+          <div class="row">
+            <div class="field" style="margin:0">
+              <span>촬영 정보 위치</span>
+              <select id="align">
+                <option value="auto">기본</option>
+                <option value="left">왼쪽</option>
+                <option value="center">가운데</option>
+                <option value="right">오른쪽</option>
+              </select>
+            </div>
+            <div class="field" style="margin:0">
+              <span>날짜 위치</span>
+              <select id="dateAlign">
+                <option value="auto">기본</option>
+                <option value="left">왼쪽</option>
+                <option value="center">가운데</option>
+                <option value="right">오른쪽</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </details>
     </div>
 
     <hr>
@@ -464,65 +541,12 @@
 <input type="file" id="picker" accept="image/*" multiple hidden>
 
 <div class="advpanel" id="advPanel" hidden>
-  <h3>고급 설정</h3>
-  <div class="seg seg2" id="advTab" style="margin-bottom:12px">
-    <button type="button" data-t="port" aria-pressed="true">세로 사진</button>
-    <button type="button" data-t="land" aria-pressed="false">가로 사진</button>
-  </div>
-  <div class="field">
-    <span>레이아웃 (필름 스트립·여백 띠)</span>
-    <select id="lines">
-      <option value="1">한 줄</option>
-      <option value="2">두 줄 — 윗줄 장비 / 아랫줄 필름·메모</option>
-    </select>
-  </div>
+  <h3>개인 설정</h3>
   <div class="row">
-    <div class="field"><span>글자 크기 %</span><input type="number" id="fontScale" min="50" max="200" value="100"></div>
-    <div class="field"><span>하단 공간 %</span><input type="number" id="bandScale" min="50" max="250" value="100"></div>
+    <div class="field"><span>설정 패널 폭 px</span><input type="number" id="uiWidth" min="300" max="600" step="10" value="350"></div>
+    <div class="field"><span>UI 배율 %</span><input type="number" id="uiScale" min="90" max="130" step="5" value="100"></div>
   </div>
-  <div class="field">
-    <span>테두리 여백 % (인스탁스)</span>
-    <input type="number" id="borderScale" min="0" max="300" value="100">
-  </div>
-  <div class="row">
-    <div class="field">
-      <span>글꼴</span>
-      <select id="font">
-        <option value="auto">기본 (스타일별)</option>
-        <option value="mono">모노스페이스</option>
-        <option value="sans">산세리프</option>
-        <option value="serif">세리프</option>
-        <option value="script">필기체</option>
-      </select>
-    </div>
-    <div class="field">
-      <span>가로 인스탁스 글씨</span>
-      <select id="sideText">
-        <option value="stack">가로 — 한 줄씩</option>
-        <option value="rotate">세로 — 회전</option>
-      </select>
-    </div>
-  </div>
-  <div class="row">
-    <div class="field" style="margin:0">
-      <span>촬영 정보 위치</span>
-      <select id="align">
-        <option value="auto">기본</option>
-        <option value="left">왼쪽</option>
-        <option value="center">가운데</option>
-        <option value="right">오른쪽</option>
-      </select>
-    </div>
-    <div class="field" style="margin:0">
-      <span>날짜 위치</span>
-      <select id="dateAlign">
-        <option value="auto">기본</option>
-        <option value="left">왼쪽</option>
-        <option value="center">가운데</option>
-        <option value="right">오른쪽</option>
-      </select>
-    </div>
-  </div>
+  <p class="note" style="margin-top:2px">화면 표시만 바꾸는 설정입니다 — 결과물에는 영향이 없습니다.</p>
 </div>
 
 <div id="toast"></div>
@@ -1459,18 +1483,34 @@ $('gearBtn').onclick = () => {
   const p = $('advPanel');
   p.hidden = !p.hidden;
   if (!p.hidden){
-    // 열 때 현재 보고 있는 사진의 방향 탭을 기본 선택
-    const s = state.shots[state.current];
-    if (s){
-      const w = s.img.naturalWidth || s.img.width, h = s.img.naturalHeight || s.img.height;
-      advTab = w > h ? 'land' : 'port';
-    }
-    syncAdv();
     const r = $('gearBtn').getBoundingClientRect();
     p.style.top = Math.round(r.bottom + 8) + 'px';
     p.style.right = Math.max(10, Math.round(window.innerWidth - r.right - 4)) + 'px';
   }
 };
+
+/* 표시·레이아웃 설정을 펼치면 현재 보고 있는 사진의 방향 탭을 기본 선택 */
+$('dispPanel').addEventListener('toggle', () => {
+  if (!$('dispPanel').open) return;
+  const s = state.shots[state.current];
+  if (s){
+    const w = s.img.naturalWidth || s.img.width, h = s.img.naturalHeight || s.img.height;
+    advTab = w > h ? 'land' : 'port';
+  }
+  syncAdv();
+});
+
+/* 개인 설정 — 화면 표시(패널 폭·UI 배율)만 바꾼다. frame.ui에 별도 저장 */
+function applyUi(){
+  const w = Math.min(600, Math.max(300, Number($('uiWidth').value) || 350));
+  const s = Math.min(130, Math.max(90, Number($('uiScale').value) || 100));
+  document.documentElement.style.setProperty('--railw', w + 'px');
+  document.querySelector('.rail').style.zoom = s / 100;
+}
+['uiWidth','uiScale'].forEach(id => $(id).addEventListener('input', () => {
+  applyUi();
+  store.write('frame.ui', { width: $('uiWidth').value, scale: $('uiScale').value });
+}));
 document.addEventListener('click', e => {
   if (!$('advPanel').hidden && !e.target.closest('#advPanel') && !e.target.closest('#gearBtn'))
     $('advPanel').hidden = true;
@@ -1653,6 +1693,12 @@ function toast(msg){
    초기화
    ============================================================ */
 loadSettings();
+const savedUi = store.read('frame.ui', null);
+if (savedUi){
+  if (savedUi.width) $('uiWidth').value = savedUi.width;
+  if (savedUi.scale) $('uiScale').value = savedUi.scale;
+}
+applyUi();
 syncFields();
 syncAdv();
 updateEyes();
