@@ -408,6 +408,10 @@
         <textarea id="caption" rows="1" placeholder="사진 아래에 들어갈 짧은 글. 줄바꿈 가능 (최대 4줄 표시)"></textarea>
         <input type="checkbox" id="showCaption" checked hidden>
       </div>
+      <div class="field">
+        <span>로고 · 서명 (투명 PNG 권장)</span>
+        <div class="gearcol" id="logoRow"></div>
+      </div>
     </div>
 
     <hr>
@@ -462,7 +466,7 @@
             </div>
           </div>
           <div class="row">
-            <div class="field" style="margin:0">
+            <div class="field">
               <span>촬영 정보 위치</span>
               <select id="align">
                 <option value="auto">기본</option>
@@ -471,7 +475,7 @@
                 <option value="right">오른쪽</option>
               </select>
             </div>
-            <div class="field" style="margin:0">
+            <div class="field">
               <span>날짜 위치</span>
               <select id="dateAlign">
                 <option value="auto">기본</option>
@@ -481,15 +485,9 @@
               </select>
             </div>
           </div>
-        </div>
-      </details>
-      <details class="disp" id="logoPanel">
-        <summary>로고 · 서명</summary>
-        <div class="inner">
-          <div class="gearcol" id="logoRow"></div>
-          <div class="row" style="margin-top:8px">
+          <div class="row">
             <div class="field" style="margin:0">
-              <span>위치</span>
+              <span>로고 위치</span>
               <select id="logoAlign">
                 <option value="auto">기본</option>
                 <option value="left">왼쪽</option>
@@ -498,11 +496,10 @@
               </select>
             </div>
             <div class="field" style="margin:0">
-              <span>크기 %</span>
+              <span>로고 크기 %</span>
               <input type="number" id="logoScale" min="30" max="300" step="10" value="100">
             </div>
           </div>
-          <p class="note">서명·로고·프로필 이미지를 프레임 하단에 넣습니다. 투명 배경 PNG 권장.</p>
         </div>
       </details>
     </div>
@@ -1093,9 +1090,10 @@ function downscale(cv, longEdge){
 /* 방향별 프로파일 — 가로/세로 사진이 섞인 묶음에서 레이아웃 설정이 서로 어긋나지
    않게, 방향 종속 항목은 세로(port)/가로(land) 프로파일로 따로 저장한다.
    렌더 시 각 사진이 자기 방향의 프로파일을 자동으로 쓴다 */
-const ADV_KEYS = ['lines','fontScale','bandScale','borderScale','align','dateAlign','sideText'];
+const ADV_KEYS = ['lines','fontScale','bandScale','borderScale','align','dateAlign','sideText','logoAlign','logoScale'];
 const DEF_ADV = { lines:'1', fontScale:'100', bandScale:'100', borderScale:'100',
-                  align:'auto', dateAlign:'auto', sideText:'stack' };
+                  align:'auto', dateAlign:'auto', sideText:'stack',
+                  logoAlign:'auto', logoScale:'100' };
 const adv = { port: { ...DEF_ADV }, land: { ...DEF_ADV } };
 let advTab = 'port';
 
@@ -1112,6 +1110,8 @@ function withProfile(o, shot){
     bandScale: pv(p.bandScale, 50, 250),
     borderScale: pv(p.borderScale, 0, 300),
     align: p.align, dateAlign: p.dateAlign, sideText: p.sideText,
+    logoAlign: p.logoAlign || 'auto',
+    logoScale: pv(p.logoScale, 30, 300),
   };
 }
 
@@ -1132,8 +1132,6 @@ function opts(){
     ratio: $('ratio').value,
     ratioBg: $('ratioBg').value,
     logoImg: logoState.img,
-    logoAlign: $('logoAlign').value,
-    logoScale: (v => { const n = v === '' ? 100 : Number(v); return Math.min(300, Math.max(30, isNaN(n) ? 100 : n)) / 100; })($('logoScale').value),
   };
 }
 
@@ -1466,7 +1464,7 @@ function saveSettings(){
             film: $('showFilm').checked, date: $('showDate').checked,
             set: $('showSet').checked, caption: $('showCaption').checked },
     advPort: { ...adv.port }, advLand: { ...adv.land },
-    logo: logoState.name, logoAlign: $('logoAlign').value, logoScale: $('logoScale').value,
+    logo: logoState.name,
     font: $('font').value,
     ratio: $('ratio').value, ratioBg: $('ratioBg').value,
     title: $('title').value,
@@ -1504,8 +1502,6 @@ function loadSettings(){
   if (s.ratioBg) $('ratioBg').value = s.ratioBg;
   if (s.title) $('title').value = s.title;
   if (s.logo) logoState.name = s.logo;
-  if (s.logoAlign) $('logoAlign').value = s.logoAlign;
-  if (s.logoScale) $('logoScale').value = s.logoScale;
   if (s.style) setStyle(s.style);
   if (s.tone){ state.tone = s.tone; $('tone').value = s.tone; }
   if (s.size) $('size').value = s.size;
@@ -1539,7 +1535,7 @@ function syncAdv(){
   [...$('advTab').children].forEach(b => b.setAttribute('aria-pressed', b.dataset.t === advTab));
 }
 ADV_KEYS.forEach(id => {
-  const ev = (id === 'fontScale' || id === 'bandScale' || id === 'borderScale') ? 'input' : 'change';
+  const ev = id.endsWith('Scale') ? 'input' : 'change';
   $(id).addEventListener(ev, () => {
     adv[advTab][id] = $(id).value;
     saveSettings();
@@ -1584,7 +1580,7 @@ $('dispPanel').addEventListener('toggle', () => {
 });
 
 /* 접이식 섹션(프리셋/표시·레이아웃/로고·서명) 열림 상태 기억 */
-const PANELS = ['presetPanel', 'dispPanel', 'logoPanel'];
+const PANELS = ['presetPanel', 'dispPanel'];
 const savedPanels = store.read('frame.panels', null);
 if (savedPanels) PANELS.forEach(id => { if (savedPanels[id] != null) $(id).open = savedPanels[id]; });
 PANELS.forEach(id => $(id).addEventListener('toggle', () => {
@@ -1795,8 +1791,6 @@ $('logoPicker').onchange = async e => {
   } catch { toast('이미지를 읽지 못했습니다'); }
 };
 
-$('logoAlign').addEventListener('change', () => { saveSettings(); refresh(true); });
-$('logoScale').addEventListener('input', () => { saveSettings(); refresh(true); });
 
 /* ============================================================
    저장
