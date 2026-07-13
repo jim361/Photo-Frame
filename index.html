@@ -228,7 +228,8 @@
   .advpanel{word-break:keep-all}
 
   /* 표시·레이아웃 설정 — 촬영 정보 안의 접이식 섹션 */
-  details.disp{margin:2px 0 4px;border:1px solid var(--line);background:#17150f}
+  details.disp{margin:0 0 8px;border:1px solid var(--line);background:#17150f}
+  details.disp:last-child{margin-bottom:0}
   details.disp summary{
     cursor:pointer;list-style:none;padding:9px 10px;
     font-family:var(--mono);font-size:11px;font-weight:600;
@@ -369,14 +370,6 @@
     <hr>
 
     <div class="group">
-      <span class="glabel">프리셋</span>
-      <div class="gear3" id="gearGrid"></div>
-      <p class="note">＋ 를 누르면 현재 입력값이 목록에 저장됩니다. 클릭해 적용, ×로 삭제.</p>
-    </div>
-
-    <hr>
-
-    <div class="group">
       <span class="glabel">촬영 정보</span>
       <div class="row">
         <div class="field">
@@ -415,6 +408,18 @@
         <textarea id="caption" rows="1" placeholder="사진 아래에 들어갈 짧은 글. 줄바꿈 가능 (최대 4줄 표시)"></textarea>
         <input type="checkbox" id="showCaption" checked hidden>
       </div>
+    </div>
+
+    <hr>
+
+    <div class="group">
+      <details class="disp" id="presetPanel">
+        <summary>프리셋</summary>
+        <div class="inner">
+          <div class="gear3" id="gearGrid"></div>
+          <p class="note">＋ 를 누르면 현재 입력값이 목록에 저장됩니다. 클릭해 적용, ×로 삭제.</p>
+        </div>
+      </details>
       <details class="disp" id="dispPanel">
         <summary>표시 · 레이아웃 설정</summary>
         <div class="inner">
@@ -478,29 +483,28 @@
           </div>
         </div>
       </details>
-    </div>
-
-    <hr>
-
-    <div class="group">
-      <span class="glabel">로고 · 서명</span>
-      <div class="gearcol" id="logoRow"></div>
-      <div class="row" style="margin-top:8px">
-        <div class="field" style="margin:0">
-          <span>위치</span>
-          <select id="logoAlign">
-            <option value="auto">기본</option>
-            <option value="left">왼쪽</option>
-            <option value="center">가운데</option>
-            <option value="right">오른쪽</option>
-          </select>
+      <details class="disp" id="logoPanel">
+        <summary>로고 · 서명</summary>
+        <div class="inner">
+          <div class="gearcol" id="logoRow"></div>
+          <div class="row" style="margin-top:8px">
+            <div class="field" style="margin:0">
+              <span>위치</span>
+              <select id="logoAlign">
+                <option value="auto">기본</option>
+                <option value="left">왼쪽</option>
+                <option value="center">가운데</option>
+                <option value="right">오른쪽</option>
+              </select>
+            </div>
+            <div class="field" style="margin:0">
+              <span>크기 %</span>
+              <input type="number" id="logoScale" min="30" max="300" step="10" value="100">
+            </div>
+          </div>
+          <p class="note">서명·로고·프로필 이미지를 프레임 하단에 넣습니다. 투명 배경 PNG 권장.</p>
         </div>
-        <div class="field" style="margin:0">
-          <span>크기 %</span>
-          <input type="number" id="logoScale" min="30" max="300" step="10" value="100">
-        </div>
-      </div>
-      <p class="note">서명·로고·프로필 이미지를 프레임 하단에 넣습니다. 투명 배경 PNG 권장.</p>
+      </details>
     </div>
 
     <hr>
@@ -1578,6 +1582,14 @@ $('dispPanel').addEventListener('toggle', () => {
   }
   syncAdv();
 });
+
+/* 접이식 섹션(프리셋/표시·레이아웃/로고·서명) 열림 상태 기억 */
+const PANELS = ['presetPanel', 'dispPanel', 'logoPanel'];
+const savedPanels = store.read('frame.panels', null);
+if (savedPanels) PANELS.forEach(id => { if (savedPanels[id] != null) $(id).open = savedPanels[id]; });
+PANELS.forEach(id => $(id).addEventListener('toggle', () => {
+  store.write('frame.panels', Object.fromEntries(PANELS.map(p => [p, $(p).open])));
+}));
 
 /* 개인 설정 — 화면 표시(패널 폭·UI 배율)만 바꾼다. frame.ui에 별도 저장 */
 function applyUi(){
