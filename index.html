@@ -259,6 +259,8 @@
     transition:border-color .15s;max-width:160px;
   }
   .gear:hover{border-color:var(--edge)}
+  .gear.on{border-color:var(--edge)}
+  .gear img{display:inline-block;height:16px;max-width:90px;object-fit:contain;vertical-align:middle}
   .gear em{
     font-style:normal;display:block;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
@@ -481,6 +483,29 @@
     <hr>
 
     <div class="group">
+      <span class="glabel">로고 · 서명</span>
+      <div class="gearcol" id="logoRow"></div>
+      <div class="row" style="margin-top:8px">
+        <div class="field" style="margin:0">
+          <span>위치</span>
+          <select id="logoAlign">
+            <option value="auto">기본</option>
+            <option value="left">왼쪽</option>
+            <option value="center">가운데</option>
+            <option value="right">오른쪽</option>
+          </select>
+        </div>
+        <div class="field" style="margin:0">
+          <span>크기 %</span>
+          <input type="number" id="logoScale" min="30" max="300" step="10" value="100">
+        </div>
+      </div>
+      <p class="note">서명·로고·프로필 이미지를 프레임 하단에 넣습니다. 투명 배경 PNG 권장.</p>
+    </div>
+
+    <hr>
+
+    <div class="group">
       <span class="glabel">내보내기</span>
       <div class="row3">
         <div class="field">
@@ -545,6 +570,7 @@
 </div>
 
 <input type="file" id="picker" accept="image/*" multiple hidden>
+<input type="file" id="logoPicker" accept="image/*" hidden>
 
 <div class="advpanel" id="advPanel" hidden>
   <h3>개인 설정</h3>
@@ -699,6 +725,17 @@ function alignX(mode, def, left, center, right){
   return { a, x: a === 'left' ? left : a === 'center' ? center : right };
 }
 
+function drawLogo(ctx, o, left, center, right, yCenter, baseH, def){
+  // 로고·서명 이미지 — 텍스트 영역에 정렬해 그린다
+  if (!o.logoImg) return;
+  const img = o.logoImg;
+  const h = baseH * o.logoScale;
+  const w = h * (img.width / img.height);
+  const a = o.logoAlign === 'auto' ? def : o.logoAlign;
+  const x = a === 'left' ? left : a === 'center' ? center - w / 2 : right - w;
+  ctx.drawImage(img, x, yCenter - h / 2, w, h);
+}
+
 function fitSize(ctx, text, size, weight, family, maxW, trackRatio = 0.15){
   // maxW를 넘으면 폰트를 줄여서(최소 55%) 맞춘다. ctx.font를 설정하고 최종 크기를 돌려준다
   ctx.font = `${weight} ${size}px ${family}`;
@@ -848,6 +885,7 @@ function render(img, o, info){
       ctx.fillStyle = '#6f6a5f'; ctx.textAlign = pos.a;
       ctx.fillText(t, pos.x, baseY + capLH*(i + 1));
     });
+    drawLogo(ctx, o, pad, W/2, W - pad, baseY - fs*0.35, bar*0.6, 'center');
   }
 
   else if (o.style === 'instax' && W > H) {
@@ -902,6 +940,7 @@ function render(img, o, info){
         ctx.fillStyle = '#c2bab0'; ctx.textAlign = dpos.a;
         ctx.fillText(dt, dpos.x, photoBottom + colW - colBase*0.14);
       }
+      drawLogo(ctx, o, m + H*0.02, m + H/2, m + H - H*0.02, photoBottom + colW - colBase*0.14, colBase*0.14, 'left');
       ctx.restore();
     }
     else {
@@ -925,6 +964,7 @@ function render(img, o, info){
         ctx.fillText(it.t, pos.x, y);
         y += it.lh;
       }
+      drawLogo(ctx, o, colX + p, colX + colW/2, colX + colW - p, m + H - H*0.05, H*0.07, 'center');
     }
   }
 
@@ -970,6 +1010,7 @@ function render(img, o, info){
       ctx.fillStyle = '#c2bab0'; ctx.textAlign = dpos.a;
       ctx.fillText(dt, dpos.x, H + top + bot - botBase*0.14);
     }
+    drawLogo(ctx, o, side + W*0.02, side + W/2, side + W - W*0.02, H + top + bot - botBase*0.14, botBase*0.14, 'left');
   }
 
   else { // bottom / top
@@ -1024,6 +1065,7 @@ function render(img, o, info){
       ctx.fillStyle = C.edge; ctx.textAlign = dpos.a;
       ctx.fillText(dt, dpos.x, bandTop + infoY);
     }
+    drawLogo(ctx, o, pad, W/2, W - pad, bandTop + infoY, fs*1.9, 'center');
   }
   return cv;
 }
@@ -1085,6 +1127,9 @@ function opts(){
     font: $('font').value,
     ratio: $('ratio').value,
     ratioBg: $('ratioBg').value,
+    logoImg: logoState.img,
+    logoAlign: $('logoAlign').value,
+    logoScale: (v => { const n = v === '' ? 100 : Number(v); return Math.min(300, Math.max(30, isNaN(n) ? 100 : n)) / 100; })($('logoScale').value),
   };
 }
 
@@ -1417,6 +1462,7 @@ function saveSettings(){
             film: $('showFilm').checked, date: $('showDate').checked,
             set: $('showSet').checked, caption: $('showCaption').checked },
     advPort: { ...adv.port }, advLand: { ...adv.land },
+    logo: logoState.name, logoAlign: $('logoAlign').value, logoScale: $('logoScale').value,
     font: $('font').value,
     ratio: $('ratio').value, ratioBg: $('ratioBg').value,
     title: $('title').value,
@@ -1453,6 +1499,9 @@ function loadSettings(){
   if (s.ratio) $('ratio').value = s.ratio;
   if (s.ratioBg) $('ratioBg').value = s.ratioBg;
   if (s.title) $('title').value = s.title;
+  if (s.logo) logoState.name = s.logo;
+  if (s.logoAlign) $('logoAlign').value = s.logoAlign;
+  if (s.logoScale) $('logoScale').value = s.logoScale;
   if (s.style) setStyle(s.style);
   if (s.tone){ state.tone = s.tone; $('tone').value = s.tone; }
   if (s.size) $('size').value = s.size;
@@ -1655,6 +1704,89 @@ function drawGear(){
 }
 
 /* ============================================================
+   로고 · 서명 — 사용자가 넣은 이미지(dataURL)를 팔레트로 저장해 재사용
+   ============================================================ */
+let logos = store.read('frame.logos', []);
+const logoState = { name: '', img: null };
+
+function applyLogoImage(){
+  const entry = logos.find(l => l.name === logoState.name);
+  logoState.img = null;
+  if (!entry){ logoState.name = ''; return; }
+  const im = new Image();
+  im.onload = () => { logoState.img = im; refresh(true); };
+  im.src = entry.data;
+}
+
+function setLogo(name){
+  logoState.name = name;
+  applyLogoImage();
+  saveSettings(); drawLogos(); refresh(true);
+}
+
+function drawLogos(){
+  const el = $('logoRow'); el.innerHTML = '';
+  const none = document.createElement('button');
+  none.className = 'gear' + (logoState.name ? '' : ' on');
+  const em = document.createElement('em'); em.textContent = '없음';
+  none.appendChild(em);
+  none.onclick = () => setLogo('');
+  el.appendChild(none);
+
+  logos.forEach((l, i) => {
+    const b = document.createElement('button');
+    b.className = 'gear' + (logoState.name === l.name ? ' on' : '');
+    b.title = l.name;
+    const im = document.createElement('img');
+    im.src = l.data; im.alt = l.name;
+    const x = document.createElement('i');
+    x.title = '삭제'; x.textContent = '×';
+    b.append(im, x);
+    b.onclick = e => {
+      if (e.target === x){
+        logos.splice(i, 1);
+        store.write('frame.logos', logos);
+        if (logoState.name === l.name) setLogo('');
+        else drawLogos();
+        return;
+      }
+      setLogo(l.name);
+    };
+    el.appendChild(b);
+  });
+
+  const add = document.createElement('button');
+  add.className = 'gearadd';
+  add.textContent = '＋ 이미지';
+  add.title = '이미지 파일을 골라 팔레트에 저장';
+  add.onclick = () => $('logoPicker').click();
+  el.appendChild(add);
+}
+
+$('logoPicker').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try {
+    const img = await loadImage(f);
+    const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+    const sc = Math.min(1, 400 / Math.max(w, h));   // 저장 용량을 위해 축소 보관
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w * sc)); c.height = Math.max(1, Math.round(h * sc));
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    const base = f.name.replace(/\.[^.]+$/, '') || 'logo';
+    let name = base, n = 2;
+    while (logos.some(l => l.name === name)) name = `${base}(${n++})`;
+    logos.push({ name, data: c.toDataURL('image/png') });
+    store.write('frame.logos', logos);
+    setLogo(name);
+    toast('로고 저장됨');
+  } catch { toast('이미지를 읽지 못했습니다'); }
+};
+
+$('logoAlign').addEventListener('change', () => { saveSettings(); refresh(true); });
+$('logoScale').addEventListener('input', () => { saveSettings(); refresh(true); });
+
+/* ============================================================
    저장
    ============================================================ */
 const canPickDir = typeof window.showDirectoryPicker === 'function';
@@ -1735,6 +1867,8 @@ updateEyes();
 updateExportNote();
 fillDatalists();
 drawGear();
+applyLogoImage();
+drawLogos();
 refresh();
 </script>
 </body>
