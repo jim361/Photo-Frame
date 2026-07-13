@@ -404,6 +404,11 @@
         </div>
       </div>
       <div class="field">
+        <span><b class="lbl">설정 <i class="exifbadge" data-k="set" title="이 사진의 EXIF 원본으로 되돌리기" hidden>EXIF</i></b><button type="button" class="eye" data-for="showSet" title="결과물에 표시/숨김"></button></span>
+        <input type="text" id="set" placeholder="F1.8 · 1/250s · ISO 400 · 35mm">
+        <input type="checkbox" id="showSet" checked hidden>
+      </div>
+      <div class="field">
         <span>메모 — 짧은 글 <button type="button" class="eye" data-for="showCaption" title="결과물에 표시/숨김"></button></span>
         <textarea id="caption" rows="1" placeholder="사진 아래에 들어갈 짧은 글. 줄바꿈 가능 (최대 4줄 표시)"></textarea>
         <input type="checkbox" id="showCaption" checked hidden>
@@ -486,6 +491,7 @@
             <option value="4:5">4:5 세로</option>
             <option value="1:1">1:1 정방형</option>
             <option value="1.91:1">1.91:1 가로</option>
+            <option value="9:16">9:16 스토리</option>
           </select>
         </div>
         <div class="field">
@@ -634,12 +640,17 @@ function trackedText(ctx, text, x, y, track){
 function meta(o){
   return [o.show.body && o.body, o.show.lens && o.lens].filter(Boolean).join('  ·  ');
 }
+function techText(o){
+  // 필름·기타 + 촬영 설정값 — 기술 정보 묶음
+  return [o.show.film && o.film, o.show.set && o.set].filter(Boolean).join('   ·   ');
+}
+
 function metaLines(o){
   // 표시 토글을 거친 촬영 정보 줄 배열 (날짜는 독립 요소라 여기 포함 안 됨)
   const equip = meta(o);
-  const film  = o.show.film ? o.film : '';
-  if (o.lines === 2) return [equip, film].filter(Boolean);
-  const one = [equip, film].filter(Boolean).join('   ·   ');
+  const tech  = techText(o);
+  if (o.lines === 2) return [equip, tech].filter(Boolean);
+  const one = [equip, tech].filter(Boolean).join('   ·   ');
   return one ? [one] : [];
 }
 
@@ -649,7 +660,7 @@ function dateText(o){
 
 /* 카메라/렌즈/날짜의 전역값 — 입력 필드는 선택된 사진에 따라 전역 또는
    장별(EXIF) 값을 보여주는 뷰이므로, 전역값은 별도로 보관한다 */
-const gInfo = { body: '', lens: '', date: '' };
+const gInfo = { body: '', lens: '', date: '', set: '' };
 
 function pick(...vals){ return vals.find(v => v != null && v !== '') ?? ''; }
 
@@ -662,6 +673,7 @@ function withShot(o, shot){
     body: pick(own.body, shot.exif.body),
     lens: pick(own.lens, shot.exif.lens),
     date: pick(own.date, shot.exif.date),
+    set:  pick(own.set,  shot.exif.set),
   };
 }
 
@@ -672,6 +684,7 @@ function syncFields(){
   $('body').value = hasExif ? pick(own.body, s.exif.body) : gInfo.body;
   $('lens').value = hasExif ? pick(own.lens, s.exif.lens) : gInfo.lens;
   $('date').value = hasExif ? pick(own.date, s.exif.date) : gInfo.date;
+  $('set').value  = hasExif ? pick(own.set,  s.exif.set)  : gInfo.set;
   document.querySelectorAll('.exifbadge').forEach(b => b.hidden = !hasExif);
 }
 
@@ -728,6 +741,7 @@ function targetRatio(r, mode){
   if (mode === '4:5')    return 0.8;
   if (mode === '1:1')    return 1;
   if (mode === '1.91:1') return 1.91;
+  if (mode === '9:16')   return 0.5625;   // 스토리
   return null;   // 'none'
 }
 
@@ -871,10 +885,11 @@ function render(img, o, info){
         ctx.fillStyle = C.ink;
         ctx.fillText(mt, pos.x, cy - colBase*0.11);
       }
-      if (o.show.film && o.film){
-        fitSize(ctx, o.film.toUpperCase(), fs2, 600, FMONO, maxW, 0);
+      const tech = techText(o);
+      if (tech){
+        fitSize(ctx, tech.toUpperCase(), fs2, 600, FMONO, maxW, 0);
         ctx.fillStyle = '#9a9288';
-        ctx.fillText(o.film.toUpperCase(), pos.x, cy + colBase*0.14);
+        ctx.fillText(tech.toUpperCase(), pos.x, cy + colBase*0.14);
       }
       caps.forEach((t, i) => {
         fitSize(ctx, t, fcap, 'italic 400', FSANS, maxW, 0);
@@ -896,6 +911,7 @@ function render(img, o, info){
       if (o.show.body && o.body) items.push({ t: o.body,               size: fs1,  lh: fs1*1.7, col: C.ink,     fam: FSANS, w: 500 });
       if (o.show.lens && o.lens) items.push({ t: o.lens,               size: fs2,  lh: fs2*1.8, col: '#6b6459', fam: FSANS, w: 500 });
       if (o.show.film && o.film) items.push({ t: o.film.toUpperCase(), size: fs2,  lh: fs2*1.9, col: '#9a9288', fam: FMONO, w: 600 });
+      if (o.show.set && o.set)   items.push({ t: o.set,                size: fs2,  lh: fs2*1.9, col: '#9a9288', fam: FMONO, w: 600 });
       if (dt)                    items.push({ t: dt,                   size: fs2,  lh: fs2*1.9, col: '#c2bab0', fam: FMONO, w: 600 });
       caps.forEach(t =>          items.push({ t,                       size: fcap, lh: fcap*1.8, col: '#5f584d', fam: FSANS, w: 'italic 400' }));
 
@@ -934,10 +950,11 @@ function render(img, o, info){
       ctx.fillStyle = C.ink;
       ctx.fillText(m, pos.x, cy - botBase*0.11);
     }
-    if (o.show.film && o.film){
-      fitSize(ctx, o.film.toUpperCase(), W*0.0284*o.fontScale, 600, FMONO, maxW, 0);   // 기본 하단 여백의 10.5%
+    const tech = techText(o);
+    if (tech){
+      fitSize(ctx, tech.toUpperCase(), W*0.0284*o.fontScale, 600, FMONO, maxW, 0);   // 기본 하단 여백의 10.5%
       ctx.fillStyle = '#9a9288';
-      ctx.fillText(o.film.toUpperCase(), pos.x, cy + botBase*0.14);
+      ctx.fillText(tech.toUpperCase(), pos.x, cy + botBase*0.14);
     }
     // 메모 — 손글씨 느낌의 이탤릭, 필름 줄 아래로 이어 쌓는다
     caps.forEach((t, i) => {
@@ -1060,10 +1077,11 @@ function opts(){
     lens:  gInfo.lens.trim(),
     film:  $('film').value.trim(),
     date:  gInfo.date.trim(),
+    set:   gInfo.set.trim(),
     caption: $('caption').value.replace(/\s+$/,''),
     show:  { body: $('showBody').checked, lens: $('showLens').checked,
              film: $('showFilm').checked, date: $('showDate').checked,
-             caption: $('showCaption').checked },
+             set: $('showSet').checked, caption: $('showCaption').checked },
     font: $('font').value,
     ratio: $('ratio').value,
     ratioBg: $('ratioBg').value,
@@ -1301,12 +1319,13 @@ async function readExif(file){
         const e = p + 2 + i * 12;                                           // tag(2) type(2) count(4) value(4)
         if (e + 12 > v.byteLength) break;
         const tag = u16(e), type = u16(e + 2), cnt = u32(e + 4);
-        const size = (type === 3 ? 2 : type === 2 ? 1 : 4) * cnt;
+        const size = (type === 3 ? 2 : type === 2 ? 1 : type === 5 ? 8 : 4) * cnt;
         const vp = size <= 4 ? e + 8 : tiff + u32(e + 8);
         if (vp + size > v.byteLength) continue;
         if (type === 2) out[tag] = ascii(vp, cnt);
         else if (type === 3) out[tag] = u16(vp);
         else if (type === 4) out[tag] = u32(vp);
+        else if (type === 5){ const den = u32(vp + 4); out[tag] = den ? u32(vp) / den : 0; }  // RATIONAL
       }
       return out;
     };
@@ -1318,7 +1337,17 @@ async function readExif(file){
     const camera = !brand || model.toLowerCase().includes(brand)
       ? model : make.split(' ')[0] + ' ' + model;
     const m = (exif[0x9003] || '').match(/^(\d{4}):(\d{2}):(\d{2})/);      // DateTimeOriginal
-    return { camera, lens: exif[0xA434] || '', date: m ? `${m[1]}.${m[2]}.${m[3]}` : '' };
+    // 촬영 설정값: 조리개 / 셔터 / ISO / 초점거리
+    const parts = [];
+    if (exif[0x829D]) parts.push('F' + Math.round(exif[0x829D] * 10) / 10);           // FNumber
+    if (exif[0x829A]){                                                                 // ExposureTime
+      const t = exif[0x829A];
+      parts.push(t >= 1 ? Math.round(t * 10) / 10 + 's' : '1/' + Math.round(1 / t) + 's');
+    }
+    if (exif[0x8827]) parts.push('ISO ' + exif[0x8827]);                               // ISO
+    if (exif[0x920A]) parts.push(Math.round(exif[0x920A]) + 'mm');                     // FocalLength
+    return { camera, lens: exif[0xA434] || '', date: m ? `${m[1]}.${m[2]}.${m[3]}` : '',
+             set: parts.join(' · ') };
   } catch { return null; }
 }
 
@@ -1347,7 +1376,7 @@ async function addFiles(files){
       // 렌즈 정보까지 있어야 실제 카메라 EXIF로 신뢰 — 필름 스캐너가 남긴
       // 기기명(Noritsu 등)을 걸러낸다. EXIF는 전역 입력을 건드리지 않고
       // 이 사진에만 붙는다 (필름/디지털 혼합 작업 시 서로 오염 방지)
-      if (x && x.lens){ shot.exif = { body: x.camera, lens: x.lens, date: x.date }; exifCount++; }
+      if (x && x.lens){ shot.exif = { body: x.camera, lens: x.lens, date: x.date, set: x.set }; exifCount++; }
       state.shots.push(shot);
     } catch { failed++; }
   }
@@ -1383,10 +1412,10 @@ function setStyle(style){
 function saveSettings(){
   store.write('frame.settings', {
     body: gInfo.body, lens: gInfo.lens, film: $('film').value,
-    date: gInfo.date, caption: $('caption').value,
+    date: gInfo.date, set: gInfo.set, caption: $('caption').value,
     show: { body: $('showBody').checked, lens: $('showLens').checked,
             film: $('showFilm').checked, date: $('showDate').checked,
-            caption: $('showCaption').checked },
+            set: $('showSet').checked, caption: $('showCaption').checked },
     advPort: { ...adv.port }, advLand: { ...adv.land },
     font: $('font').value,
     ratio: $('ratio').value, ratioBg: $('ratioBg').value,
@@ -1405,13 +1434,14 @@ function loadSettings(){
     return;
   }
   gInfo.body = s.body ?? ''; gInfo.lens = s.lens ?? ''; $('film').value = s.film ?? '';
-  gInfo.date = s.date ?? '';
+  gInfo.date = s.date ?? ''; gInfo.set = s.set ?? '';
   $('caption').value = s.caption ?? '';
   if (s.show){
     $('showBody').checked = !!s.show.body;
     $('showLens').checked = !!s.show.lens;
     $('showFilm').checked = !!s.show.film;
     $('showDate').checked = s.show.date ?? true;
+    $('showSet').checked = s.show.set ?? true;
     $('showCaption').checked = s.show.caption ?? true;
   }
   // 방향별 프로파일 복원 — 구버전(평면) 설정은 양쪽 프로파일로 이전
@@ -1437,8 +1467,8 @@ $('styleSeg').onclick = e => {
   refresh();   // 스타일이 바뀌면 캔버스 비율이 바뀌므로 화면 맞춤으로 리셋
 };
 $('tone').onchange = e => { state.tone = e.target.value; saveSettings(); refresh(true); };
-/* 카메라/렌즈/날짜: EXIF 사진이 선택돼 있으면 그 사진에만(own), 아니면 전역에 기록 */
-['body','lens','date'].forEach(id => {
+/* 카메라/렌즈/날짜/설정: EXIF 사진이 선택돼 있으면 그 사진에만(own), 아니면 전역에 기록 */
+['body','lens','date','set'].forEach(id => {
   $(id).addEventListener('input', () => {
     const s = state.shots[state.current];
     if (s && s.exif){ (s.own ||= {})[id] = $(id).value.trim(); }
@@ -1515,12 +1545,12 @@ document.addEventListener('click', e => {
   if (!$('advPanel').hidden && !e.target.closest('#advPanel') && !e.target.closest('#gearBtn'))
     $('advPanel').hidden = true;
 });
-['showBody','showLens','showFilm','showDate','showCaption','font'].forEach(id => {
+['showBody','showLens','showFilm','showDate','showSet','showCaption','font'].forEach(id => {
   $(id).addEventListener('change', () => { saveSettings(); refresh(true); });
 });
 
 /* 눈 아이콘 — 항목별 표시/숨김을 입력 필드 옆에서 바로 토글 */
-const EYE_INPUT = { showBody:'body', showLens:'lens', showFilm:'film', showDate:'date', showCaption:'caption' };
+const EYE_INPUT = { showBody:'body', showLens:'lens', showFilm:'film', showDate:'date', showSet:'set', showCaption:'caption' };
 const EYE_SVG = on => on
   ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>'
   : '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.9 17.9A11 11 0 0 1 12 19c-7 0-11-7-11-7a20.3 20.3 0 0 1 5.1-5.9M9.9 4.2A11 11 0 0 1 12 5c7 0 11 7 11 7a20.4 20.4 0 0 1-3.1 4.1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><line x1="2" y1="2" x2="22" y2="22"/></svg>';
