@@ -845,9 +845,13 @@ function render(img, o, info){
   const FMONO = o.font === 'auto' ? MONO : FONTS[o.font];
   const FSANS = o.font === 'auto' ? SANS : FONTS[o.font];
 
-  // 요소 경계 박스 수집 — 미리보기 오버레이용 (info.collect일 때만, 결과물엔 미포함)
+  // 요소 경계 박스 수집 — 미리보기 오버레이·드래그용 (info.collect일 때만, 결과물엔 미포함)
   const collect = !!(info && info.collect);
-  const box = (label, x, y, w, h) => { if (collect) (info.boxes ||= []).push({ label, x, y, w, h }); };
+  const KEYMAP = { '정보':'info', '날짜':'date', '메모':'cap', '로고':'logo', '서명':'logo' };
+  const box = (label, x, y, w, h) => {
+    if (collect) (info.boxes ||= []).push({ label, x, y, w, h,
+      key: o._drag === false ? null : (KEYMAP[label] || null) });
+  };
   const tbox = (label, text, x, y, align, baseline, size, track = 0) => {
     if (!collect || !text) return;
     const w = ctx.measureText(String(text)).width + (track ? String(text).length * track : 0);
@@ -862,6 +866,13 @@ function render(img, o, info){
     W = Math.floor(W * s); H = Math.floor(H * s);
     if (info) info.shrunk = Math.round(s * 100);
   }
+  if (info) info.renderW = W;   // 드래그 오프셋 환산 기준 (오프셋은 사진 폭 W 비율로 저장)
+
+  // 요소별 드래그 오프셋 (사진 폭 W 비율 → px)
+  const offI = { x: Math.round((o.offInfo?.x || 0) * W), y: Math.round((o.offInfo?.y || 0) * W) };
+  const offD = { x: Math.round((o.offDate?.x || 0) * W), y: Math.round((o.offDate?.y || 0) * W) };
+  const offC = { x: Math.round((o.offCap?.x  || 0) * W), y: Math.round((o.offCap?.y  || 0) * W) };
+  const offL = { x: Math.round((o.offLogo?.x || 0) * W), y: Math.round((o.offLogo?.y || 0) * W) };
 
   if (o.style === 'film' && H > W) {
     // 세로 사진 — 필름이 세로로 지나간다: 퍼포레이션·엣지프린트가 좌우
@@ -986,30 +997,30 @@ function render(img, o, info){
     ctx.fillStyle = C.rebate; ctx.textAlign = pos.a;
     if (two){
       const s0 = fitSize(ctx, lines[0], fs, 500, FMONO, W - 2*pad);
-      trackedText(ctx, lines[0], pos.x, H + bar + botBase*0.63, s0*0.15);
-      tbox('정보', lines[0], pos.x, H + bar + botBase*0.63, pos.a, 'alphabetic', s0, s0*0.15);
+      trackedText(ctx, lines[0], pos.x + offI.x, H + bar + botBase*0.63 + offI.y, s0*0.15);
+      tbox('정보', lines[0], pos.x + offI.x, H + bar + botBase*0.63 + offI.y, pos.a, 'alphabetic', s0, s0*0.15);
     }
     if (lines.length){
       const last = lines[lines.length-1];
       const s1 = fitSize(ctx, last, fs, 500, FMONO, maxBottom);
-      trackedText(ctx, last, pos.x, baseY, s1*0.15);
-      tbox('정보', last, pos.x, baseY, pos.a, 'alphabetic', s1, s1*0.15);
+      trackedText(ctx, last, pos.x + offI.x, baseY + offI.y, s1*0.15);
+      tbox('정보', last, pos.x + offI.x, baseY + offI.y, pos.a, 'alphabetic', s1, s1*0.15);
     }
     // 날짜 — 데이트 스탬프처럼 주황, 기본 왼쪽 (정보와 독립 배치)
     if (dt){
       ctx.font = `600 ${fs}px ${FMONO}`;
       ctx.fillStyle = C.edge; ctx.textAlign = dpos.a;
-      trackedText(ctx, dt, dpos.x, baseY, fs*0.15);
-      tbox('날짜', dt, dpos.x, baseY, dpos.a, 'alphabetic', fs, fs*0.15);
+      trackedText(ctx, dt, dpos.x + offD.x, baseY + offD.y, fs*0.15);
+      tbox('날짜', dt, dpos.x + offD.x, baseY + offD.y, dpos.a, 'alphabetic', fs, fs*0.15);
     }
     // 메모 — 정보 아래에 줄 단위로 이어 쌓는다
     caps.forEach((t, i) => {
       const sc = fitSize(ctx, t, fcap, 400, FMONO, W - 2*pad, 0);
       ctx.fillStyle = '#6f6a5f'; ctx.textAlign = pos.a;
-      ctx.fillText(t, pos.x, baseY + capLH*(i + 1));
-      tbox('메모', t, pos.x, baseY + capLH*(i + 1), pos.a, 'alphabetic', sc);
+      ctx.fillText(t, pos.x + offC.x, baseY + capLH*(i + 1) + offC.y);
+      tbox('메모', t, pos.x + offC.x, baseY + capLH*(i + 1) + offC.y, pos.a, 'alphabetic', sc);
     });
-    drawLogo(ctx, o, pad, W/2, W - pad, baseY - fs*0.35, bar*0.6, 'center', C.rebate);
+    drawLogo(ctx, o, pad + offL.x, W/2 + offL.x, W - pad + offL.x, baseY - fs*0.35 + offL.y, bar*0.6, 'center', C.rebate);
   }
 
   else if (o.style === 'instax' && W > H) {
@@ -1071,7 +1082,8 @@ function render(img, o, info){
       box('정보·날짜·메모 (회전)', m + W, 0, colW, cv.height);   // 회전 좌표계라 컬럼 영역으로 표시
     }
     else {
-      // 오른쪽 컬럼에 항목별 한 줄씩 세로 스택, 블록 전체를 세로 중앙 정렬
+      // 오른쪽 컬럼에 항목별 한 줄씩 세로 스택, 블록 전체를 세로 중앙 정렬 (자동 배치 — 드래그 미지원)
+      o._drag = false;
       const p = H*0.02, colX = m + W;
       const items = [];
       if (o.show.body && o.body) items.push({ t: o.body,               size: fs1,  lh: fs1*1.7, col: C.ink,     fam: FSANS, w: 500 });
@@ -1116,22 +1128,22 @@ function render(img, o, info){
     if (m){
       const s0 = fitSize(ctx, m, W*0.0392*o.fontScale, 500, FSANS, maxW, 0);   // 기본 하단 여백(0.27W)의 14.5%
       ctx.fillStyle = C.ink;
-      ctx.fillText(m, pos.x, cy - botBase*0.11);
-      tbox('정보', m, pos.x, cy - botBase*0.11, pos.a, 'middle', s0);
+      ctx.fillText(m, pos.x + offI.x, cy - botBase*0.11 + offI.y);
+      tbox('정보', m, pos.x + offI.x, cy - botBase*0.11 + offI.y, pos.a, 'middle', s0);
     }
     const tech = techText(o);
     if (tech){
       const s1 = fitSize(ctx, tech.toUpperCase(), W*0.0284*o.fontScale, 600, FMONO, maxW, 0);   // 기본 하단 여백의 10.5%
       ctx.fillStyle = '#9a9288';
-      ctx.fillText(tech.toUpperCase(), pos.x, cy + botBase*0.14);
-      tbox('정보', tech.toUpperCase(), pos.x, cy + botBase*0.14, pos.a, 'middle', s1);
+      ctx.fillText(tech.toUpperCase(), pos.x + offI.x, cy + botBase*0.14 + offI.y);
+      tbox('정보', tech.toUpperCase(), pos.x + offI.x, cy + botBase*0.14 + offI.y, pos.a, 'middle', s1);
     }
     // 메모 — 손글씨 느낌의 이탤릭, 필름 줄 아래로 이어 쌓는다
     caps.forEach((t, i) => {
       const sc = fitSize(ctx, t, fcap, 'italic 400', FSANS, maxW, 0);
       ctx.fillStyle = '#5f584d'; ctx.textAlign = pos.a;
-      ctx.fillText(t, pos.x, H + top + botBase*0.64 + capLH*(i + 1));
-      tbox('메모', t, pos.x, H + top + botBase*0.64 + capLH*(i + 1), pos.a, 'middle', sc);
+      ctx.fillText(t, pos.x + offC.x, H + top + botBase*0.64 + capLH*(i + 1) + offC.y);
+      tbox('메모', t, pos.x + offC.x, H + top + botBase*0.64 + capLH*(i + 1) + offC.y, pos.a, 'middle', sc);
     });
     // 날짜 — 카드 아래쪽에 손글씨 자리처럼, 기본 오른쪽 구석 (정보와 독립 배치)
     const dt = dateText(o);
@@ -1139,10 +1151,10 @@ function render(img, o, info){
       const dpos = alignX(o.dateAlign, 'right', side + W*0.02, cv.width/2, side + W - W*0.02);
       ctx.font = `600 ${W*0.0284*o.fontScale}px ${FMONO}`;
       ctx.fillStyle = '#c2bab0'; ctx.textAlign = dpos.a;
-      ctx.fillText(dt, dpos.x, H + top + bot - botBase*0.14);
-      tbox('날짜', dt, dpos.x, H + top + bot - botBase*0.14, dpos.a, 'middle', W*0.0284*o.fontScale);
+      ctx.fillText(dt, dpos.x + offD.x, H + top + bot - botBase*0.14 + offD.y);
+      tbox('날짜', dt, dpos.x + offD.x, H + top + bot - botBase*0.14 + offD.y, dpos.a, 'middle', W*0.0284*o.fontScale);
     }
-    drawLogo(ctx, o, side + W*0.02, side + W/2, side + W - W*0.02, H + top + bot - botBase*0.14, botBase*0.14, 'left', '#5f584d');
+    drawLogo(ctx, o, side + W*0.02 + offL.x, side + W/2 + offL.x, side + W - W*0.02 + offL.x, H + top + bot - botBase*0.14 + offL.y, botBase*0.14, 'left', '#5f584d');
   }
 
   else { // bottom / top
@@ -1178,31 +1190,31 @@ function render(img, o, info){
     const infoY = lines.length > 1 ? bandBase*0.67 : bandBase/2;
     if (lines.length > 1){
       const s0 = fitSize(ctx, lines[0], fs, 500, FMONO, W - 2*pad);
-      trackedText(ctx, lines[0], pos.x, bandTop + bandBase*0.33, s0*0.15);
-      tbox('정보', lines[0], pos.x, bandTop + bandBase*0.33, pos.a, 'middle', s0, s0*0.15);
+      trackedText(ctx, lines[0], pos.x + offI.x, bandTop + bandBase*0.33 + offI.y, s0*0.15);
+      tbox('정보', lines[0], pos.x + offI.x, bandTop + bandBase*0.33 + offI.y, pos.a, 'middle', s0, s0*0.15);
       const s1 = fitSize(ctx, lines[1], fs, 500, FMONO, maxBottom);
-      trackedText(ctx, lines[1], pos.x, bandTop + bandBase*0.67, s1*0.15);
-      tbox('정보', lines[1], pos.x, bandTop + bandBase*0.67, pos.a, 'middle', s1, s1*0.15);
+      trackedText(ctx, lines[1], pos.x + offI.x, bandTop + bandBase*0.67 + offI.y, s1*0.15);
+      tbox('정보', lines[1], pos.x + offI.x, bandTop + bandBase*0.67 + offI.y, pos.a, 'middle', s1, s1*0.15);
     } else if (lines.length){
       const s1 = fitSize(ctx, lines[0], fs, 500, FMONO, maxBottom);
-      trackedText(ctx, lines[0], pos.x, bandTop + bandBase/2, s1*0.15);
-      tbox('정보', lines[0], pos.x, bandTop + bandBase/2, pos.a, 'middle', s1, s1*0.15);
+      trackedText(ctx, lines[0], pos.x + offI.x, bandTop + bandBase/2 + offI.y, s1*0.15);
+      tbox('정보', lines[0], pos.x + offI.x, bandTop + bandBase/2 + offI.y, pos.a, 'middle', s1, s1*0.15);
     }
     // 메모 — 정보 아래에 줄 단위로 이어 쌓는다
     caps.forEach((t, i) => {
       const sc = fitSize(ctx, t, fcap, 400, FMONO, W - 2*pad, 0);
       ctx.fillStyle = dark ? '#8a8378' : '#7d766a'; ctx.textAlign = pos.a;
-      ctx.fillText(t, pos.x, bandTop + infoY + capLH*(i + 1));
-      tbox('메모', t, pos.x, bandTop + infoY + capLH*(i + 1), pos.a, 'middle', sc);
+      ctx.fillText(t, pos.x + offC.x, bandTop + infoY + capLH*(i + 1) + offC.y);
+      tbox('메모', t, pos.x + offC.x, bandTop + infoY + capLH*(i + 1) + offC.y, pos.a, 'middle', sc);
     });
     // 날짜 — 데이트 스탬프처럼 주황, 기본 오른쪽 (정보와 독립 배치)
     if (dt){
       ctx.font = `600 ${fs}px ${FMONO}`;
       ctx.fillStyle = C.edge; ctx.textAlign = dpos.a;
-      ctx.fillText(dt, dpos.x, bandTop + infoY);
-      tbox('날짜', dt, dpos.x, bandTop + infoY, dpos.a, 'middle', fs);
+      ctx.fillText(dt, dpos.x + offD.x, bandTop + infoY + offD.y);
+      tbox('날짜', dt, dpos.x + offD.x, bandTop + infoY + offD.y, dpos.a, 'middle', fs);
     }
-    drawLogo(ctx, o, pad, W/2, W - pad, bandTop + infoY, fs*1.9, 'center', dark ? C.bandDarkText : '#4a453d');
+    drawLogo(ctx, o, pad + offL.x, W/2 + offL.x, W - pad + offL.x, bandTop + infoY + offL.y, fs*1.9, 'center', dark ? C.bandDarkText : '#4a453d');
   }
   return cv;
 }
@@ -1227,9 +1239,13 @@ function downscale(cv, longEdge){
    않게, 방향 종속 항목은 세로(port)/가로(land) 프로파일로 따로 저장한다.
    렌더 시 각 사진이 자기 방향의 프로파일을 자동으로 쓴다 */
 const ADV_KEYS = ['lines','fontScale','bandScale','borderScale','align','dateAlign','sideText','logoAlign','logoScale'];
+/* 드래그 오프셋(사진 폭 W 비율) — UI 컨트롤이 없어 ADV_KEYS에는 미포함, 프로파일에만 저장 */
+const OFF_KEYS = ['infoDX','infoDY','dateDX','dateDY','capDX','capDY','logoDX','logoDY'];
 const DEF_ADV = { lines:'1', fontScale:'100', bandScale:'100', borderScale:'100',
                   align:'auto', dateAlign:'auto', sideText:'stack',
-                  logoAlign:'auto', logoScale:'100' };
+                  logoAlign:'auto', logoScale:'100',
+                  infoDX:'0', infoDY:'0', dateDX:'0', dateDY:'0',
+                  capDX:'0', capDY:'0', logoDX:'0', logoDY:'0' };
 const adv = { port: { ...DEF_ADV }, land: { ...DEF_ADV } };
 let advTab = 'port';
 
@@ -1248,6 +1264,10 @@ function withProfile(o, shot){
     align: p.align, dateAlign: p.dateAlign, sideText: p.sideText,
     logoAlign: p.logoAlign || 'auto',
     logoScale: pv(p.logoScale, 30, 300),
+    offInfo: { x: Number(p.infoDX) || 0, y: Number(p.infoDY) || 0 },
+    offDate: { x: Number(p.dateDX) || 0, y: Number(p.dateDY) || 0 },
+    offCap:  { x: Number(p.capDX)  || 0, y: Number(p.capDY)  || 0 },
+    offLogo: { x: Number(p.logoDX) || 0, y: Number(p.logoDY) || 0 },
   };
 }
 
@@ -1339,6 +1359,139 @@ $('zBox').onclick = () => {
   refresh(true);
 };
 
+/* ============================================================
+   미리보기 오버레이 + 경계 드래그 (요소 위치 지정)
+   ============================================================ */
+function paintOverlay(drag){
+  const P = state._pv; if (!P) return;
+  const pctx = pv.getContext('2d');
+  pctx.drawImage(P.cv, 0, 0);
+  if (!state.showBoxes || !P.boxes.length) return;
+  const lw = Math.max(2, P.cv.width * 0.0015);
+  const fsL = Math.max(13, P.cv.width * 0.011);
+  pctx.save();
+  // 스냅 가이드라인 — 다른 경계·중앙과 수평/수직이 맞으면 강조
+  if (drag && (drag.gx != null || drag.gy != null)){
+    pctx.strokeStyle = '#31b5ff';
+    pctx.lineWidth = lw;
+    pctx.setLineDash([]);
+    if (drag.gx != null){
+      pctx.beginPath(); pctx.moveTo(drag.gx + P.padX, 0); pctx.lineTo(drag.gx + P.padX, P.cv.height); pctx.stroke();
+    }
+    if (drag.gy != null){
+      pctx.beginPath(); pctx.moveTo(0, drag.gy + P.padY); pctx.lineTo(P.cv.width, drag.gy + P.padY); pctx.stroke();
+    }
+  }
+  pctx.lineWidth = lw;
+  pctx.setLineDash([lw * 3, lw * 2]);
+  pctx.font = `600 ${fsL}px ${MONO}`;
+  pctx.textBaseline = 'bottom'; pctx.textAlign = 'left';
+  for (const b of P.boxes){
+    const mv = drag && b.key === drag.key;
+    const bx = b.x + P.padX + (mv ? drag.ddx : 0);
+    const by = b.y + P.padY + (mv ? drag.ddy : 0);
+    const g = lw * 2;
+    pctx.strokeStyle = mv ? '#31b5ff' : 'rgba(232,135,58,.95)';
+    pctx.strokeRect(bx - g, by - g, b.w + g * 2, b.h + g * 2);
+    const label = ` ${b.label} `;
+    const tw = pctx.measureText(label).width;
+    pctx.fillStyle = mv ? '#31b5ff' : 'rgba(232,135,58,.95)';
+    pctx.fillRect(bx - g, by - g - fsL * 1.25, tw, fsL * 1.25);
+    pctx.fillStyle = '#14130f';
+    pctx.fillText(label, bx - g, by - g);
+  }
+  pctx.restore();
+}
+
+let boxDrag = null;
+
+function canvasPoint(e){
+  const r = pv.getBoundingClientRect();
+  return { x: (e.clientX - r.left) / zoom.scale, y: (e.clientY - r.top) / zoom.scale };
+}
+
+function hitBox(e){
+  const P = state._pv; if (!P || !P.boxes.length) return null;
+  const pt = canvasPoint(e);
+  const rx = pt.x - P.padX, ry = pt.y - P.padY;
+  const pad = Math.max(6, P.raw.width * 0.006);
+  for (let i = P.boxes.length - 1; i >= 0; i--){
+    const b = P.boxes[i];
+    if (!b.key) continue;
+    if (rx >= b.x - pad && rx <= b.x + b.w + pad && ry >= b.y - pad && ry <= b.y + b.h + pad)
+      return { b, pt };
+  }
+  return null;
+}
+
+function startBoxDrag(e){
+  const hit = hitBox(e);
+  if (!hit) return false;
+  boxDrag = { key: hit.b.key, sx: hit.pt.x, sy: hit.pt.y, ddx: 0, ddy: 0, gx: null, gy: null };
+  return true;
+}
+
+function moveBoxDrag(e){
+  const P = state._pv;
+  const pt = canvasPoint(e);
+  let ddx = pt.x - boxDrag.sx, ddy = pt.y - boxDrag.sy;
+  // 드래그 중 그룹 bbox와 다른 경계·캔버스 중앙의 수평/수직 스냅
+  const mine = P.boxes.filter(b => b.key === boxDrag.key);
+  const others = P.boxes.filter(b => b.key !== boxDrag.key && b.key !== null);
+  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+  for (const b of mine){ x0 = Math.min(x0, b.x); x1 = Math.max(x1, b.x + b.w); y0 = Math.min(y0, b.y); y1 = Math.max(y1, b.y + b.h); }
+  const th = Math.max(6, P.raw.width * 0.006);
+  const candX = [P.raw.width / 2], candY = [P.raw.height / 2];
+  for (const b of others){
+    candX.push(b.x, b.x + b.w / 2, b.x + b.w);
+    candY.push(b.y, b.y + b.h / 2, b.y + b.h);
+  }
+  const snap = (cands, mys) => {
+    let bd = th + 1, adj = 0, line = null;
+    for (const c of cands) for (const mv of mys){
+      const d = c - mv;
+      if (Math.abs(d) < bd){ bd = Math.abs(d); adj = d; line = c; }
+    }
+    return bd <= th ? { adj, line } : null;
+  };
+  const sX = snap(candX, [x0 + ddx, (x0 + x1) / 2 + ddx, x1 + ddx]);
+  boxDrag.gx = null;
+  if (sX){ ddx += sX.adj; boxDrag.gx = sX.line; }
+  const sY = snap(candY, [y0 + ddy, (y0 + y1) / 2 + ddy, y1 + ddy]);
+  boxDrag.gy = null;
+  if (sY){ ddy += sY.adj; boxDrag.gy = sY.line; }
+  boxDrag.ddx = ddx; boxDrag.ddy = ddy;
+  paintOverlay(boxDrag);
+}
+
+function endBoxDrag(){
+  const P = state._pv;
+  const { key, ddx, ddy } = boxDrag;
+  boxDrag = null;
+  if (!P || (Math.abs(ddx) < 1 && Math.abs(ddy) < 1)){ paintOverlay(null); return; }
+  const s = state.shots[state.current]; if (!s) return;
+  const w = s.img.naturalWidth || s.img.width, h = s.img.naturalHeight || s.img.height;
+  const p = adv[w > h ? 'land' : 'port'];
+  const r4 = v => String(Math.round(v * 10000) / 10000);
+  p[key + 'DX'] = r4((Number(p[key + 'DX']) || 0) + ddx / P.renderW);
+  p[key + 'DY'] = r4((Number(p[key + 'DY']) || 0) + ddy / P.renderW);
+  saveSettings();
+  refresh(true);
+}
+
+/* 더블클릭 = 해당 요소 위치 초기화 */
+vp.addEventListener('dblclick', e => {
+  if (pv.hidden || !state.showBoxes) return;
+  const hit = hitBox(e);
+  if (!hit) return;
+  const s = state.shots[state.current]; if (!s) return;
+  const w = s.img.naturalWidth || s.img.width, h = s.img.naturalHeight || s.img.height;
+  const p = adv[w > h ? 'land' : 'port'];
+  p[hit.b.key + 'DX'] = '0'; p[hit.b.key + 'DY'] = '0';
+  saveSettings(); refresh(true);
+  toast('위치 초기화됨');
+});
+
 vp.addEventListener('wheel', e => {
   if (pv.hidden) return;
   e.preventDefault();
@@ -1351,11 +1504,18 @@ vp.addEventListener('wheel', e => {
 let panning = null;
 vp.addEventListener('pointerdown', e => {
   if (pv.hidden || e.target.closest('.zoombar') || e.target.closest('.dropzone')) return;
+  // 경계 표시 중이면 박스 드래그 우선, 아니면 팬
+  if (state.showBoxes && startBoxDrag(e)){
+    vp.classList.add('grabbing');
+    vp.setPointerCapture(e.pointerId);
+    return;
+  }
   panning = { x: e.clientX, y: e.clientY, ox: zoom.x, oy: zoom.y };
   vp.classList.add('grabbing');
   vp.setPointerCapture(e.pointerId);
 });
 vp.addEventListener('pointermove', e => {
+  if (boxDrag){ moveBoxDrag(e); return; }
   if (!panning) return;
   zoom.x = panning.ox + (e.clientX - panning.x);
   zoom.y = panning.oy + (e.clientY - panning.y);
@@ -1363,6 +1523,7 @@ vp.addEventListener('pointermove', e => {
   applyZoom();
 });
 ['pointerup','pointercancel'].forEach(t => vp.addEventListener(t, () => {
+  if (boxDrag) endBoxDrag();
   panning = null; vp.classList.remove('grabbing');
 }));
 
@@ -1407,33 +1568,13 @@ function refresh(keepZoom = false){
     $('zRatio').textContent = `${niceRatio(sw, sh)} → ${niceRatio(cv.width, cv.height)}`;
 
     pv.width = cv.width; pv.height = cv.height;
-    const pctx = pv.getContext('2d');
-    pctx.drawImage(cv, 0, 0);
-
-    // 요소 경계 오버레이 — 미리보기 전용, 내보내기에는 포함되지 않음
-    if (state.showBoxes && info.boxes && info.boxes.length){
-      const dx = Math.round((cv.width - raw.width) / 2);
-      const dy = Math.round((cv.height - raw.height) / 2);
-      const lw = Math.max(2, cv.width * 0.0015);
-      const fsL = Math.max(13, cv.width * 0.011);
-      pctx.save();
-      pctx.lineWidth = lw;
-      pctx.setLineDash([lw * 3, lw * 2]);
-      pctx.strokeStyle = 'rgba(232,135,58,.95)';
-      pctx.font = `600 ${fsL}px ${MONO}`;
-      pctx.textBaseline = 'bottom'; pctx.textAlign = 'left';
-      for (const b of info.boxes){
-        const g = lw * 2;
-        pctx.strokeRect(b.x + dx - g, b.y + dy - g, b.w + g * 2, b.h + g * 2);
-        const label = ` ${b.label} `;
-        const tw = pctx.measureText(label).width;
-        pctx.fillStyle = 'rgba(232,135,58,.95)';
-        pctx.fillRect(b.x + dx - g, b.y + dy - g - fsL * 1.25, tw, fsL * 1.25);
-        pctx.fillStyle = '#14130f';
-        pctx.fillText(label, b.x + dx - g, b.y + dy - g);
-      }
-      pctx.restore();
-    }
+    state._pv = {
+      cv, raw, boxes: info.boxes || [],
+      padX: Math.round((cv.width - raw.width) / 2),
+      padY: Math.round((cv.height - raw.height) / 2),
+      renderW: info.renderW || raw.width,
+    };
+    paintOverlay(null);
     if (keepZoom && zoom.mode === 'free') applyZoom();
     else zoomFit();
   });
