@@ -343,6 +343,7 @@
         <button id="zFit" title="화면에 맞추기 (0)">맞춤</button>
         <button id="z100" title="원본 크기 (1)">1:1</button>
         <button id="zBox" title="요소 경계 표시 — 결과물에는 포함되지 않습니다" aria-pressed="false">경계</button>
+        <div class="pct" id="zRatio" title="원본 비율 → 결과물 비율"></div>
       </div>
     </div>
 
@@ -779,7 +780,11 @@ function frameDims(W, H, o){
   const two = metaLines(o).length > 1;
   const n = captionLines(o).length;
   const capExtra = fc => n ? n*fc*1.8 + fc*0.6 : 0;
-  if (o.style === 'film')   return { w: W,        h: H + W * 0.088 * (1 + (two ? 2.3 : 1.75) * o.bandScale) + capExtra(W*0.088*0.30*o.fontScale) };
+  if (o.style === 'film'){
+    if (H > W)  // 세로: 좌우 스트립 (기준 = 긴 변 H)
+      return { w: W + H * 0.088 * (1 + (two ? 2.3 : 1.75) * o.bandScale) + capExtra(H*0.088*0.30*o.fontScale), h: H };
+    return { w: W, h: H + W * 0.088 * (1 + (two ? 2.3 : 1.75) * o.bandScale) + capExtra(W*0.088*0.30*o.fontScale) };
+  }
   if (o.style === 'instax'){
     const bs = o.borderScale;
     if (W > H){  // 가로: 우측 여백 레이아웃 (회전 글씨면 메모만큼 컬럼 확장)
@@ -799,6 +804,15 @@ function targetRatio(r, mode){
   if (mode === '1.91:1') return 1.91;
   if (mode === '9:16')   return 0.5625;   // 스토리
   return null;   // 'none'
+}
+
+function niceRatio(w, h){
+  // 흔한 비율은 관용 표기로, 아니면 소수 표기
+  const r = w / h;
+  const COMMON = [[1,1],[3,2],[2,3],[4,3],[3,4],[4,5],[5,4],[5,7],[7,5],[16,9],[9,16],[1.91,1],[65,24]];
+  for (const [a,b] of COMMON)
+    if (Math.abs(r - a/b) < 0.012) return a === 1.91 ? '1.91:1' : `${a}:${b}`;
+  return r >= 1 ? (Math.round(r*100)/100) + ':1' : '1:' + (Math.round(100/r)/100);
 }
 
 function ratioDims(d, mode){
@@ -849,7 +863,82 @@ function render(img, o, info){
     if (info) info.shrunk = Math.round(s * 100);
   }
 
-  if (o.style === 'film') {
+  if (o.style === 'film' && H > W) {
+    // 세로 사진 — 필름이 세로로 지나간다: 퍼포레이션·엣지프린트가 좌우
+    // (실제 35mm에서 세로 구도는 카메라를 돌려 찍으므로 스트립이 사진의 긴 변을 따라감)
+    const bar = H * 0.088;                    // 스트립 폭 기준은 긴 변
+    const lines = metaLines(o).map(t => t.toUpperCase());
+    const two = lines.length > 1;
+    const caps = captionLines(o);
+    const fcap = bar*0.30*o.fontScale, capLH = fcap*1.8;
+    const botBase = bar * (two ? 2.3 : 1.75) * o.bandScale;
+    const botBar = botBase + (caps.length ? caps.length*capLH + fcap*0.4 : 0);
+    cv.width = bar + W + botBar; cv.height = H;   // 왼쪽 얇은 바 + 사진 + 오른쪽 텍스트 바
+    ctx.fillStyle = C.base; ctx.fillRect(0,0,cv.width,cv.height);
+    ctx.drawImage(img, bar, 0, W, H);
+
+    // 퍼포레이션 — 세로 두 줄 (구멍 긴 축이 스트립 방향)
+    const hw = bar*0.36, hh = bar*0.50, rr = hw*0.24;
+    const n = Math.max(6, Math.round(H / (hh*2.15)));
+    const step = H / n;
+    const holesV = (cx) => {
+      for (let i=0;i<n;i++){
+        const cy = step*(i+0.5);
+        ctx.beginPath();
+        ctx.roundRect(cx-hw/2, cy-hh/2, hw, hh, rr);
+        ctx.fill();
+      }
+    };
+    ctx.fillStyle = '#050503';
+    holesV(bar*0.50);
+    holesV(bar + W + bar*0.70);   // 사진 바로 오른쪽 고정
+
+    // 엣지 프린트 — -90° 회전 좌표계에서 가로 필름과 동일 배치 (글씨가 아래→위)
+    const keepBox = o._box; o._box = null;
+    ctx.save();
+    ctx.translate(0, cv.height);
+    ctx.rotate(-Math.PI/2);
+    // 가상 좌표: 스트립 길이 H(가로축), 세로축 = bar + W + botBar
+    const fs = bar*0.33*o.fontScale;
+    const pad = H*0.022;
+    const pos = alignX(o.align, 'right', pad, H/2, H - pad);
+    const dt = dateText(o);
+    const dpos = dt ? alignX(o.dateAlign, 'left', pad, H/2, H - pad) : null;
+    ctx.textBaseline = 'alphabetic';
+    let dateW = 0;
+    if (dt){
+      ctx.font = `600 ${fs}px ${FMONO}`;
+      dateW = ctx.measureText(dt).width + dt.length*fs*0.15;
+    }
+    const maxBottom = (dt && dpos.a !== pos.a) ? H - 2*pad - dateW - H*0.03 : H - 2*pad;
+    const vBase = bar + W + botBase*(two ? 0.87 : 0.82);
+    ctx.fillStyle = C.rebate; ctx.textAlign = pos.a;
+    if (two){
+      const s0 = fitSize(ctx, lines[0], fs, 500, FMONO, H - 2*pad);
+      trackedText(ctx, lines[0], pos.x, bar + W + botBase*0.63, s0*0.15);
+    }
+    if (lines.length){
+      const last = lines[lines.length-1];
+      const s1 = fitSize(ctx, last, fs, 500, FMONO, maxBottom);
+      trackedText(ctx, last, pos.x, vBase, s1*0.15);
+    }
+    if (dt){
+      ctx.font = `600 ${fs}px ${FMONO}`;
+      ctx.fillStyle = C.edge; ctx.textAlign = dpos.a;
+      trackedText(ctx, dt, dpos.x, vBase, fs*0.15);
+    }
+    caps.forEach((t, i) => {
+      const sc = fitSize(ctx, t, fcap, 400, FMONO, H - 2*pad, 0);
+      ctx.fillStyle = '#6f6a5f'; ctx.textAlign = pos.a;
+      ctx.fillText(t, pos.x, vBase + capLH*(i + 1));
+    });
+    drawLogo(ctx, o, pad, H/2, H - pad, vBase - fs*0.35, bar*0.6, 'center', C.rebate);
+    ctx.restore();
+    o._box = keepBox;
+    box('정보·날짜·메모 (세로 필름)', bar + W, 0, botBar, cv.height);
+  }
+
+  else if (o.style === 'film') {
     const bar = W * 0.088;
     const lines = metaLines(o).map(t => t.toUpperCase());
     const two = lines.length > 1;
@@ -1313,6 +1402,10 @@ function refresh(keepZoom = false){
       shot.shrinkWarned = true;
       toast(`원본이 커서 브라우저 한계에 맞춰 ${info.shrunk}% 크기로 합성됩니다`);
     }
+    // 원본 → 결과물 비율 표시
+    const sw = shot.img.naturalWidth || shot.img.width, sh = shot.img.naturalHeight || shot.img.height;
+    $('zRatio').textContent = `${niceRatio(sw, sh)} → ${niceRatio(cv.width, cv.height)}`;
+
     pv.width = cv.width; pv.height = cv.height;
     const pctx = pv.getContext('2d');
     pctx.drawImage(cv, 0, 0);
