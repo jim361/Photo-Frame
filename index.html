@@ -411,6 +411,7 @@
       <div class="field">
         <span>로고 · 서명 (투명 PNG 권장)</span>
         <div class="gearcol" id="logoRow"></div>
+        <input type="text" id="sigText" placeholder="또는 텍스트 서명 — @jim361 (이미지 선택 시 이미지 우선)" style="margin-top:6px">
       </div>
     </div>
 
@@ -726,15 +727,23 @@ function alignX(mode, def, left, center, right){
   return { a, x: a === 'left' ? left : a === 'center' ? center : right };
 }
 
-function drawLogo(ctx, o, left, center, right, yCenter, baseH, def){
-  // 로고·서명 이미지 — 텍스트 영역에 정렬해 그린다
-  if (!o.logoImg) return;
-  const img = o.logoImg;
-  const h = baseH * o.logoScale;
-  const w = h * (img.width / img.height);
+function drawLogo(ctx, o, left, center, right, yCenter, baseH, def, sigColor){
+  // 로고·서명 — 이미지가 있으면 이미지, 없으면 텍스트 서명(필기체)을 같은 자리에
   const a = o.logoAlign === 'auto' ? def : o.logoAlign;
-  const x = a === 'left' ? left : a === 'center' ? center - w / 2 : right - w;
-  ctx.drawImage(img, x, yCenter - h / 2, w, h);
+  if (o.logoImg){
+    const img = o.logoImg;
+    const h = baseH * o.logoScale;
+    const w = h * (img.width / img.height);
+    const x = a === 'left' ? left : a === 'center' ? center - w / 2 : right - w;
+    ctx.drawImage(img, x, yCenter - h / 2, w, h);
+    return;
+  }
+  if (!o.sigText) return;
+  ctx.font = `italic 400 ${baseH * o.logoScale * 0.9}px ${FONTS.script}`;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = a;
+  ctx.fillStyle = sigColor;
+  ctx.fillText(o.sigText, a === 'left' ? left : a === 'center' ? center : right, yCenter);
 }
 
 function fitSize(ctx, text, size, weight, family, maxW, trackRatio = 0.15){
@@ -886,7 +895,7 @@ function render(img, o, info){
       ctx.fillStyle = '#6f6a5f'; ctx.textAlign = pos.a;
       ctx.fillText(t, pos.x, baseY + capLH*(i + 1));
     });
-    drawLogo(ctx, o, pad, W/2, W - pad, baseY - fs*0.35, bar*0.6, 'center');
+    drawLogo(ctx, o, pad, W/2, W - pad, baseY - fs*0.35, bar*0.6, 'center', C.rebate);
   }
 
   else if (o.style === 'instax' && W > H) {
@@ -941,7 +950,7 @@ function render(img, o, info){
         ctx.fillStyle = '#c2bab0'; ctx.textAlign = dpos.a;
         ctx.fillText(dt, dpos.x, photoBottom + colW - colBase*0.14);
       }
-      drawLogo(ctx, o, m + H*0.02, m + H/2, m + H - H*0.02, photoBottom + colW - colBase*0.14, colBase*0.14, 'left');
+      drawLogo(ctx, o, m + H*0.02, m + H/2, m + H - H*0.02, photoBottom + colW - colBase*0.14, colBase*0.14, 'left', '#5f584d');
       ctx.restore();
     }
     else {
@@ -965,7 +974,7 @@ function render(img, o, info){
         ctx.fillText(it.t, pos.x, y);
         y += it.lh;
       }
-      drawLogo(ctx, o, colX + p, colX + colW/2, colX + colW - p, m + H - H*0.05, H*0.07, 'center');
+      drawLogo(ctx, o, colX + p, colX + colW/2, colX + colW - p, m + H - H*0.05, H*0.07, 'center', '#5f584d');
     }
   }
 
@@ -1011,7 +1020,7 @@ function render(img, o, info){
       ctx.fillStyle = '#c2bab0'; ctx.textAlign = dpos.a;
       ctx.fillText(dt, dpos.x, H + top + bot - botBase*0.14);
     }
-    drawLogo(ctx, o, side + W*0.02, side + W/2, side + W - W*0.02, H + top + bot - botBase*0.14, botBase*0.14, 'left');
+    drawLogo(ctx, o, side + W*0.02, side + W/2, side + W - W*0.02, H + top + bot - botBase*0.14, botBase*0.14, 'left', '#5f584d');
   }
 
   else { // bottom / top
@@ -1066,7 +1075,7 @@ function render(img, o, info){
       ctx.fillStyle = C.edge; ctx.textAlign = dpos.a;
       ctx.fillText(dt, dpos.x, bandTop + infoY);
     }
-    drawLogo(ctx, o, pad, W/2, W - pad, bandTop + infoY, fs*1.9, 'center');
+    drawLogo(ctx, o, pad, W/2, W - pad, bandTop + infoY, fs*1.9, 'center', dark ? C.bandDarkText : '#4a453d');
   }
   return cv;
 }
@@ -1132,6 +1141,7 @@ function opts(){
     ratio: $('ratio').value,
     ratioBg: $('ratioBg').value,
     logoImg: logoState.img,
+    sigText: $('sigText').value.trim(),
   };
 }
 
@@ -1464,7 +1474,7 @@ function saveSettings(){
             film: $('showFilm').checked, date: $('showDate').checked,
             set: $('showSet').checked, caption: $('showCaption').checked },
     advPort: { ...adv.port }, advLand: { ...adv.land },
-    logo: logoState.name,
+    logo: logoState.name, sigText: $('sigText').value,
     font: $('font').value,
     ratio: $('ratio').value, ratioBg: $('ratioBg').value,
     title: $('title').value,
@@ -1502,6 +1512,7 @@ function loadSettings(){
   if (s.ratioBg) $('ratioBg').value = s.ratioBg;
   if (s.title) $('title').value = s.title;
   if (s.logo) logoState.name = s.logo;
+  if (s.sigText) $('sigText').value = s.sigText;
   if (s.style) setStyle(s.style);
   if (s.tone){ state.tone = s.tone; $('tone').value = s.tone; }
   if (s.size) $('size').value = s.size;
@@ -1525,7 +1536,7 @@ $('tone').onchange = e => { state.tone = e.target.value; saveSettings(); refresh
     refresh(true);
   });
 });
-['film','caption'].forEach(id => {
+['film','caption','sigText'].forEach(id => {
   $(id).addEventListener('input', () => { saveSettings(); refresh(true); });
 });
 
