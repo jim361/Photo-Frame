@@ -217,6 +217,12 @@
     background:none;border:0;cursor:pointer;padding:0 2px;line-height:0;
     color:var(--edge);transition:color .15s;
   }
+  #layoutReset{
+    line-height:1;font-family:var(--mono);font-size:9px;font-weight:700;
+    letter-spacing:.08em;color:#14130f;background:var(--rebate);
+    padding:2px 6px;border-radius:2px;
+  }
+  #layoutReset:hover{background:var(--edge)}
   .eye.off{color:#4a453c}
   .eye:hover{color:var(--bone)}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -504,38 +510,15 @@
           </div>
           <div class="row">
             <div class="field">
-              <span>촬영 정보 위치</span>
-              <select id="align">
-                <option value="auto">기본</option>
-                <option value="left">왼쪽</option>
-                <option value="center">가운데</option>
-                <option value="right">오른쪽</option>
-              </select>
-            </div>
-            <div class="field">
-              <span>날짜 위치</span>
-              <select id="dateAlign">
-                <option value="auto">기본</option>
-                <option value="left">왼쪽</option>
-                <option value="center">가운데</option>
-                <option value="right">오른쪽</option>
-              </select>
-            </div>
-          </div>
-          <div class="row">
-            <div class="field" style="margin:0">
-              <span>로고 위치</span>
-              <select id="logoAlign">
-                <option value="auto">기본</option>
-                <option value="left">왼쪽</option>
-                <option value="center">가운데</option>
-                <option value="right">오른쪽</option>
-              </select>
-            </div>
-            <div class="field" style="margin:0">
               <span>로고 크기 %</span>
               <input type="number" id="logoScale" min="30" max="300" step="10" value="100">
             </div>
+            <div class="field"></div>
+          </div>
+          <p class="note" style="margin-top:2px">위치는 미리보기에서 <b>경계</b>를 켜고 요소를 끌어 정합니다 · 하단 공간·테두리 여백은 프레임 경계선을 끌어 조절합니다</p>
+          <div class="field" style="margin:10px 0 0">
+            <span>레이아웃 프리셋 <button type="button" class="eye" id="layoutReset" title="이 방향의 배치를 처음 상태로">초기화</button></span>
+            <div class="gearcol" id="layoutRow"></div>
           </div>
         </div>
       </details>
@@ -713,21 +696,36 @@ function trackedText(ctx, text, x, y, track){
   for (const ch of text){ ctx.fillText(ch, cx, y); cx += ctx.measureText(ch).width + track; }
 }
 
-function meta(o){
-  return [o.show.body && o.body, o.show.lens && o.lens].filter(Boolean).join('  ·  ');
-}
-function techText(o){
-  // 필름·기타 + 촬영 설정값 — 기술 정보 묶음
-  return [o.show.film && o.film, o.show.set && o.set].filter(Boolean).join('   ·   ');
+/* 개별 배치되는 요소들 — 각자 자기 자리와 오프셋을 갖는다 */
+const ELEM_KEYS = ['body','lens','film','set','date','cap','logo'];
+const LABEL = { body:'카메라', lens:'렌즈', film:'필름', set:'설정', date:'날짜', cap:'메모', logo:'로고' };
+
+function infoRows(o){
+  // 표시 토글을 거친 촬영 정보 항목 — 한 줄이면 전부 한 행, 두 줄이면 장비/기술로 나눈다
+  // (날짜·메모·로고는 독립 요소라 여기 포함 안 됨)
+  const eq   = ['body','lens'].filter(k => o.show[k] && o[k]);
+  const tech = ['film','set'].filter(k => o.show[k] && o[k]);
+  if (o.lines === 2 && eq.length && tech.length) return [eq, tech];
+  const all = [...eq, ...tech];
+  return all.length ? [all] : [];
 }
 
-function metaLines(o){
-  // 표시 토글을 거친 촬영 정보 줄 배열 (날짜는 독립 요소라 여기 포함 안 됨)
-  const equip = meta(o);
-  const tech  = techText(o);
-  if (o.lines === 2) return [equip, tech].filter(Boolean);
-  const one = [equip, tech].filter(Boolean).join('   ·   ');
-  return one ? [one] : [];
+/* 항목을 한 줄에 나란히 놓는다 — 구분자 없이 간격으로 (실제 필름 엣지 프린트 방식).
+   전체 폭이 넘치면 행 전체를 같은 비율로 줄여 맞춘다 */
+function rowLayout(ctx, items, gap, maxW, anchorX, align){
+  const ws = items.map(it => {
+    ctx.font = `${it.wt} ${it.size}px ${it.fam}`;
+    return ctx.measureText(it.t).width + (it.track ? it.t.length * it.track : 0);
+  });
+  const total = ws.reduce((a, b) => a + b, 0) + gap * Math.max(0, items.length - 1);
+  const k = (total > maxW && total > 0) ? Math.max(0.55, maxW / total) : 1;
+  let x = align === 'left' ? anchorX : align === 'center' ? anchorX - total * k / 2 : anchorX - total * k;
+  return items.map((it, i) => {
+    const w = ws[i] * k;
+    const r = { ...it, x, w, size: it.size * k, track: (it.track || 0) * k };
+    x += w + gap * k;
+    return r;
+  });
 }
 
 function dateText(o){
@@ -769,7 +767,7 @@ function captionLines(o){
   return o.caption.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 4);
 }
 
-function alignX(mode, def, left, center, right){
+function alignX_unused(mode, def, left, center, right){
   // 위치 지정: 'auto'면 스타일별 기본 정렬, 아니면 사용자 지정
   const a = mode === 'auto' ? def : mode;
   return { a, x: a === 'left' ? left : a === 'center' ? center : right };
@@ -778,7 +776,8 @@ function alignX(mode, def, left, center, right){
 function drawLogo(ctx, o, left, center, right, yCenter, baseH, def, sigColor, limitH, limitW){
   // 로고·서명 — 이미지가 있으면 이미지, 없으면 텍스트 서명(필기체)을 같은 자리에.
   // limitH/limitW = 텍스트 영역(여백) 크기 — 이를 넘지 않게 자동 축소한다
-  const a = o.logoAlign === 'auto' ? def : o.logoAlign;
+  // 위치는 스타일별 기본값(def) — 조정은 경계 드래그로 한다
+  const a = def;
   const maxH = limitH || Infinity, maxW = limitW || Infinity;
   if (o.logoImg){
     const img = o.logoImg;
@@ -787,7 +786,7 @@ function drawLogo(ctx, o, left, center, right, yCenter, baseH, def, sigColor, li
     if (w > maxW){ w = maxW; h = w * (img.height / img.width); }
     const x = a === 'left' ? left : a === 'center' ? center - w / 2 : right - w;
     ctx.drawImage(img, x, yCenter - h / 2, w, h);
-    if (o._box) o._box('로고', x, yCenter - h / 2, w, h);
+    if (o._box) o._box('logo', x, yCenter - h / 2, w, h, '로고');
     return;
   }
   if (!o.sigText) return;
@@ -807,7 +806,7 @@ function drawLogo(ctx, o, left, center, right, yCenter, baseH, def, sigColor, li
   if (o._box){
     const w = m.width;
     const bx = a === 'left' ? left : a === 'center' ? center - w / 2 : right - w;
-    o._box('서명', bx, yCenter - (asc + desc) / 2, w, asc + desc);
+    o._box('logo', bx, yCenter - (asc + desc) / 2, w, asc + desc, '서명');
   }
 }
 
@@ -832,7 +831,7 @@ const CANVAS_LIMIT = (() => {
 })();
 
 function frameDims(W, H, o){
-  const two = metaLines(o).length > 1;
+  const two = infoRows(o).length > 1;
   // 하단 공간은 사용자가 정한 값 고정 — 메모가 늘어도 결과물 비율이 바뀌지 않는다
   // (넘치면 경계 표시에서 빨갛게 알린다)
   if (o.style === 'film'){
@@ -901,19 +900,12 @@ function render(img, o, info){
   // 요소 경계 박스 수집 — 미리보기 오버레이·드래그용 (info.collect일 때만, 결과물엔 미포함)
   const collect = !!(info && info.collect);
   if (collect) info.boxes = [];
-  const KEYMAP = { '정보':'info', '날짜':'date', '메모':'cap', '로고':'logo', '서명':'logo' };
-  const box = (label, x, y, w, h) => {
+  const box = (key, x, y, w, h, label) => {
     if (!collect) return;
-    const key = o._drag === false ? null : (KEYMAP[label] || null);
-    const off = key && { info:o.offInfo, date:o.offDate, cap:o.offCap, logo:o.offLogo }[key];
-    info.boxes.push({ label, x, y, w, h, key, moved: !!(off && (off.x || off.y)) });
-  };
-  const tbox = (label, text, x, y, align, baseline, size, track = 0) => {
-    if (!collect || !text) return;
-    const w = ctx.measureText(String(text)).width + (track ? String(text).length * track : 0);
-    const bx = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
-    const by = baseline === 'middle' ? y - size * 0.65 : y - size;
-    box(label, bx, by, w, size * 1.3);
+    const k = o._drag === false ? null : key;
+    const off = k && o.off?.[k];
+    info.boxes.push({ label: label || LABEL[key] || key, x, y, w, h, key: k,
+      moved: !!(off && (off.x || off.y)) });
   };
   o._box = box;   // drawLogo에서 로고·서명 박스 기록에 사용
   let W = img.naturalWidth || img.width, H = img.naturalHeight || img.height;
@@ -925,17 +917,29 @@ function render(img, o, info){
   if (info) info.renderW = W;   // 드래그 오프셋 환산 기준 (오프셋은 사진 폭 W 비율로 저장)
 
   // 요소별 드래그 오프셋 (사진 폭 W 비율 → px)
-  const offI = { x: Math.round((o.offInfo?.x || 0) * W), y: Math.round((o.offInfo?.y || 0) * W) };
-  const offD = { x: Math.round((o.offDate?.x || 0) * W), y: Math.round((o.offDate?.y || 0) * W) };
-  const offC = { x: Math.round((o.offCap?.x  || 0) * W), y: Math.round((o.offCap?.y  || 0) * W) };
-  const offL = { x: Math.round((o.offLogo?.x || 0) * W), y: Math.round((o.offLogo?.y || 0) * W) };
+  const OFF = {};
+  for (const k of ELEM_KEYS)
+    OFF[k] = { x: Math.round((o.off?.[k]?.x || 0) * W), y: Math.round((o.off?.[k]?.y || 0) * W) };
+
+  /* 필름 스트립 텍스트 항목 — 전부 모노스페이스 대문자 엣지 프린트 */
+  const filmItems = (keys, fs) => keys.map(k => ({
+    k, t: String(o[k]).toUpperCase(), size: fs, wt: 500, fam: FMONO, col: C.rebate, track: fs*0.15,
+  }));
+  /* 인스탁스 텍스트 항목 — 장비는 카드에 인쇄된 산세리프, 필름·설정은 모노 각인 */
+  const instaxItems = (keys, fs1, fs2, sans, mono) => keys.map(k => {
+    const eq = k === 'body' || k === 'lens';
+    return { k, t: eq ? String(o[k]) : String(o[k]).toUpperCase(),
+             size: eq ? fs1 : fs2, wt: eq ? 500 : 600,
+             fam: eq ? sans : mono, col: eq ? C.ink : '#9a9288' };
+  });
 
   if (o.style === 'film' && H > W) {
     // 세로 사진 — 필름이 세로로 지나간다: 퍼포레이션·엣지프린트가 좌우
     // (실제 35mm에서 세로 구도는 카메라를 돌려 찍으므로 스트립이 사진의 긴 변을 따라감)
+    o._drag = false;                          // 회전 좌표계 — 개별 드래그는 지원하지 않는다
     const bar = H * 0.088;                    // 스트립 폭 기준은 긴 변
-    const lines = metaLines(o).map(t => t.toUpperCase());
-    const two = lines.length > 1;
+    const rows = infoRows(o);
+    const two = rows.length > 1;
     const caps = captionLines(o);
     const fcap = bar*0.30*o.fontScale, capLH = fcap*1.8;
     const botBase = bar * (two ? 2.3 : 1.75) * o.bandScale;
@@ -968,53 +972,55 @@ function render(img, o, info){
     // 가상 좌표: 스트립 길이 H(가로축), 세로축 = bar + W + botBar
     const fs = bar*0.33*o.fontScale;
     const pad = H*0.022;
-    const pos = alignX(o.align, 'right', pad, H/2, H - pad);
+    const gap = fs*1.5;
     const dt = dateText(o);
-    const dpos = dt ? alignX(o.dateAlign, 'left', pad, H/2, H - pad) : null;
-    ctx.textBaseline = 'alphabetic';
+    ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
     let dateW = 0;
     if (dt){
       ctx.font = `600 ${fs}px ${FMONO}`;
       dateW = ctx.measureText(dt).width + dt.length*fs*0.15;
     }
-    const maxBottom = (dt && dpos.a !== pos.a) ? H - 2*pad - dateW - H*0.03 : H - 2*pad;
+    const maxRow = dt ? H - 2*pad - dateW - H*0.03 : H - 2*pad;
     const vBase = bar + W + botBase*(two ? 0.87 : 0.82);
-    ctx.fillStyle = C.rebate; ctx.textAlign = pos.a;
-    if (two){
-      const s0 = fitSize(ctx, lines[0], fs, 500, FMONO, H - 2*pad);
-      trackedText(ctx, lines[0], pos.x, bar + W + botBase*0.63, s0*0.15);
-    }
-    if (lines.length){
-      const last = lines[lines.length-1];
-      const s1 = fitSize(ctx, last, fs, 500, FMONO, maxBottom);
-      trackedText(ctx, last, pos.x, vBase, s1*0.15);
-    }
+    const drawRow = (keys, y, maxW) => {
+      for (const it of rowLayout(ctx, filmItems(keys, fs), gap, maxW, H - pad, 'right')){
+        ctx.font = `${it.wt} ${it.size}px ${it.fam}`;
+        ctx.fillStyle = it.col;
+        trackedText(ctx, it.t, it.x, y, it.track);
+      }
+    };
+    if (two) drawRow(rows[0], bar + W + botBase*0.63, H - 2*pad);
+    if (rows.length) drawRow(rows[rows.length-1], vBase, maxRow);
     if (dt){
       ctx.font = `600 ${fs}px ${FMONO}`;
-      ctx.fillStyle = C.edge; ctx.textAlign = dpos.a;
-      trackedText(ctx, dt, dpos.x, vBase, fs*0.15);
+      ctx.fillStyle = C.edge;
+      trackedText(ctx, dt, pad, vBase, fs*0.15);
     }
     caps.forEach((t, i) => {
       const sc = fitSize(ctx, t, fcap, 400, FMONO, H - 2*pad, 0);
-      ctx.fillStyle = '#6f6a5f'; ctx.textAlign = pos.a;
-      ctx.fillText(t, pos.x, vBase + capLH*(i + 1));
+      ctx.fillStyle = '#6f6a5f';
+      ctx.fillText(t, H - pad - ctx.measureText(t).width, vBase + capLH*(i + 1));
     });
     drawLogo(ctx, o, pad, H/2, H - pad, vBase - fs*0.35, bar*0.6, 'center', C.rebate, botBase*0.8, H - 2*pad);
     ctx.restore();
     o._box = keepBox;
-    box('정보·날짜·메모 (세로 필름)', bar + W, 0, botBar, cv.height);
+    box(null, bar + W, 0, botBar, cv.height, '정보·날짜·메모 (세로 필름)');
   }
 
   else if (o.style === 'film') {
     const bar = W * 0.088;
-    const lines = metaLines(o).map(t => t.toUpperCase());
-    const two = lines.length > 1;
+    const rows = infoRows(o);
+    const two = rows.length > 1;
     const caps = captionLines(o);
     const fcap = bar*0.30*o.fontScale, capLH = fcap*1.8;
     const botBase = bar * (two ? 2.3 : 1.75) * o.bandScale;  // 두 줄이면 엣지 프린트 공간 확장
     const botBar = botBase;
     cv.width = W; cv.height = H + bar + botBar;
-    if (collect) info.area = { x: 0, y: H + bar, w: W, h: botBar };   // 텍스트 영역(아래 바)
+    if (collect){   // 텍스트 영역(아래 바) — 경계 드래그가 쓰는 정보
+      info.area = { x: 0, y: H + bar, w: W, h: botBar };
+      info.areaSide = 'bottom';
+      info.units = { bandScale: bar * (two ? 2.3 : 1.75) };
+    }
     ctx.fillStyle = C.base; ctx.fillRect(0,0,cv.width,cv.height);
     ctx.drawImage(img, 0, bar, W, H);
 
@@ -1034,50 +1040,52 @@ function render(img, o, info){
     holes(bar*0.50);
     holes(H + bar + bar*0.70);   // 사진 바로 아래 고정 (줄 수와 무관하게 같은 위치)
 
-    // 엣지 프린트 — 두 줄이면 퍼포레이션 아래로 장비/필름을 나눠 쌓는다
+    // 엣지 프린트 — 항목을 구분자 없이 간격으로 나열, 각 항목이 개별로 움직인다
     const baseY = H + bar + botBase*(two ? 0.87 : 0.82);
     const fs = bar*0.33*o.fontScale;
     const pad = W*0.022;
-    const pos = alignX(o.align, 'right', pad, W/2, W - pad);
+    const gap = fs*1.5;
     const dt = dateText(o);
-    const dpos = dt ? alignX(o.dateAlign, 'left', pad, W/2, W - pad) : null;
-    ctx.textBaseline = 'alphabetic';
+    ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
 
-    // 날짜와 정보가 서로 다른 쪽이면, 같은 줄의 정보를 남는 폭에 맞춰 자동 축소
+    // 날짜가 반대쪽에 있으므로 같은 줄의 정보는 남는 폭에 맞춰 자동 축소
     let dateW = 0;
     if (dt){
       ctx.font = `600 ${fs}px ${FMONO}`;
       dateW = ctx.measureText(dt).width + dt.length*fs*0.15;
     }
-    const maxBottom = (dt && dpos.a !== pos.a) ? W - 2*pad - dateW - W*0.03 : W - 2*pad;
+    const maxRow = dt ? W - 2*pad - dateW - W*0.03 : W - 2*pad;
 
-    ctx.fillStyle = C.rebate; ctx.textAlign = pos.a;
-    if (two){
-      const s0 = fitSize(ctx, lines[0], fs, 500, FMONO, W - 2*pad);
-      trackedText(ctx, lines[0], pos.x + offI.x, H + bar + botBase*0.63 + offI.y, s0*0.15);
-      tbox('정보', lines[0], pos.x + offI.x, H + bar + botBase*0.63 + offI.y, pos.a, 'alphabetic', s0, s0*0.15);
-    }
-    if (lines.length){
-      const last = lines[lines.length-1];
-      const s1 = fitSize(ctx, last, fs, 500, FMONO, maxBottom);
-      trackedText(ctx, last, pos.x + offI.x, baseY + offI.y, s1*0.15);
-      tbox('정보', last, pos.x + offI.x, baseY + offI.y, pos.a, 'alphabetic', s1, s1*0.15);
-    }
+    const drawRow = (keys, y, maxW) => {
+      for (const it of rowLayout(ctx, filmItems(keys, fs), gap, maxW, W - pad, 'right')){
+        const off = OFF[it.k];
+        ctx.font = `${it.wt} ${it.size}px ${it.fam}`;
+        ctx.fillStyle = it.col;
+        trackedText(ctx, it.t, it.x + off.x, y + off.y, it.track);
+        box(it.k, it.x + off.x, y + off.y - it.size, it.w, it.size*1.3);
+      }
+    };
+    if (two) drawRow(rows[0], H + bar + botBase*0.63, W - 2*pad);
+    if (rows.length) drawRow(rows[rows.length-1], baseY, maxRow);
+
     // 날짜 — 데이트 스탬프처럼 주황, 기본 왼쪽 (정보와 독립 배치)
     if (dt){
       ctx.font = `600 ${fs}px ${FMONO}`;
-      ctx.fillStyle = C.edge; ctx.textAlign = dpos.a;
-      trackedText(ctx, dt, dpos.x + offD.x, baseY + offD.y, fs*0.15);
-      tbox('날짜', dt, dpos.x + offD.x, baseY + offD.y, dpos.a, 'alphabetic', fs, fs*0.15);
+      ctx.fillStyle = C.edge;
+      const x = pad + OFF.date.x, y = baseY + OFF.date.y;
+      trackedText(ctx, dt, x, y, fs*0.15);
+      box('date', x, y - fs, dateW, fs*1.3);
     }
-    // 메모 — 정보 아래에 줄 단위로 이어 쌓는다
+    // 메모 — 정보 아래에 줄 단위로 이어 쌓는다 (블록 단위로 함께 움직인다)
     caps.forEach((t, i) => {
       const sc = fitSize(ctx, t, fcap, 400, FMONO, W - 2*pad, 0);
-      ctx.fillStyle = '#6f6a5f'; ctx.textAlign = pos.a;
-      ctx.fillText(t, pos.x + offC.x, baseY + capLH*(i + 1) + offC.y);
-      tbox('메모', t, pos.x + offC.x, baseY + capLH*(i + 1) + offC.y, pos.a, 'alphabetic', sc);
+      const w = ctx.measureText(t).width;
+      const x = W - pad - w + OFF.cap.x, y = baseY + capLH*(i + 1) + OFF.cap.y;
+      ctx.fillStyle = '#6f6a5f';
+      ctx.fillText(t, x, y);
+      box('cap', x, y - sc, w, sc*1.3);
     });
-    drawLogo(ctx, o, pad + offL.x, W/2 + offL.x, W - pad + offL.x, baseY - fs*0.35 + offL.y, bar*0.6, 'center', C.rebate, botBase*0.8, W - 2*pad);
+    drawLogo(ctx, o, pad + OFF.logo.x, W/2 + OFF.logo.x, W - pad + OFF.logo.x, baseY - fs*0.35 + OFF.logo.y, bar*0.6, 'center', C.rebate, botBase*0.8, W - 2*pad);
   }
 
   else if (o.style === 'instax' && W > H) {
@@ -1100,69 +1108,77 @@ function render(img, o, info){
 
     if (rotate){
       // 세로 카드 레이아웃을 통째로 -90° 회전 — 글씨가 오른쪽 여백을 따라 아래→위로 흐른다
-      const keepBox = o._box; o._box = null;   // 회전 좌표계에선 개별 박스 대신 컬럼 영역만 기록
+      o._drag = false;                         // 회전 좌표계 — 개별 드래그는 지원하지 않는다
+      const keepBox = o._box; o._box = null;
       ctx.save();
       ctx.translate(0, cv.height);
       ctx.rotate(-Math.PI/2);
       // 이하 좌표계 = 가상 세로 카드: 사진 폭 H, 사진 높이 W, 하단 여백 colW
       const photoBottom = m + W;
       const cy = photoBottom + colBase*0.50;
-      const pos = alignX(o.align, 'center', m + H*0.02, m + H/2, m + H - H*0.02);
-      const maxW = H - 2*H*0.02;
-      ctx.textAlign = pos.a; ctx.textBaseline = 'middle';
-      const mt = meta(o);
-      if (mt){
-        fitSize(ctx, mt, fs1, 500, FSANS, maxW, 0);
-        ctx.fillStyle = C.ink;
-        ctx.fillText(mt, pos.x, cy - colBase*0.11);
-      }
-      const tech = techText(o);
-      if (tech){
-        fitSize(ctx, tech.toUpperCase(), fs2, 600, FMONO, maxW, 0);
-        ctx.fillStyle = '#9a9288';
-        ctx.fillText(tech.toUpperCase(), pos.x, cy + colBase*0.14);
-      }
+      const cx = m + H/2, p2 = H*0.02;
+      const maxW = H - 2*p2;
+      ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+      const rows = infoRows(o);
+      const eqRow = rows[0] && rows[0].filter(k => k === 'body' || k === 'lens');
+      const techRow = rows.flat().filter(k => k === 'film' || k === 'set');
+      if (eqRow && eqRow.length)
+        for (const it of rowLayout(ctx, instaxItems(eqRow, fs1, fs2, FSANS, FMONO), fs1*0.9, maxW, cx, 'center')){
+          ctx.font = `${it.wt} ${it.size}px ${it.fam}`; ctx.fillStyle = it.col;
+          ctx.fillText(it.t, it.x, cy - colBase*0.11);
+        }
+      if (techRow.length)
+        for (const it of rowLayout(ctx, instaxItems(techRow, fs1, fs2, FSANS, FMONO), fs2*1.2, maxW, cx, 'center')){
+          ctx.font = `${it.wt} ${it.size}px ${it.fam}`; ctx.fillStyle = it.col;
+          ctx.fillText(it.t, it.x, cy + colBase*0.14);
+        }
       caps.forEach((t, i) => {
         fitSize(ctx, t, fcap, 'italic 400', FSANS, maxW, 0);
-        ctx.fillStyle = '#5f584d'; ctx.textAlign = pos.a;
-        ctx.fillText(t, pos.x, photoBottom + colBase*0.64 + fcap*1.8*(i + 1));
+        ctx.fillStyle = '#5f584d';
+        ctx.fillText(t, cx - ctx.measureText(t).width/2, photoBottom + colBase*0.64 + fcap*1.8*(i + 1));
       });
       if (dt){
-        const dpos = alignX(o.dateAlign, 'right', m + H*0.02, m + H/2, m + H - H*0.02);
         ctx.font = `600 ${fs2}px ${FMONO}`;
-        ctx.fillStyle = '#c2bab0'; ctx.textAlign = dpos.a;
-        ctx.fillText(dt, dpos.x, photoBottom + colW - colBase*0.14);
+        ctx.fillStyle = '#c2bab0';
+        ctx.fillText(dt, m + H - p2 - ctx.measureText(dt).width, photoBottom + colW - colBase*0.14);
       }
-      drawLogo(ctx, o, m + H*0.02, m + H/2, m + H - H*0.02, photoBottom + colW - colBase*0.14, colBase*0.14, 'left', '#5f584d', colBase*0.24, H - 2*H*0.02);
+      drawLogo(ctx, o, m + p2, cx, m + H - p2, photoBottom + colW - colBase*0.14, colBase*0.14, 'left', '#5f584d', colBase*0.24, maxW);
       ctx.restore();
       o._box = keepBox;
-      box('정보·날짜·메모 (회전)', m + W, 0, colW, cv.height);   // 회전 좌표계라 컬럼 영역으로 표시
+      box(null, m + W, 0, colW, cv.height, '정보·날짜·메모 (회전)');   // 회전 좌표계라 컬럼 영역으로 표시
     }
     else {
-      // 오른쪽 컬럼에 항목별 한 줄씩 세로 스택, 블록 전체를 세로 중앙 정렬 (자동 배치 — 드래그 미지원)
-      o._drag = false;
+      // 오른쪽 컬럼에 항목별 한 줄씩 세로 스택 — 각 항목이 개별로 움직인다
       const p = H*0.02, colX = m + W;
-      if (collect) info.area = { x: colX, y: m, w: colW, h: H };   // 텍스트 영역(우측 컬럼)
+      if (collect){   // 텍스트 영역(우측 컬럼) — 가로 카드라 경계선이 세로
+        info.area = { x: colX, y: m, w: colW, h: H };
+        info.areaSide = 'right';
+        info.units = { bandScale: H*0.27, borderScale: H*0.055 };
+        info.photo = { x: m, y: m, w: W, h: H };
+      }
       const items = [];
-      if (o.show.body && o.body) items.push({ t: o.body,               size: fs1,  lh: fs1*1.7, col: C.ink,     fam: FSANS, w: 500 });
-      if (o.show.lens && o.lens) items.push({ t: o.lens,               size: fs2,  lh: fs2*1.8, col: '#6b6459', fam: FSANS, w: 500 });
-      if (o.show.film && o.film) items.push({ t: o.film.toUpperCase(), size: fs2,  lh: fs2*1.9, col: '#9a9288', fam: FMONO, w: 600 });
-      if (o.show.set && o.set)   items.push({ t: o.set,                size: fs2,  lh: fs2*1.9, col: '#9a9288', fam: FMONO, w: 600 });
-      if (dt)                    items.push({ t: dt,                   size: fs2,  lh: fs2*1.9, col: '#c2bab0', fam: FMONO, w: 600, k: '날짜' });
-      caps.forEach(t =>          items.push({ t,                       size: fcap, lh: fcap*1.8, col: '#5f584d', fam: FSANS, w: 'italic 400', k: '메모' }));
+      if (o.show.body && o.body) items.push({ k:'body', t: o.body,               size: fs1,  lh: fs1*1.7, col: C.ink,     fam: FSANS, wt: 500 });
+      if (o.show.lens && o.lens) items.push({ k:'lens', t: o.lens,               size: fs2,  lh: fs2*1.8, col: '#6b6459', fam: FSANS, wt: 500 });
+      if (o.show.film && o.film) items.push({ k:'film', t: o.film.toUpperCase(), size: fs2,  lh: fs2*1.9, col: '#9a9288', fam: FMONO, wt: 600 });
+      if (o.show.set && o.set)   items.push({ k:'set',  t: o.set,                size: fs2,  lh: fs2*1.9, col: '#9a9288', fam: FMONO, wt: 600 });
+      if (dt)                    items.push({ k:'date', t: dt,                   size: fs2,  lh: fs2*1.9, col: '#c2bab0', fam: FMONO, wt: 600 });
+      caps.forEach(t =>          items.push({ k:'cap',  t,                       size: fcap, lh: fcap*1.8, col: '#5f584d', fam: FSANS, wt: 'italic 400' }));
 
-      const pos = alignX(o.align, 'center', colX + p, colX + colW/2, colX + colW - p);
+      const cx = colX + colW/2;
       const totalH = items.reduce((s, it) => s + it.lh, 0);
       let y = m + (H - totalH)/2 + (items[0] ? items[0].lh/2 : 0);
-      ctx.textBaseline = 'middle';
+      ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
       for (const it of items){
-        const sc = fitSize(ctx, it.t, it.size, it.w, it.fam, colW - 2*p, 0);
-        ctx.fillStyle = it.col; ctx.textAlign = pos.a;
-        ctx.fillText(it.t, pos.x, y);
-        tbox(it.k || '정보', it.t, pos.x, y, pos.a, 'middle', sc);
+        const sc = fitSize(ctx, it.t, it.size, it.wt, it.fam, colW - 2*p, 0);
+        const w = ctx.measureText(it.t).width;
+        const off = OFF[it.k];
+        const x = cx - w/2 + off.x, yy = y + off.y;
+        ctx.fillStyle = it.col;
+        ctx.fillText(it.t, x, yy);
+        box(it.k, x, yy - sc*0.65, w, sc*1.3);
         y += it.lh;
       }
-      drawLogo(ctx, o, colX + p, colX + colW/2, colX + colW - p, m + H - H*0.05, H*0.07, 'center', '#5f584d', H*0.08, colW - 2*p);
+      drawLogo(ctx, o, colX + p + OFF.logo.x, cx + OFF.logo.x, colX + colW - p + OFF.logo.x, m + H - H*0.05 + OFF.logo.y, H*0.07, 'center', '#5f584d', H*0.08, colW - 2*p);
     }
   }
 
@@ -1173,108 +1189,129 @@ function render(img, o, info){
     const botBase = W*0.27*o.bandScale;
     const bot = botBase;
     cv.width = W + side*2; cv.height = H + top + bot;
-    if (collect) info.area = { x: side, y: H + top, w: W, h: bot };   // 텍스트 영역(카드 하단 여백)
+    if (collect){   // 텍스트 영역(카드 하단 여백)
+      info.area = { x: side, y: H + top, w: W, h: bot };
+      info.areaSide = 'bottom';
+      info.units = { bandScale: W*0.27, borderScale: W*0.055 };
+      info.photo = { x: side, y: top, w: W, h: H };
+    }
     ctx.fillStyle = C.paper; ctx.fillRect(0,0,cv.width,cv.height);
     ctx.drawImage(img, side, top, W, H);
     ctx.strokeStyle = 'rgba(0,0,0,.13)'; ctx.lineWidth = Math.max(1, W*0.0012);
     ctx.strokeRect(side, top, W, H);
 
     const cy = H + top + botBase*0.50;
-    const pos = alignX(o.align, 'center', side + W*0.02, cv.width/2, side + W - W*0.02);
-    const maxW = W - 2*W*0.02;
-    ctx.textAlign = pos.a; ctx.textBaseline = 'middle';
-    const m = meta(o);
-    if (m){
-      const s0 = fitSize(ctx, m, W*0.0392*o.fontScale, 500, FSANS, maxW, 0);   // 기본 하단 여백(0.27W)의 14.5%
-      ctx.fillStyle = C.ink;
-      ctx.fillText(m, pos.x + offI.x, cy - botBase*0.11 + offI.y);
-      tbox('정보', m, pos.x + offI.x, cy - botBase*0.11 + offI.y, pos.a, 'middle', s0);
-    }
-    const tech = techText(o);
-    if (tech){
-      const s1 = fitSize(ctx, tech.toUpperCase(), W*0.0284*o.fontScale, 600, FMONO, maxW, 0);   // 기본 하단 여백의 10.5%
-      ctx.fillStyle = '#9a9288';
-      ctx.fillText(tech.toUpperCase(), pos.x + offI.x, cy + botBase*0.14 + offI.y);
-      tbox('정보', tech.toUpperCase(), pos.x + offI.x, cy + botBase*0.14 + offI.y, pos.a, 'middle', s1);
-    }
+    const p2 = W*0.02, cx = side + W/2;
+    const maxW = W - 2*p2;
+    const fs1 = W*0.0392*o.fontScale;   // 기본 하단 여백(0.27W)의 14.5%
+    const fs2 = W*0.0284*o.fontScale;   // 기본 하단 여백의 10.5%
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+
+    // 장비 줄 / 필름·설정 줄 — 각 항목이 개별로 움직인다
+    const rows = infoRows(o);
+    const eqRow = rows.flat().filter(k => k === 'body' || k === 'lens');
+    const techRow = rows.flat().filter(k => k === 'film' || k === 'set');
+    const drawRow = (keys, gap, y) => {
+      for (const it of rowLayout(ctx, instaxItems(keys, fs1, fs2, FSANS, FMONO), gap, maxW, cx, 'center')){
+        const off = OFF[it.k];
+        ctx.font = `${it.wt} ${it.size}px ${it.fam}`;
+        ctx.fillStyle = it.col;
+        ctx.fillText(it.t, it.x + off.x, y + off.y);
+        box(it.k, it.x + off.x, y + off.y - it.size*0.65, it.w, it.size*1.3);
+      }
+    };
+    if (eqRow.length)   drawRow(eqRow, fs1*0.9, cy - botBase*0.11);
+    if (techRow.length) drawRow(techRow, fs2*1.2, cy + botBase*0.14);
+
     // 메모 — 손글씨 느낌의 이탤릭, 필름 줄 아래로 이어 쌓는다
     caps.forEach((t, i) => {
       const sc = fitSize(ctx, t, fcap, 'italic 400', FSANS, maxW, 0);
-      ctx.fillStyle = '#5f584d'; ctx.textAlign = pos.a;
-      ctx.fillText(t, pos.x + offC.x, H + top + botBase*0.64 + capLH*(i + 1) + offC.y);
-      tbox('메모', t, pos.x + offC.x, H + top + botBase*0.64 + capLH*(i + 1) + offC.y, pos.a, 'middle', sc);
+      const w = ctx.measureText(t).width;
+      const x = cx - w/2 + OFF.cap.x, y = H + top + botBase*0.64 + capLH*(i + 1) + OFF.cap.y;
+      ctx.fillStyle = '#5f584d';
+      ctx.fillText(t, x, y);
+      box('cap', x, y - sc*0.65, w, sc*1.3);
     });
     // 날짜 — 카드 아래쪽에 손글씨 자리처럼, 기본 오른쪽 구석 (정보와 독립 배치)
     const dt = dateText(o);
     if (dt){
-      const dpos = alignX(o.dateAlign, 'right', side + W*0.02, cv.width/2, side + W - W*0.02);
-      ctx.font = `600 ${W*0.0284*o.fontScale}px ${FMONO}`;
-      ctx.fillStyle = '#c2bab0'; ctx.textAlign = dpos.a;
-      ctx.fillText(dt, dpos.x + offD.x, H + top + bot - botBase*0.14 + offD.y);
-      tbox('날짜', dt, dpos.x + offD.x, H + top + bot - botBase*0.14 + offD.y, dpos.a, 'middle', W*0.0284*o.fontScale);
+      ctx.font = `600 ${fs2}px ${FMONO}`;
+      ctx.fillStyle = '#c2bab0';
+      const w = ctx.measureText(dt).width;
+      const x = side + W - p2 - w + OFF.date.x, y = H + top + bot - botBase*0.14 + OFF.date.y;
+      ctx.fillText(dt, x, y);
+      box('date', x, y - fs2*0.65, w, fs2*1.3);
     }
-    drawLogo(ctx, o, side + W*0.02 + offL.x, side + W/2 + offL.x, side + W - W*0.02 + offL.x, H + top + bot - botBase*0.14 + offL.y, botBase*0.14, 'left', '#5f584d', botBase*0.24, maxW);
+    drawLogo(ctx, o, side + p2 + OFF.logo.x, cx + OFF.logo.x, side + W - p2 + OFF.logo.x, H + top + bot - botBase*0.14 + OFF.logo.y, botBase*0.14, 'left', '#5f584d', botBase*0.24, maxW);
   }
 
   else { // bottom / top
-    const lines = metaLines(o).map(t => t.toUpperCase());
+    const rows = infoRows(o);
     const caps = captionLines(o);
     const fcap = W*0.0234*o.fontScale*0.95, capLH = fcap*1.8;
-    const bandBase = W * (lines.length > 1 ? 0.112 : 0.078) * o.bandScale;
+    const bandBase = W * (rows.length > 1 ? 0.112 : 0.078) * o.bandScale;
     const band = bandBase;
     cv.width = W; cv.height = H + band;
-    if (collect) info.area = { x: 0, y: o.style === 'top' ? 0 : H, w: W, h: band };   // 텍스트 영역(띠)
+    if (collect){   // 텍스트 영역(띠)
+      info.area = { x: 0, y: o.style === 'top' ? 0 : H, w: W, h: band };
+      info.areaSide = o.style === 'top' ? 'top' : 'bottom';
+      info.units = { bandScale: W * (rows.length > 1 ? 0.112 : 0.078) };
+    }
     const dark = o.tone === 'dark';
     ctx.fillStyle = dark ? C.bandDark : '#f2efe8';
     ctx.fillRect(0,0,cv.width,cv.height);
     ctx.drawImage(img, 0, o.style === 'top' ? band : 0, W, H);
 
     const bandTop = o.style === 'top' ? 0 : H;
-    ctx.textBaseline = 'middle';
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
     const fs = W * 0.0234 * o.fontScale;   // 기본 한 줄 띠(0.078W)의 30% — 띠 높이와 독립
     const pad = W*0.018;
-    const pos = alignX(o.align, 'left', pad, W/2, W - pad);
+    const gap = fs*1.5;
     const dt = dateText(o);
-    const dpos = dt ? alignX(o.dateAlign, 'right', pad, W/2, W - pad) : null;
 
-    // 날짜와 정보가 서로 다른 쪽이면, 같은 줄의 정보를 남는 폭에 맞춰 자동 축소
+    // 날짜가 반대쪽에 있으므로 같은 줄의 정보는 남는 폭에 맞춰 자동 축소
     let dateW = 0;
     if (dt){
       ctx.font = `600 ${fs}px ${FMONO}`;
       dateW = ctx.measureText(dt).width;
     }
-    const maxBottom = (dt && dpos.a !== pos.a) ? W - 2*pad - dateW - W*0.03 : W - 2*pad;
+    const maxRow = dt ? W - 2*pad - dateW - W*0.03 : W - 2*pad;
 
-    ctx.textAlign = pos.a;
-    ctx.fillStyle = dark ? C.bandDarkText : '#4a453d';
-    const infoY = lines.length > 1 ? bandBase*0.67 : bandBase/2;
-    if (lines.length > 1){
-      const s0 = fitSize(ctx, lines[0], fs, 500, FMONO, W - 2*pad);
-      trackedText(ctx, lines[0], pos.x + offI.x, bandTop + bandBase*0.33 + offI.y, s0*0.15);
-      tbox('정보', lines[0], pos.x + offI.x, bandTop + bandBase*0.33 + offI.y, pos.a, 'middle', s0, s0*0.15);
-      const s1 = fitSize(ctx, lines[1], fs, 500, FMONO, maxBottom);
-      trackedText(ctx, lines[1], pos.x + offI.x, bandTop + bandBase*0.67 + offI.y, s1*0.15);
-      tbox('정보', lines[1], pos.x + offI.x, bandTop + bandBase*0.67 + offI.y, pos.a, 'middle', s1, s1*0.15);
-    } else if (lines.length){
-      const s1 = fitSize(ctx, lines[0], fs, 500, FMONO, maxBottom);
-      trackedText(ctx, lines[0], pos.x + offI.x, bandTop + bandBase/2 + offI.y, s1*0.15);
-      tbox('정보', lines[0], pos.x + offI.x, bandTop + bandBase/2 + offI.y, pos.a, 'middle', s1, s1*0.15);
-    }
+    const bandItems = keys => keys.map(k => ({
+      k, t: String(o[k]).toUpperCase(), size: fs, wt: 500, fam: FMONO,
+      col: dark ? C.bandDarkText : '#4a453d', track: fs*0.15,
+    }));
+    const drawRow = (keys, y, maxW) => {
+      for (const it of rowLayout(ctx, bandItems(keys), gap, maxW, pad, 'left')){
+        const off = OFF[it.k];
+        ctx.font = `${it.wt} ${it.size}px ${it.fam}`;
+        ctx.fillStyle = it.col;
+        trackedText(ctx, it.t, it.x + off.x, y + off.y, it.track);
+        box(it.k, it.x + off.x, y + off.y - it.size*0.65, it.w, it.size*1.3);
+      }
+    };
+    const infoY = rows.length > 1 ? bandBase*0.67 : bandBase/2;
+    if (rows.length > 1) drawRow(rows[0], bandTop + bandBase*0.33, W - 2*pad);
+    if (rows.length)     drawRow(rows[rows.length-1], bandTop + infoY, maxRow);
+
     // 메모 — 정보 아래에 줄 단위로 이어 쌓는다
     caps.forEach((t, i) => {
       const sc = fitSize(ctx, t, fcap, 400, FMONO, W - 2*pad, 0);
-      ctx.fillStyle = dark ? '#8a8378' : '#7d766a'; ctx.textAlign = pos.a;
-      ctx.fillText(t, pos.x + offC.x, bandTop + infoY + capLH*(i + 1) + offC.y);
-      tbox('메모', t, pos.x + offC.x, bandTop + infoY + capLH*(i + 1) + offC.y, pos.a, 'middle', sc);
+      const w = ctx.measureText(t).width;
+      const x = pad + OFF.cap.x, y = bandTop + infoY + capLH*(i + 1) + OFF.cap.y;
+      ctx.fillStyle = dark ? '#8a8378' : '#7d766a';
+      ctx.fillText(t, x, y);
+      box('cap', x, y - sc*0.65, w, sc*1.3);
     });
     // 날짜 — 데이트 스탬프처럼 주황, 기본 오른쪽 (정보와 독립 배치)
     if (dt){
       ctx.font = `600 ${fs}px ${FMONO}`;
-      ctx.fillStyle = C.edge; ctx.textAlign = dpos.a;
-      ctx.fillText(dt, dpos.x + offD.x, bandTop + infoY + offD.y);
-      tbox('날짜', dt, dpos.x + offD.x, bandTop + infoY + offD.y, dpos.a, 'middle', fs);
+      ctx.fillStyle = C.edge;
+      const x = W - pad - dateW + OFF.date.x, y = bandTop + infoY + OFF.date.y;
+      ctx.fillText(dt, x, y);
+      box('date', x, y - fs*0.65, dateW, fs*1.3);
     }
-    drawLogo(ctx, o, pad + offL.x, W/2 + offL.x, W - pad + offL.x, bandTop + infoY + offL.y, fs*1.9, 'center', dark ? C.bandDarkText : '#4a453d', bandBase*0.86, W - 2*pad);
+    drawLogo(ctx, o, pad + OFF.logo.x, W/2 + OFF.logo.x, W - pad + OFF.logo.x, bandTop + infoY + OFF.logo.y, fs*1.9, 'center', dark ? C.bandDarkText : '#4a453d', bandBase*0.86, W - 2*pad);
   }
   return cv;
 }
@@ -1298,14 +1335,12 @@ function downscale(cv, longEdge){
 /* 방향별 프로파일 — 가로/세로 사진이 섞인 묶음에서 레이아웃 설정이 서로 어긋나지
    않게, 방향 종속 항목은 세로(port)/가로(land) 프로파일로 따로 저장한다.
    렌더 시 각 사진이 자기 방향의 프로파일을 자동으로 쓴다 */
-const ADV_KEYS = ['lines','fontScale','bandScale','borderScale','align','dateAlign','sideText','logoAlign','logoScale'];
-/* 드래그 오프셋(사진 폭 W 비율) — UI 컨트롤이 없어 ADV_KEYS에는 미포함, 프로파일에만 저장 */
-const OFF_KEYS = ['infoDX','infoDY','dateDX','dateDY','capDX','capDY','logoDX','logoDY'];
+const ADV_KEYS = ['lines','fontScale','bandScale','borderScale','sideText','logoScale'];
+/* 요소별 드래그 오프셋(사진 폭 W 비율) — UI 컨트롤 없이 드래그로만 바뀐다 */
+const OFF_KEYS = ELEM_KEYS.flatMap(k => [k + 'DX', k + 'DY']);
 const DEF_ADV = { lines:'1', fontScale:'100', bandScale:'100', borderScale:'100',
-                  align:'auto', dateAlign:'auto', sideText:'stack',
-                  logoAlign:'auto', logoScale:'100',
-                  infoDX:'0', infoDY:'0', dateDX:'0', dateDY:'0',
-                  capDX:'0', capDY:'0', logoDX:'0', logoDY:'0' };
+                  sideText:'stack', logoScale:'100',
+                  ...Object.fromEntries(OFF_KEYS.map(k => [k, '0'])) };
 const adv = { port: { ...DEF_ADV }, land: { ...DEF_ADV } };
 let advTab = 'port';
 
@@ -1321,13 +1356,10 @@ function withProfile(o, shot){
     fontScale: pv(p.fontScale, 50, 200),
     bandScale: pv(p.bandScale, 50, 500),   // 메모가 길면 공간을 크게 늘려야 한다
     borderScale: pv(p.borderScale, 0, 300),
-    align: p.align, dateAlign: p.dateAlign, sideText: p.sideText,
-    logoAlign: p.logoAlign || 'auto',
+    sideText: p.sideText,
     logoScale: pv(p.logoScale, 30, 300),
-    offInfo: { x: Number(p.infoDX) || 0, y: Number(p.infoDY) || 0 },
-    offDate: { x: Number(p.dateDX) || 0, y: Number(p.dateDY) || 0 },
-    offCap:  { x: Number(p.capDX)  || 0, y: Number(p.capDY)  || 0 },
-    offLogo: { x: Number(p.logoDX) || 0, y: Number(p.logoDY) || 0 },
+    off: Object.fromEntries(ELEM_KEYS.map(k =>
+      [k, { x: Number(p[k + 'DX']) || 0, y: Number(p[k + 'DY']) || 0 }])),
   };
 }
 
@@ -1454,10 +1486,32 @@ function paintOverlay(drag){
       pctx.beginPath(); pctx.moveTo(0, drag.gy + P.padY); pctx.lineTo(P.cv.width, drag.gy + P.padY); pctx.stroke();
     }
   }
-  pctx.lineWidth = lw;
-  pctx.setLineDash([lw * 3, lw * 2]);
+  // 프레임 경계 손잡이 — 끌면 하단 공간·테두리 여백이 바뀐다
+  pctx.setLineDash([]);
   pctx.font = `600 ${fsL}px ${MONO}`;
   pctx.textBaseline = 'bottom'; pctx.textAlign = 'left';
+  for (const h of edgeHandles()){
+    const on = edgeDrag && edgeDrag.h.key === h.key;
+    pctx.strokeStyle = on ? '#31b5ff' : 'rgba(110,106,95,.85)';
+    pctx.lineWidth = on ? lw * 2 : lw;
+    pctx.beginPath();
+    if (h.axis === 'y'){ pctx.moveTo(P.padX, h.pos + P.padY); pctx.lineTo(P.padX + P.raw.width, h.pos + P.padY); }
+    else { pctx.moveTo(h.pos + P.padX, P.padY); pctx.lineTo(h.pos + P.padX, P.padY + P.raw.height); }
+    pctx.stroke();
+    if (on){
+      const t = ` ${h.label} ${edgeDrag.pct}% `;
+      const tw = pctx.measureText(t).width;
+      const lx = h.axis === 'y' ? P.padX + P.raw.width/2 - tw/2 : h.pos + P.padX - tw/2;
+      const ly = h.axis === 'y' ? h.pos + P.padY - lw*2 : P.padY + P.raw.height/2;
+      pctx.fillStyle = '#31b5ff';
+      pctx.fillRect(lx, ly - fsL*1.25, tw, fsL*1.25);
+      pctx.fillStyle = '#14130f';
+      pctx.fillText(t, lx, ly);
+    }
+  }
+
+  pctx.lineWidth = lw;
+  pctx.setLineDash([lw * 3, lw * 2]);
   for (const b of P.boxes){
     const mv = drag && b.key === drag.key;
     const over = !mv && boxOver(b, P);
@@ -1477,11 +1531,69 @@ function paintOverlay(drag){
   pctx.restore();
 }
 
-let boxDrag = null;
+let boxDrag = null, edgeDrag = null;
 
 function canvasPoint(e){
   const r = pv.getBoundingClientRect();
   return { x: (e.clientX - r.left) / zoom.scale, y: (e.clientY - r.top) / zoom.scale };
+}
+
+/* ============================================================
+   프레임 경계 드래그 — 하단 공간 / 테두리 여백을 끌어서 조절
+   ============================================================ */
+function edgeHandles(){
+  // 결과물(raw) 좌표 기준 — 텍스트 영역의 바깥 모서리 = 하단 공간, 사진 모서리 = 테두리 여백
+  const P = state._pv; if (!P || !P.area || !P.units) return [];
+  const R = P.raw, hs = [];
+  if (P.areaSide === 'right')       hs.push({ key:'bandScale', axis:'x', pos: R.width,  dir: 1, label:'하단 공간' });
+  else if (P.areaSide === 'bottom') hs.push({ key:'bandScale', axis:'y', pos: R.height, dir: 1, label:'하단 공간' });
+  else                              hs.push({ key:'bandScale', axis:'y', pos: 0,        dir:-1, label:'하단 공간' });
+  // 테두리 여백 — 사진의 위쪽 모서리를 끌어 여백을 넓히거나 좁힌다 (인스탁스 전용)
+  if (P.units.borderScale && P.photo)
+    hs.push({ key:'borderScale', axis:'y', pos: P.photo.y, dir: 1, label:'테두리 여백' });
+  return hs;
+}
+
+function hitEdge(e){
+  const P = state._pv; if (!P || !P.area) return null;
+  const pt = canvasPoint(e);
+  const rx = pt.x - P.padX, ry = pt.y - P.padY;
+  const th = Math.max(8, P.raw.width * 0.012);
+  for (const h of edgeHandles()){
+    const d = h.axis === 'y' ? Math.abs(ry - h.pos) : Math.abs(rx - h.pos);
+    const along = h.axis === 'y' ? (rx > -th && rx < P.raw.width + th) : (ry > -th && ry < P.raw.height + th);
+    if (d <= th && along) return { h, pt };
+  }
+  return null;
+}
+
+function startEdgeDrag(e){
+  const hit = hitEdge(e);
+  if (!hit) return false;
+  const s = state.shots[state.current]; if (!s) return false;
+  const w = s.img.naturalWidth || s.img.width, hh = s.img.naturalHeight || s.img.height;
+  const prof = adv[w > hh ? 'land' : 'port'];
+  const base = prof[hit.h.key] === '' ? 100 : Number(prof[hit.h.key]);
+  edgeDrag = { h: hit.h, start: hit.pt, prof, base, pct: base,
+               unit: state._pv.units[hit.h.key] };   // 100%에 해당하는 px
+  return true;
+}
+
+function moveEdgeDrag(e){
+  const pt = canvasPoint(e);
+  const d = (edgeDrag.h.axis === 'y' ? pt.y - edgeDrag.start.y : pt.x - edgeDrag.start.x) * edgeDrag.h.dir;
+  const [lo, hi] = edgeDrag.h.key === 'bandScale' ? [50, 500] : [0, 300];
+  const pct = Math.round(Math.min(hi, Math.max(lo, edgeDrag.base + d / edgeDrag.unit * 100)) / 5) * 5;
+  edgeDrag.pct = pct;
+  edgeDrag.prof[edgeDrag.h.key] = String(pct);
+  syncAdv();
+  refresh(true);
+}
+
+function endEdgeDrag(){
+  edgeDrag = null;
+  saveSettings();
+  refresh(true);
 }
 
 function hitBox(e){
@@ -1582,8 +1694,8 @@ vp.addEventListener('wheel', e => {
 let panning = null;
 vp.addEventListener('pointerdown', e => {
   if (pv.hidden || e.target.closest('.zoombar') || e.target.closest('.dropzone')) return;
-  // 경계 표시 중이면 박스 드래그 우선, 아니면 팬
-  if (state.showBoxes && startBoxDrag(e)){
+  // 경계 표시 중이면 요소 드래그 > 프레임 경계 드래그 > 팬
+  if (state.showBoxes && (startBoxDrag(e) || startEdgeDrag(e))){
     vp.classList.add('grabbing');
     vp.setPointerCapture(e.pointerId);
     return;
@@ -1594,6 +1706,7 @@ vp.addEventListener('pointerdown', e => {
 });
 vp.addEventListener('pointermove', e => {
   if (boxDrag){ moveBoxDrag(e); return; }
+  if (edgeDrag){ moveEdgeDrag(e); return; }
   if (!panning) return;
   zoom.x = panning.ox + (e.clientX - panning.x);
   zoom.y = panning.oy + (e.clientY - panning.y);
@@ -1602,6 +1715,7 @@ vp.addEventListener('pointermove', e => {
 });
 ['pointerup','pointercancel'].forEach(t => vp.addEventListener(t, () => {
   if (boxDrag) endBoxDrag();
+  if (edgeDrag) endEdgeDrag();
   panning = null; vp.classList.remove('grabbing');
 }));
 
@@ -1648,6 +1762,7 @@ function refresh(keepZoom = false){
     pv.width = cv.width; pv.height = cv.height;
     state._pv = {
       cv, raw, boxes: info.boxes || [], area: info.area,
+      areaSide: info.areaSide, units: info.units, photo: info.photo,
       padX: Math.round((cv.width - raw.width) / 2),
       padY: Math.round((cv.height - raw.height) / 2),
       renderW: info.renderW || raw.width,
@@ -1890,6 +2005,16 @@ function loadSettings(){
   Object.assign(adv.land, flat, s.advLand || {});
   if (s.fontEn || s.font) $('fontEn').value = s.fontEn || s.font;   // s.font = 구버전 단일 글꼴
   if (s.fontKo) $('fontKo').value = s.fontKo;
+  // 구버전 통합 정보 오프셋(infoDX/DY)은 네 항목 모두에 적용해 배치를 보존한다
+  for (const p of [adv.port, adv.land]){
+    if (p.infoDX || p.infoDY){
+      for (const k of ['body','lens','film','set']){
+        p[k + 'DX'] = p[k + 'DX'] && p[k + 'DX'] !== '0' ? p[k + 'DX'] : (p.infoDX || '0');
+        p[k + 'DY'] = p[k + 'DY'] && p[k + 'DY'] !== '0' ? p[k + 'DY'] : (p.infoDY || '0');
+      }
+      delete p.infoDX; delete p.infoDY;
+    }
+  }
   if (s.ratio) $('ratio').value = s.ratio;
   if (s.ratioBg) $('ratioBg').value = s.ratioBg;
   if (s.title) $('title').value = s.title;
@@ -1941,6 +2066,52 @@ $('advTab').onclick = e => {
   advTab = b.dataset.t;
   syncAdv();
 };
+
+/* ============================================================
+   레이아웃 초기화 / 프리셋 — 배치가 마음에 안 들면 되돌리고,
+   마음에 들면 이름 붙여 저장해 둔다 (세로·가로 프로파일 한 쌍)
+   ============================================================ */
+let layouts = store.read('frame.layouts', []);
+
+$('layoutReset').onclick = () => {
+  adv[advTab] = { ...DEF_ADV };
+  syncAdv(); saveSettings(); refresh();
+  toast(`${advTab === 'land' ? '가로' : '세로'} 사진 배치를 초기화했습니다`);
+};
+
+function drawLayouts(){
+  const el = $('layoutRow'); el.innerHTML = '';
+  layouts.forEach((l, i) => {
+    const b = document.createElement('button');
+    b.className = 'gear'; b.title = l.name;
+    const em = document.createElement('em'); em.textContent = l.name;
+    const x = document.createElement('i'); x.title = '삭제'; x.textContent = '×';
+    b.append(em, x);
+    b.onclick = e => {
+      if (e.target === x){
+        layouts.splice(i, 1); store.write('frame.layouts', layouts); drawLayouts(); return;
+      }
+      adv.port = { ...DEF_ADV, ...l.port };
+      adv.land = { ...DEF_ADV, ...l.land };
+      syncAdv(); saveSettings(); refresh();
+      toast('레이아웃 적용됨');
+    };
+    el.appendChild(b);
+  });
+  const add = document.createElement('button');
+  add.className = 'gearadd'; add.textContent = '＋ 현재 배치 저장';
+  add.title = '지금의 세로·가로 배치를 이름 붙여 저장';
+  add.onclick = () => {
+    const name = prompt('레이아웃 이름', `배치 ${layouts.length + 1}`);
+    if (!name) return;
+    const i = layouts.findIndex(l => l.name === name);
+    const entry = { name, port: { ...adv.port }, land: { ...adv.land } };
+    if (i >= 0) layouts[i] = entry; else layouts.push(entry);
+    store.write('frame.layouts', layouts);
+    drawLayouts(); toast('레이아웃 저장됨');
+  };
+  el.appendChild(add);
+}
 
 /* EXIF 배지 클릭 = 해당 필드를 EXIF 원본으로 되돌리기 */
 document.querySelectorAll('.exifbadge').forEach(b => b.onclick = () => {
@@ -2266,6 +2437,7 @@ updateEyes();
 updateExportNote();
 fillDatalists();
 drawGear();
+drawLayouts();
 applyLogoImage();
 drawLogos();
 refresh();
