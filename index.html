@@ -371,7 +371,7 @@
         <button id="zIn" title="확대 (+)">＋</button>
         <button id="zFit" title="화면에 맞추기 (0)">맞춤</button>
         <button id="z100" title="원본 크기 (1)">1:1</button>
-        <button id="zBox" title="요소 경계 표시 — 결과물에는 포함되지 않습니다" aria-pressed="false">경계</button>
+        <button id="zBox" title="요소 경계 표시 — 결과물에는 포함되지 않습니다" aria-pressed="true">경계</button>
         <div class="pct" id="zRatio" title="원본 비율 → 결과물 비율"></div>
       </div>
     </div>
@@ -671,6 +671,7 @@ const state = {
   style: 'film',
   tone: 'light',
   dirHandle: null,
+  showBoxes: true,    // 경계 표시 — 기본 켜짐, 줌바 토글로 끌 수 있고 frame.ui에 기억
 };
 /* 프리셋: 카메라/렌즈/필름을 각각 독립 목록으로 저장 (frame.gear).
    구버전 조합 프리셋(frame.presets)이 남아 있으면 값만 이전한다 */
@@ -1450,6 +1451,8 @@ $('z100').onclick = () => zoomTo(1);
 $('zBox').onclick = () => {
   state.showBoxes = !state.showBoxes;
   $('zBox').setAttribute('aria-pressed', state.showBoxes);
+  if (!state.showBoxes){ state._hotSig = ''; state._hot = null; vp.style.cursor = ''; }
+  store.write('frame.ui', { ...store.read('frame.ui', {}), boxes: state.showBoxes });
   refresh(true);
 };
 
@@ -1487,39 +1490,52 @@ function paintOverlay(drag){
       pctx.beginPath(); pctx.moveTo(0, drag.gy + P.padY); pctx.lineTo(P.cv.width, drag.gy + P.padY); pctx.stroke();
     }
   }
-  // 프레임 경계 손잡이 — 끌면 하단 공간·테두리 여백이 바뀐다
+  // 프레임 경계 손잡이 — 끌면 하단 공간·테두리 여백이 바뀐다. 호버하면 강조
   pctx.setLineDash([]);
   pctx.font = `600 ${fsL}px ${MONO}`;
   pctx.textBaseline = 'bottom'; pctx.textAlign = 'left';
   for (const h of edgeHandles()){
     const on = edgeDrag && edgeDrag.h.key === h.key;
-    pctx.strokeStyle = on ? '#31b5ff' : 'rgba(110,106,95,.85)';
-    pctx.lineWidth = on ? lw * 2 : lw;
-    pctx.beginPath();
-    if (h.axis === 'y'){ pctx.moveTo(P.padX, h.pos + P.padY); pctx.lineTo(P.padX + P.raw.width, h.pos + P.padY); }
-    else { pctx.moveTo(h.pos + P.padX, P.padY); pctx.lineTo(h.pos + P.padX, P.padY + P.raw.height); }
-    pctx.stroke();
+    const hot = !on && state._hot && state._hot.type === 'handle' && state._hot.key === h.key;
+    const col = on || hot ? '#31b5ff' : 'rgba(110,106,95,.85)';
+    pctx.strokeStyle = col; pctx.fillStyle = col;
+    pctx.lineWidth = on || hot ? lw * 2 : lw;
+    let labelX, labelY;
+    if (h.type === 'corner'){
+      const g = (on || hot ? lw * 5 : lw * 4);
+      const cx = h.x + P.padX, cy = h.y + P.padY;
+      pctx.strokeRect(cx - g, cy - g, g * 2, g * 2);
+      pctx.beginPath(); pctx.arc(cx, cy, lw * 1.2, 0, 7); pctx.fill();
+      labelX = cx - fsL * 3; labelY = cy - g - lw * 2;
+    } else {
+      pctx.beginPath();
+      if (h.axis === 'y'){ pctx.moveTo(P.padX, h.pos + P.padY); pctx.lineTo(P.padX + P.raw.width, h.pos + P.padY); }
+      else { pctx.moveTo(h.pos + P.padX, P.padY); pctx.lineTo(h.pos + P.padX, P.padY + P.raw.height); }
+      pctx.stroke();
+      labelX = h.axis === 'y' ? P.padX + P.raw.width/2 : h.pos + P.padX - fsL * 3;
+      labelY = h.axis === 'y' ? h.pos + P.padY - lw*2 : P.padY + P.raw.height/2;
+    }
     if (on){
       const t = ` ${h.label} ${edgeDrag.pct}% `;
       const tw = pctx.measureText(t).width;
-      const lx = h.axis === 'y' ? P.padX + P.raw.width/2 - tw/2 : h.pos + P.padX - tw/2;
-      const ly = h.axis === 'y' ? h.pos + P.padY - lw*2 : P.padY + P.raw.height/2;
+      const lx = Math.min(Math.max(0, labelX - tw/2 + fsL*3), P.cv.width - tw);
       pctx.fillStyle = '#31b5ff';
-      pctx.fillRect(lx, ly - fsL*1.25, tw, fsL*1.25);
+      pctx.fillRect(lx, labelY - fsL*1.25, tw, fsL*1.25);
       pctx.fillStyle = '#14130f';
-      pctx.fillText(t, lx, ly);
+      pctx.fillText(t, lx, labelY);
     }
   }
 
-  pctx.lineWidth = lw;
   pctx.setLineDash([lw * 3, lw * 2]);
   for (const b of P.boxes){
     const mv = drag && b.key === drag.key;
+    const hov = !mv && b.key && state._hot && state._hot.type === 'box' && state._hot.key === b.key;
     const over = !mv && boxOver(b, P);
     const bx = b.x + P.padX + (mv ? drag.ddx : 0);
     const by = b.y + P.padY + (mv ? drag.ddy : 0);
     const g = lw * 2;
-    const col = mv ? '#31b5ff' : over ? '#ff4d3d' : 'rgba(232,135,58,.95)';
+    const col = mv || hov ? '#31b5ff' : over ? '#ff4d3d' : 'rgba(232,135,58,.95)';
+    pctx.lineWidth = hov ? lw * 2 : lw;
     pctx.strokeStyle = col;
     pctx.strokeRect(bx - g, by - g, b.w + g * 2, b.h + g * 2);
     const label = over ? ` ${b.label} — 넘침: 하단 공간을 늘리거나 글자를 줄이세요 ` : ` ${b.label} `;
@@ -1543,15 +1559,15 @@ function canvasPoint(e){
    프레임 경계 드래그 — 하단 공간 / 테두리 여백을 끌어서 조절
    ============================================================ */
 function edgeHandles(){
-  // 결과물(raw) 좌표 기준 — 텍스트 영역의 바깥 모서리 = 하단 공간, 사진 모서리 = 테두리 여백
+  // 결과물(raw) 좌표 기준 — 텍스트 영역의 바깥 모서리 = 하단 공간(선),
+  // 사진 우상단 모서리 = 테두리 여백(그립, 인스탁스 전용)
   const P = state._pv; if (!P || !P.area || !P.units) return [];
   const R = P.raw, hs = [];
-  if (P.areaSide === 'right')       hs.push({ key:'bandScale', axis:'x', pos: R.width,  dir: 1, label:'하단 공간' });
-  else if (P.areaSide === 'bottom') hs.push({ key:'bandScale', axis:'y', pos: R.height, dir: 1, label:'하단 공간' });
-  else                              hs.push({ key:'bandScale', axis:'y', pos: 0,        dir:-1, label:'하단 공간' });
-  // 테두리 여백 — 사진의 위쪽 모서리를 끌어 여백을 넓히거나 좁힌다 (인스탁스 전용)
   if (P.units.borderScale && P.photo)
-    hs.push({ key:'borderScale', axis:'y', pos: P.photo.y, dir: 1, label:'테두리 여백' });
+    hs.push({ key:'borderScale', type:'corner', x: P.photo.x + P.photo.w, y: P.photo.y, label:'테두리 여백' });
+  if (P.areaSide === 'right')       hs.push({ key:'bandScale', type:'edge', axis:'x', pos: R.width,  dir: 1, label:'하단 공간' });
+  else if (P.areaSide === 'bottom') hs.push({ key:'bandScale', type:'edge', axis:'y', pos: R.height, dir: 1, label:'하단 공간' });
+  else                              hs.push({ key:'bandScale', type:'edge', axis:'y', pos: 0,        dir:-1, label:'하단 공간' });
   return hs;
 }
 
@@ -1560,10 +1576,14 @@ function hitEdge(e){
   const pt = canvasPoint(e);
   const rx = pt.x - P.padX, ry = pt.y - P.padY;
   const th = Math.max(8, P.raw.width * 0.012);
-  for (const h of edgeHandles()){
-    const d = h.axis === 'y' ? Math.abs(ry - h.pos) : Math.abs(rx - h.pos);
-    const along = h.axis === 'y' ? (rx > -th && rx < P.raw.width + th) : (ry > -th && ry < P.raw.height + th);
-    if (d <= th && along) return { h, pt };
+  for (const h of edgeHandles()){   // 모서리 그립이 배열 앞이라 선보다 우선
+    if (h.type === 'corner'){
+      if (Math.abs(rx - h.x) <= th * 1.4 && Math.abs(ry - h.y) <= th * 1.4) return { h, pt };
+    } else {
+      const d = h.axis === 'y' ? Math.abs(ry - h.pos) : Math.abs(rx - h.pos);
+      const along = h.axis === 'y' ? (rx > -th && rx < P.raw.width + th) : (ry > -th && ry < P.raw.height + th);
+      if (d <= th && along) return { h, pt };
+    }
   }
   return null;
 }
@@ -1600,7 +1620,10 @@ function moveEdgeDrag(e){
   const pt = canvasPoint(e);
   const R = state._pv.renderW;
   const n = { x: pt.x / R, y: pt.y / R };
-  const d = (edgeDrag.h.axis === 'y' ? n.y - edgeDrag.nStart.y : n.x - edgeDrag.nStart.x) * edgeDrag.h.dir;
+  // 모서리 그립(사진 우상단): 바깥쪽(오른쪽·위)으로 끌면 여백이 커진다
+  const d = edgeDrag.h.type === 'corner'
+    ? ((n.x - edgeDrag.nStart.x) - (n.y - edgeDrag.nStart.y)) / 2
+    : (edgeDrag.h.axis === 'y' ? n.y - edgeDrag.nStart.y : n.x - edgeDrag.nStart.x) * edgeDrag.h.dir;
   const [lo, hi] = edgeDrag.h.key === 'bandScale' ? [50, 500] : [0, 300];
   const pct = Math.round(Math.min(hi, Math.max(lo, edgeDrag.base + d / edgeDrag.nUnit * 100)));
   if (pct === edgeDrag.pct) return;   // 변화 없으면 재렌더 생략
@@ -1715,8 +1738,8 @@ vp.addEventListener('wheel', e => {
 let panning = null;
 vp.addEventListener('pointerdown', e => {
   if (pv.hidden || e.target.closest('.zoombar') || e.target.closest('.dropzone')) return;
-  // 경계 표시 중이면 요소 드래그 > 프레임 경계 드래그 > 팬
-  if (state.showBoxes && (startBoxDrag(e) || startEdgeDrag(e))){
+  // 경계 표시 중이면 프레임 경계 드래그 > 요소 드래그 > 팬 (호버 강조와 같은 순서)
+  if (state.showBoxes && (startEdgeDrag(e) || startBoxDrag(e))){
     vp.classList.add('grabbing');
     vp.setPointerCapture(e.pointerId);
     return;
@@ -1728,11 +1751,32 @@ vp.addEventListener('pointerdown', e => {
 vp.addEventListener('pointermove', e => {
   if (boxDrag){ moveBoxDrag(e); return; }
   if (edgeDrag){ moveEdgeDrag(e); return; }
-  if (!panning) return;
-  zoom.x = panning.ox + (e.clientX - panning.x);
-  zoom.y = panning.oy + (e.clientY - panning.y);
-  zoom.mode = 'free';
-  applyZoom();
+  if (panning){
+    zoom.x = panning.ox + (e.clientX - panning.x);
+    zoom.y = panning.oy + (e.clientY - panning.y);
+    zoom.mode = 'free';
+    applyZoom();
+    return;
+  }
+  // 호버 — 조정 가능한 부위 위에서 커서·강조 표시
+  if (!state.showBoxes || pv.hidden || !state._pv){
+    if (state._hotSig){ state._hotSig = ''; state._hot = null; vp.style.cursor = ''; }
+    return;
+  }
+  const he = hitEdge(e);
+  const hb = he ? null : hitBox(e);
+  const hot = he ? { type: 'handle', key: he.h.key, kind: he.h.type, axis: he.h.axis }
+            : hb ? { type: 'box', key: hb.b.key } : null;
+  const sig = hot ? hot.type + hot.key + (hot.axis || '') + (hot.kind || '') : '';
+  if (sig !== state._hotSig){
+    state._hotSig = sig;
+    state._hot = hot;
+    vp.style.cursor = !hot ? ''
+      : hot.type === 'box' ? 'move'
+      : hot.kind === 'corner' ? 'nesw-resize'
+      : hot.axis === 'y' ? 'ns-resize' : 'ew-resize';
+    paintOverlay(null);
+  }
 });
 ['pointerup','pointercancel'].forEach(t => vp.addEventListener(t, () => {
   if (boxDrag) endBoxDrag();
@@ -2183,7 +2227,7 @@ function applyUi(){
 }
 ['uiWidth','uiScale'].forEach(id => $(id).addEventListener('input', () => {
   applyUi();
-  store.write('frame.ui', { width: $('uiWidth').value, scale: $('uiScale').value });
+  store.write('frame.ui', { ...store.read('frame.ui', {}), width: $('uiWidth').value, scale: $('uiScale').value });
 }));
 document.addEventListener('click', e => {
   if (!$('advPanel').hidden && !e.target.closest('#advPanel') && !e.target.closest('#gearBtn'))
@@ -2452,6 +2496,10 @@ const savedUi = store.read('frame.ui', null);
 if (savedUi){
   if (savedUi.width) $('uiWidth').value = savedUi.width;
   if (savedUi.scale) $('uiScale').value = savedUi.scale;
+  if (savedUi.boxes != null){
+    state.showBoxes = savedUi.boxes;
+    $('zBox').setAttribute('aria-pressed', state.showBoxes);
+  }
 }
 applyUi();
 syncFields();
