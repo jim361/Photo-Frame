@@ -76,6 +76,18 @@
     letter-spacing:.08em;margin-bottom:10px;
   }
   .dropzone p{color:var(--rebate);font-size:13px}
+  .dropzone .guide{
+    text-align:left;margin:26px auto 0;max-width:430px;
+    padding-left:20px;color:var(--rebate);font-size:12.5px;line-height:1.65;
+    word-break:keep-all;
+  }
+  .dropzone .guide li{margin-bottom:7px}
+  .dropzone .guide b{color:#b9b1a4;font-weight:600}
+  .dropzone .guide-note{
+    margin-top:14px;font-size:11.5px;color:#5c5850;line-height:1.6;
+    word-break:keep-all;max-width:430px;margin-left:auto;margin-right:auto;
+  }
+  .dropzone .guide-note b{color:var(--rebate);font-weight:600}
 
   /* ----- zoom toolbar ----- */
   .zoombar{
@@ -94,6 +106,8 @@
   }
   .zoombar button:hover{color:var(--edge)}
   .zoombar button[aria-pressed="true"]{color:var(--edge)}
+  .zoombar button.warn{color:#ff4d3d}
+  .zoombar button.warn::after{content:" ●";font-size:9px}
   .zoombar .pct{
     background:var(--panel);color:var(--rebate);
     font-family:var(--mono);font-size:11px;padding:8px 10px;
@@ -333,6 +347,14 @@
       <div class="dropzone" id="drop">
         <h2>사진을 여기에 놓으세요</h2>
         <p>클릭해서 고를 수도 있습니다 · JPG, PNG · 여러 장 한 번에</p>
+        <ol class="guide">
+          <li><b>사진을 놓고</b> 프레임 스타일을 고릅니다 — 필름 스트립 · 인스탁스 · 여백 띠</li>
+          <li><b>촬영 정보를 입력합니다.</b> 디지털 사진이면 EXIF에서 카메라·렌즈·설정이 자동으로 채워지고, 필름이면 직접 적습니다. 기억나지 않는 항목은 <b>눈 아이콘</b>으로 끄면 됩니다</li>
+          <li><b>내보냅니다.</b> 여러 장을 한 번에 — 파일 제목을 적으면 순서대로 번호가 붙습니다</li>
+        </ol>
+        <p class="guide-note">자주 쓰는 장비는 <b>프리셋</b>에 ＋로 저장해 두면 다음부터 클릭 한 번입니다 ·
+          미리보기의 <b>경계</b>를 켜면 글씨 위치를 마우스로 옮길 수 있습니다</p>
+        <p class="guide-note">사진은 <b>이 브라우저 밖으로 나가지 않습니다</b> — 업로드도, 서버도, 계정도 없습니다</p>
       </div>
       <canvas id="preview" hidden></canvas>
 
@@ -444,7 +466,7 @@
           </div>
           <div class="row">
             <div class="field"><span>글자 크기 %</span><input type="number" id="fontScale" min="50" max="200" value="100"></div>
-            <div class="field"><span>하단 공간 %</span><input type="number" id="bandScale" min="50" max="250" value="100"></div>
+            <div class="field"><span>하단 공간 %</span><input type="number" id="bandScale" min="50" max="500" value="100"></div>
           </div>
           <div class="field">
             <span>테두리 여백 % (인스탁스)</span>
@@ -452,8 +474,8 @@
           </div>
           <div class="row">
             <div class="field">
-              <span>글꼴</span>
-              <select id="font">
+              <span>영문 글꼴</span>
+              <select id="fontEn">
                 <option value="auto">기본 (스타일별)</option>
                 <option value="mono">모노스페이스</option>
                 <option value="sans">산세리프</option>
@@ -462,12 +484,23 @@
               </select>
             </div>
             <div class="field">
+              <span>한글 글꼴</span>
+              <select id="fontKo">
+                <option value="gothic">고딕</option>
+                <option value="myeongjo">명조</option>
+                <option value="script">손글씨</option>
+              </select>
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
               <span>가로 인스탁스 글씨</span>
               <select id="sideText">
                 <option value="stack">가로 — 한 줄씩</option>
                 <option value="rotate">세로 — 회전</option>
               </select>
             </div>
+            <div class="field"></div>
           </div>
           <div class="row">
             <div class="field">
@@ -594,13 +627,28 @@
    ============================================================ */
 const MONO = '"SF Mono", Menlo, "Roboto Mono", "Courier New", monospace';
 const SANS = '"Helvetica Neue", Helvetica, Arial, sans-serif';
-/* 글꼴 선택 옵션 — 시스템 폰트 스택만 사용 (외부 요청 없음, 단일 파일 원칙) */
-const FONTS = {
+/* 글꼴 선택 — 시스템 폰트 스택만 사용 (외부 요청 없음, 단일 파일 원칙).
+   스택을 [영문, 한글] 순으로 이으면 브라우저가 글리프마다 앞에서부터 찾으므로
+   영문·한글에 서로 다른 글꼴이 자동으로 적용된다 */
+const FONT_EN = {
   mono:   MONO,
   sans:   SANS,
-  serif:  'Georgia, "Times New Roman", "Noto Serif KR", "Batang", serif',
-  script: '"Segoe Script", "Apple Chancery", "Nanum Pen Script", cursive',
+  serif:  'Georgia, "Times New Roman", serif',
+  script: '"Segoe Script", "Apple Chancery", "Brush Script MT", cursive',
 };
+const FONT_KO = {
+  gothic:   '"Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif',
+  myeongjo: '"Batang", "Apple Myungjo", "Noto Serif KR", serif',
+  script:   '"Nanum Pen Script", "HYgungso", "Gungsuh", cursive',
+};
+const KO_DEFAULT = FONT_KO.gothic;
+
+/* 결과물 글꼴 스택 — def = 스타일 기본(모노/산세리프) */
+function fontStack(o, def){
+  const en = !o.fontEn || o.fontEn === 'auto' ? def : FONT_EN[o.fontEn];
+  const ko = !o.fontKo || o.fontKo === 'auto' ? KO_DEFAULT : FONT_KO[o.fontKo];
+  return `${en}, ${ko}`;
+}
 
 const C = {
   base:   '#0d0c0a',
@@ -612,11 +660,8 @@ const C = {
   bandDarkText:'#cfc9bd',
 };
 
-const SEED = {
-  body: ['Nikon F5'],
-  lens: ['AF-S 50mm f/1.8G', 'AF-D 24-85mm f/2.8-4'],
-  film: ['Portra 400','Fuji Superia 400','Cinestill 800T','Kodak Gold 200','Ultramax 400'],
-};
+/* 장비 팔레트 시드 — 배포본은 비워 둔다. 사용자가 자기 장비를 ＋로 채운다 */
+const SEED = { body: [], lens: [], film: [] };
 
 /* ============================================================
    저장소 (iframe에서 localStorage가 막혀도 죽지 않게)
@@ -749,7 +794,8 @@ function drawLogo(ctx, o, left, center, right, yCenter, baseH, def, sigColor, li
   // 글꼴마다 잉크 높이가 달라 em 크기로는 여백을 넘치기 쉽다 —
   // 실측 잉크 상자로 크기를 제한하고, 잉크 기준으로 세로 중앙을 맞춘다
   // (textBaseline:middle은 글꼴 내부 메트릭을 따라 필기체에서 아래로 밀린다)
-  const measure = s => { ctx.font = `italic 400 ${s}px ${FONTS.script}`; return ctx.measureText(o.sigText); };
+  const sigStack = `${FONT_EN.script}, ${FONT_KO.script}`;
+  const measure = s => { ctx.font = `italic 400 ${s}px ${sigStack}`; return ctx.measureText(o.sigText); };
   let size = baseH * o.logoScale * 0.9;
   let m = measure(size);
   const ink = mm => ({ asc: mm.actualBoundingBoxAscent ?? size*0.75, desc: mm.actualBoundingBoxDescent ?? size*0.25 });
@@ -787,22 +833,20 @@ const CANVAS_LIMIT = (() => {
 
 function frameDims(W, H, o){
   const two = metaLines(o).length > 1;
-  const n = captionLines(o).length;
-  const capExtra = fc => n ? n*fc*1.8 + fc*0.6 : 0;
+  // 하단 공간은 사용자가 정한 값 고정 — 메모가 늘어도 결과물 비율이 바뀌지 않는다
+  // (넘치면 경계 표시에서 빨갛게 알린다)
   if (o.style === 'film'){
     if (H > W)  // 세로: 좌우 스트립 (기준 = 긴 변 H)
-      return { w: W + H * 0.088 * (1 + (two ? 2.3 : 1.75) * o.bandScale) + capExtra(H*0.088*0.30*o.fontScale), h: H };
-    return { w: W, h: H + W * 0.088 * (1 + (two ? 2.3 : 1.75) * o.bandScale) + capExtra(W*0.088*0.30*o.fontScale) };
+      return { w: W + H * 0.088 * (1 + (two ? 2.3 : 1.75) * o.bandScale), h: H };
+    return { w: W, h: H + W * 0.088 * (1 + (two ? 2.3 : 1.75) * o.bandScale) };
   }
   if (o.style === 'instax'){
     const bs = o.borderScale;
-    if (W > H){  // 가로: 우측 여백 레이아웃 (회전 글씨면 메모만큼 컬럼 확장)
-      const cap = o.sideText === 'rotate' ? capExtra(H*0.030*o.fontScale) : 0;
-      return { w: W + H * (0.055*bs + 0.27 * o.bandScale) + cap, h: H * (1 + 0.11*bs) };
-    }
-    return { w: W * (1 + 0.11*bs), h: H + W * 0.055*bs + W * 0.27 * o.bandScale + capExtra(W*0.030*o.fontScale) };
+    if (W > H)  // 가로: 우측 여백 레이아웃
+      return { w: W + H * (0.055*bs + 0.27 * o.bandScale), h: H * (1 + 0.11*bs) };
+    return { w: W * (1 + 0.11*bs), h: H + W * 0.055*bs + W * 0.27 * o.bandScale };
   }
-  return { w: W, h: H + W * (two ? 0.112 : 0.078) * o.bandScale + capExtra(W*0.0234*o.fontScale*0.95) };
+  return { w: W, h: H + W * (two ? 0.112 : 0.078) * o.bandScale };
 }
 
 /* 인스타 피드 허용 비율(4:5 ~ 1.91:1)에 맞춘 패딩 — 업로드 시 강제 크롭 방지 */
@@ -850,16 +894,19 @@ function safeScale(W, H, o){
 function render(img, o, info){
   const cv = document.createElement('canvas');
   const ctx = cv.getContext('2d');
-  // 글꼴 선택: '기본'이면 스타일별 모노/산세리프 조합, 아니면 선택 글꼴로 통일
-  const FMONO = o.font === 'auto' ? MONO : FONTS[o.font];
-  const FSANS = o.font === 'auto' ? SANS : FONTS[o.font];
+  // 글꼴: 영문·한글 스택을 이어 글리프마다 각자의 글꼴이 적용되게 한다
+  const FMONO = fontStack(o, MONO);
+  const FSANS = fontStack(o, SANS);
 
   // 요소 경계 박스 수집 — 미리보기 오버레이·드래그용 (info.collect일 때만, 결과물엔 미포함)
   const collect = !!(info && info.collect);
+  if (collect) info.boxes = [];
   const KEYMAP = { '정보':'info', '날짜':'date', '메모':'cap', '로고':'logo', '서명':'logo' };
   const box = (label, x, y, w, h) => {
-    if (collect) (info.boxes ||= []).push({ label, x, y, w, h,
-      key: o._drag === false ? null : (KEYMAP[label] || null) });
+    if (!collect) return;
+    const key = o._drag === false ? null : (KEYMAP[label] || null);
+    const off = key && { info:o.offInfo, date:o.offDate, cap:o.offCap, logo:o.offLogo }[key];
+    info.boxes.push({ label, x, y, w, h, key, moved: !!(off && (off.x || off.y)) });
   };
   const tbox = (label, text, x, y, align, baseline, size, track = 0) => {
     if (!collect || !text) return;
@@ -892,7 +939,7 @@ function render(img, o, info){
     const caps = captionLines(o);
     const fcap = bar*0.30*o.fontScale, capLH = fcap*1.8;
     const botBase = bar * (two ? 2.3 : 1.75) * o.bandScale;
-    const botBar = botBase + (caps.length ? caps.length*capLH + fcap*0.4 : 0);
+    const botBar = botBase;
     cv.width = bar + W + botBar; cv.height = H;   // 왼쪽 얇은 바 + 사진 + 오른쪽 텍스트 바
     ctx.fillStyle = C.base; ctx.fillRect(0,0,cv.width,cv.height);
     ctx.drawImage(img, bar, 0, W, H);
@@ -965,8 +1012,9 @@ function render(img, o, info){
     const caps = captionLines(o);
     const fcap = bar*0.30*o.fontScale, capLH = fcap*1.8;
     const botBase = bar * (two ? 2.3 : 1.75) * o.bandScale;  // 두 줄이면 엣지 프린트 공간 확장
-    const botBar = botBase + (caps.length ? caps.length*capLH + fcap*0.4 : 0);  // 메모만큼 추가 확장
+    const botBar = botBase;
     cv.width = W; cv.height = H + bar + botBar;
+    if (collect) info.area = { x: 0, y: H + bar, w: W, h: botBar };   // 텍스트 영역(아래 바)
     ctx.fillStyle = C.base; ctx.fillRect(0,0,cv.width,cv.height);
     ctx.drawImage(img, 0, bar, W, H);
 
@@ -1040,7 +1088,7 @@ function render(img, o, info){
     const fcap = H*0.030*o.fontScale;
     const colBase = H*0.27*o.bandScale;
     // 회전 모드는 세로 카드처럼 메모만큼 여백(컬럼)이 넓어진다. 스택 모드는 컬럼이 세로로 기니 불필요
-    const colW = colBase + (rotate && caps.length ? caps.length*fcap*1.8 + fcap*0.6 : 0);
+    const colW = colBase;
     cv.width = m + W + colW; cv.height = H + m*2;
     ctx.fillStyle = C.paper; ctx.fillRect(0,0,cv.width,cv.height);
     ctx.drawImage(img, m, m, W, H);
@@ -1094,6 +1142,7 @@ function render(img, o, info){
       // 오른쪽 컬럼에 항목별 한 줄씩 세로 스택, 블록 전체를 세로 중앙 정렬 (자동 배치 — 드래그 미지원)
       o._drag = false;
       const p = H*0.02, colX = m + W;
+      if (collect) info.area = { x: colX, y: m, w: colW, h: H };   // 텍스트 영역(우측 컬럼)
       const items = [];
       if (o.show.body && o.body) items.push({ t: o.body,               size: fs1,  lh: fs1*1.7, col: C.ink,     fam: FSANS, w: 500 });
       if (o.show.lens && o.lens) items.push({ t: o.lens,               size: fs2,  lh: fs2*1.8, col: '#6b6459', fam: FSANS, w: 500 });
@@ -1122,8 +1171,9 @@ function render(img, o, info){
     const caps = captionLines(o);
     const fcap = W*0.030*o.fontScale, capLH = fcap*1.8;
     const botBase = W*0.27*o.bandScale;
-    const bot = botBase + (caps.length ? caps.length*capLH + fcap*0.6 : 0);  // 메모만큼 카드 확장
+    const bot = botBase;
     cv.width = W + side*2; cv.height = H + top + bot;
+    if (collect) info.area = { x: side, y: H + top, w: W, h: bot };   // 텍스트 영역(카드 하단 여백)
     ctx.fillStyle = C.paper; ctx.fillRect(0,0,cv.width,cv.height);
     ctx.drawImage(img, side, top, W, H);
     ctx.strokeStyle = 'rgba(0,0,0,.13)'; ctx.lineWidth = Math.max(1, W*0.0012);
@@ -1171,8 +1221,9 @@ function render(img, o, info){
     const caps = captionLines(o);
     const fcap = W*0.0234*o.fontScale*0.95, capLH = fcap*1.8;
     const bandBase = W * (lines.length > 1 ? 0.112 : 0.078) * o.bandScale;
-    const band = bandBase + (caps.length ? caps.length*capLH + fcap*0.4 : 0);  // 메모만큼 띠 확장
+    const band = bandBase;
     cv.width = W; cv.height = H + band;
+    if (collect) info.area = { x: 0, y: o.style === 'top' ? 0 : H, w: W, h: band };   // 텍스트 영역(띠)
     const dark = o.tone === 'dark';
     ctx.fillStyle = dark ? C.bandDark : '#f2efe8';
     ctx.fillRect(0,0,cv.width,cv.height);
@@ -1268,7 +1319,7 @@ function withProfile(o, shot){
   return { ...o,
     lines: Number(p.lines) || 1,
     fontScale: pv(p.fontScale, 50, 200),
-    bandScale: pv(p.bandScale, 50, 250),
+    bandScale: pv(p.bandScale, 50, 500),   // 메모가 길면 공간을 크게 늘려야 한다
     borderScale: pv(p.borderScale, 0, 300),
     align: p.align, dateAlign: p.dateAlign, sideText: p.sideText,
     logoAlign: p.logoAlign || 'auto',
@@ -1293,7 +1344,8 @@ function opts(){
     show:  { body: $('showBody').checked, lens: $('showLens').checked,
              film: $('showFilm').checked, date: $('showDate').checked,
              set: $('showSet').checked, caption: $('showCaption').checked },
-    font: $('font').value,
+    fontEn: $('fontEn').value,
+    fontKo: $('fontKo').value,
     ratio: $('ratio').value,
     ratioBg: $('ratioBg').value,
     logoImg: logoState.img,
@@ -1371,6 +1423,17 @@ $('zBox').onclick = () => {
 /* ============================================================
    미리보기 오버레이 + 경계 드래그 (요소 위치 지정)
    ============================================================ */
+/* 넘침 판정 — 글자가 길어 텍스트 영역을 벗어났는가.
+   사용자가 직접 끌어다 놓은 요소(moved)는 의도된 배치이므로 결과물 밖으로
+   나갈 때만 경고한다 */
+function boxOver(b, P){
+  if (!b.key) return false;
+  const out = (r) => b.x < r.x - 1 || b.y < r.y - 1 ||
+                     b.x + b.w > r.x + r.w + 1 || b.y + b.h > r.y + r.h + 1;
+  if (out({ x: 0, y: 0, w: P.raw.width, h: P.raw.height })) return true;
+  return !b.moved && P.area ? out(P.area) : false;
+}
+
 function paintOverlay(drag){
   const P = state._pv; if (!P) return;
   const pctx = pv.getContext('2d');
@@ -1397,14 +1460,16 @@ function paintOverlay(drag){
   pctx.textBaseline = 'bottom'; pctx.textAlign = 'left';
   for (const b of P.boxes){
     const mv = drag && b.key === drag.key;
+    const over = !mv && boxOver(b, P);
     const bx = b.x + P.padX + (mv ? drag.ddx : 0);
     const by = b.y + P.padY + (mv ? drag.ddy : 0);
     const g = lw * 2;
-    pctx.strokeStyle = mv ? '#31b5ff' : 'rgba(232,135,58,.95)';
+    const col = mv ? '#31b5ff' : over ? '#ff4d3d' : 'rgba(232,135,58,.95)';
+    pctx.strokeStyle = col;
     pctx.strokeRect(bx - g, by - g, b.w + g * 2, b.h + g * 2);
-    const label = ` ${b.label} `;
+    const label = over ? ` ${b.label} — 넘침: 하단 공간을 늘리거나 글자를 줄이세요 ` : ` ${b.label} `;
     const tw = pctx.measureText(label).width;
-    pctx.fillStyle = mv ? '#31b5ff' : 'rgba(232,135,58,.95)';
+    pctx.fillStyle = col;
     pctx.fillRect(bx - g, by - g - fsL * 1.25, tw, fsL * 1.25);
     pctx.fillStyle = '#14130f';
     pctx.fillText(label, bx - g, by - g);
@@ -1568,7 +1633,7 @@ function refresh(keepZoom = false){
     $('toneField').style.display = (state.style==='bottom'||state.style==='top') ? '' : 'none';
     if (!has) return;
     const shot = state.shots[state.current];
-    const info = { collect: state.showBoxes };
+    const info = { collect: true };   // 경계가 꺼져 있어도 넘침은 감지해야 한다
     const o = opts();
     const raw = render(shot.img, withShot(withProfile(o, shot), shot), info);
     const cv = padToRatio(raw, o);
@@ -1582,11 +1647,13 @@ function refresh(keepZoom = false){
 
     pv.width = cv.width; pv.height = cv.height;
     state._pv = {
-      cv, raw, boxes: info.boxes || [],
+      cv, raw, boxes: info.boxes || [], area: info.area,
       padX: Math.round((cv.width - raw.width) / 2),
       padY: Math.round((cv.height - raw.height) / 2),
       renderW: info.renderW || raw.width,
     };
+    // 넘친 요소가 있으면 경계 버튼을 빨갛게 — 경계를 꺼 둔 상태에서도 알 수 있게
+    $('zBox').classList.toggle('warn', state._pv.boxes.some(b => boxOver(b, state._pv)));
     paintOverlay(null);
     if (keepZoom && zoom.mode === 'free') applyZoom();
     else zoomFit();
@@ -1792,7 +1859,7 @@ function saveSettings(){
             set: $('showSet').checked, caption: $('showCaption').checked },
     advPort: { ...adv.port }, advLand: { ...adv.land },
     logo: logoState.name, sigText: $('sigText').value,
-    font: $('font').value,
+    fontEn: $('fontEn').value, fontKo: $('fontKo').value,
     ratio: $('ratio').value, ratioBg: $('ratioBg').value,
     title: $('title').value,
     style: state.style, tone: state.tone,
@@ -1803,10 +1870,7 @@ function saveSettings(){
 function loadSettings(){
   const s = store.read('frame.settings', null);
   if (!s){
-    gInfo.body = 'Nikon F5';
-    gInfo.lens = '50mm f/1.8G';
-    $('film').value = 'Portra 400';
-    return;
+    return;   // 첫 실행 — 입력은 비운 채로 시작한다
   }
   gInfo.body = s.body ?? ''; gInfo.lens = s.lens ?? ''; $('film').value = s.film ?? '';
   gInfo.date = s.date ?? ''; gInfo.set = s.set ?? '';
@@ -1824,7 +1888,8 @@ function loadSettings(){
   for (const k of ADV_KEYS) if (s[k] != null && s[k] !== '') flat[k] = String(s[k]);
   Object.assign(adv.port, flat, s.advPort || {});
   Object.assign(adv.land, flat, s.advLand || {});
-  if (s.font) $('font').value = s.font;
+  if (s.fontEn || s.font) $('fontEn').value = s.fontEn || s.font;   // s.font = 구버전 단일 글꼴
+  if (s.fontKo) $('fontKo').value = s.fontKo;
   if (s.ratio) $('ratio').value = s.ratio;
   if (s.ratioBg) $('ratioBg').value = s.ratioBg;
   if (s.title) $('title').value = s.title;
@@ -1930,7 +1995,7 @@ document.addEventListener('click', e => {
   if (!$('advPanel').hidden && !e.target.closest('#advPanel') && !e.target.closest('#gearBtn'))
     $('advPanel').hidden = true;
 });
-['showBody','showLens','showFilm','showDate','showSet','showCaption','font'].forEach(id => {
+['showBody','showLens','showFilm','showDate','showSet','showCaption','fontEn','fontKo'].forEach(id => {
   $(id).addEventListener('change', () => { saveSettings(); refresh(true); });
 });
 
