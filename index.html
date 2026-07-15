@@ -730,29 +730,38 @@ function alignX(mode, def, left, center, right){
   return { a, x: a === 'left' ? left : a === 'center' ? center : right };
 }
 
-function drawLogo(ctx, o, left, center, right, yCenter, baseH, def, sigColor){
-  // 로고·서명 — 이미지가 있으면 이미지, 없으면 텍스트 서명(필기체)을 같은 자리에
+function drawLogo(ctx, o, left, center, right, yCenter, baseH, def, sigColor, limitH, limitW){
+  // 로고·서명 — 이미지가 있으면 이미지, 없으면 텍스트 서명(필기체)을 같은 자리에.
+  // limitH/limitW = 텍스트 영역(여백) 크기 — 이를 넘지 않게 자동 축소한다
   const a = o.logoAlign === 'auto' ? def : o.logoAlign;
+  const maxH = limitH || Infinity, maxW = limitW || Infinity;
   if (o.logoImg){
     const img = o.logoImg;
-    const h = baseH * o.logoScale;
-    const w = h * (img.width / img.height);
+    let h = Math.min(baseH * o.logoScale, maxH);
+    let w = h * (img.width / img.height);
+    if (w > maxW){ w = maxW; h = w * (img.height / img.width); }
     const x = a === 'left' ? left : a === 'center' ? center - w / 2 : right - w;
     ctx.drawImage(img, x, yCenter - h / 2, w, h);
     if (o._box) o._box('로고', x, yCenter - h / 2, w, h);
     return;
   }
   if (!o.sigText) return;
-  const size = baseH * o.logoScale * 0.9;
-  ctx.font = `italic 400 ${size}px ${FONTS.script}`;
-  ctx.textBaseline = 'middle';
-  ctx.textAlign = a;
-  ctx.fillStyle = sigColor;
-  ctx.fillText(o.sigText, a === 'left' ? left : a === 'center' ? center : right, yCenter);
+  // 글꼴마다 잉크 높이가 달라 em 크기로는 여백을 넘치기 쉽다 —
+  // 실측 잉크 상자로 크기를 제한하고, 잉크 기준으로 세로 중앙을 맞춘다
+  // (textBaseline:middle은 글꼴 내부 메트릭을 따라 필기체에서 아래로 밀린다)
+  const measure = s => { ctx.font = `italic 400 ${s}px ${FONTS.script}`; return ctx.measureText(o.sigText); };
+  let size = baseH * o.logoScale * 0.9;
+  let m = measure(size);
+  const ink = mm => ({ asc: mm.actualBoundingBoxAscent ?? size*0.75, desc: mm.actualBoundingBoxDescent ?? size*0.25 });
+  let { asc, desc } = ink(m);
+  const k = Math.min(1, maxH / (asc + desc), maxW / (m.width || 1));
+  if (k < 1){ size *= k; m = measure(size); ({ asc, desc } = ink(m)); }
+  ctx.textAlign = a; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = sigColor;
+  ctx.fillText(o.sigText, a === 'left' ? left : a === 'center' ? center : right, yCenter + (asc - desc) / 2);
   if (o._box){
-    const w = ctx.measureText(o.sigText).width;
+    const w = m.width;
     const bx = a === 'left' ? left : a === 'center' ? center - w / 2 : right - w;
-    o._box('서명', bx, yCenter - size * 0.65, w, size * 1.3);
+    o._box('서명', bx, yCenter - (asc + desc) / 2, w, asc + desc);
   }
 }
 
@@ -943,7 +952,7 @@ function render(img, o, info){
       ctx.fillStyle = '#6f6a5f'; ctx.textAlign = pos.a;
       ctx.fillText(t, pos.x, vBase + capLH*(i + 1));
     });
-    drawLogo(ctx, o, pad, H/2, H - pad, vBase - fs*0.35, bar*0.6, 'center', C.rebate);
+    drawLogo(ctx, o, pad, H/2, H - pad, vBase - fs*0.35, bar*0.6, 'center', C.rebate, botBase*0.8, H - 2*pad);
     ctx.restore();
     o._box = keepBox;
     box('정보·날짜·메모 (세로 필름)', bar + W, 0, botBar, cv.height);
@@ -1020,7 +1029,7 @@ function render(img, o, info){
       ctx.fillText(t, pos.x + offC.x, baseY + capLH*(i + 1) + offC.y);
       tbox('메모', t, pos.x + offC.x, baseY + capLH*(i + 1) + offC.y, pos.a, 'alphabetic', sc);
     });
-    drawLogo(ctx, o, pad + offL.x, W/2 + offL.x, W - pad + offL.x, baseY - fs*0.35 + offL.y, bar*0.6, 'center', C.rebate);
+    drawLogo(ctx, o, pad + offL.x, W/2 + offL.x, W - pad + offL.x, baseY - fs*0.35 + offL.y, bar*0.6, 'center', C.rebate, botBase*0.8, W - 2*pad);
   }
 
   else if (o.style === 'instax' && W > H) {
@@ -1076,7 +1085,7 @@ function render(img, o, info){
         ctx.fillStyle = '#c2bab0'; ctx.textAlign = dpos.a;
         ctx.fillText(dt, dpos.x, photoBottom + colW - colBase*0.14);
       }
-      drawLogo(ctx, o, m + H*0.02, m + H/2, m + H - H*0.02, photoBottom + colW - colBase*0.14, colBase*0.14, 'left', '#5f584d');
+      drawLogo(ctx, o, m + H*0.02, m + H/2, m + H - H*0.02, photoBottom + colW - colBase*0.14, colBase*0.14, 'left', '#5f584d', colBase*0.24, H - 2*H*0.02);
       ctx.restore();
       o._box = keepBox;
       box('정보·날짜·메모 (회전)', m + W, 0, colW, cv.height);   // 회전 좌표계라 컬럼 영역으로 표시
@@ -1104,7 +1113,7 @@ function render(img, o, info){
         tbox(it.k || '정보', it.t, pos.x, y, pos.a, 'middle', sc);
         y += it.lh;
       }
-      drawLogo(ctx, o, colX + p, colX + colW/2, colX + colW - p, m + H - H*0.05, H*0.07, 'center', '#5f584d');
+      drawLogo(ctx, o, colX + p, colX + colW/2, colX + colW - p, m + H - H*0.05, H*0.07, 'center', '#5f584d', H*0.08, colW - 2*p);
     }
   }
 
@@ -1154,7 +1163,7 @@ function render(img, o, info){
       ctx.fillText(dt, dpos.x + offD.x, H + top + bot - botBase*0.14 + offD.y);
       tbox('날짜', dt, dpos.x + offD.x, H + top + bot - botBase*0.14 + offD.y, dpos.a, 'middle', W*0.0284*o.fontScale);
     }
-    drawLogo(ctx, o, side + W*0.02 + offL.x, side + W/2 + offL.x, side + W - W*0.02 + offL.x, H + top + bot - botBase*0.14 + offL.y, botBase*0.14, 'left', '#5f584d');
+    drawLogo(ctx, o, side + W*0.02 + offL.x, side + W/2 + offL.x, side + W - W*0.02 + offL.x, H + top + bot - botBase*0.14 + offL.y, botBase*0.14, 'left', '#5f584d', botBase*0.24, maxW);
   }
 
   else { // bottom / top
@@ -1214,7 +1223,7 @@ function render(img, o, info){
       ctx.fillText(dt, dpos.x + offD.x, bandTop + infoY + offD.y);
       tbox('날짜', dt, dpos.x + offD.x, bandTop + infoY + offD.y, dpos.a, 'middle', fs);
     }
-    drawLogo(ctx, o, pad + offL.x, W/2 + offL.x, W - pad + offL.x, bandTop + infoY + offL.y, fs*1.9, 'center', dark ? C.bandDarkText : '#4a453d');
+    drawLogo(ctx, o, pad + offL.x, W/2 + offL.x, W - pad + offL.x, bandTop + infoY + offL.y, fs*1.9, 'center', dark ? C.bandDarkText : '#4a453d', bandBase*0.86, W - 2*pad);
   }
   return cv;
 }
@@ -1460,6 +1469,10 @@ function moveBoxDrag(e){
   const sY = snap(candY, [y0 + ddy, (y0 + y1) / 2 + ddy, y1 + ddy]);
   boxDrag.gy = null;
   if (sY){ ddy += sY.adj; boxDrag.gy = sY.line; }
+  // 결과물 밖으로 나가지 않게 제한 — 요소가 항상 프레임 안에 남는다
+  const clamp = (d, lo, hi) => lo > hi ? d : Math.min(Math.max(d, lo), hi);
+  ddx = clamp(ddx, -x0, P.raw.width - x1);
+  ddy = clamp(ddy, -y0, P.raw.height - y1);
   boxDrag.ddx = ddx; boxDrag.ddy = ddy;
   paintOverlay(boxDrag);
 }
