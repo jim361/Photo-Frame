@@ -106,6 +106,8 @@
   }
   .zoombar button:hover{color:var(--edge)}
   .zoombar button[aria-pressed="true"]{color:var(--edge)}
+  .zoombar button:disabled{color:#4f4a41;cursor:not-allowed}
+  .zoombar button:disabled:hover{color:#4f4a41}
   .zoombar button.warn{color:#ff4d3d}
   .zoombar button.warn::after{content:" ●";font-size:9px}
   .zoombar .pct{
@@ -375,6 +377,7 @@
         <button id="zFit" title="화면에 맞추기 (0)">맞춤</button>
         <button id="z100" title="원본 크기 (1)">1:1</button>
         <button id="zBox" title="요소 경계 표시 — 결과물에는 포함되지 않습니다" aria-pressed="true">경계</button>
+        <button id="zUndo" title="마지막 레이아웃 조작을 취소합니다" disabled>↶ 돌아가기</button>
         <div class="pct" id="zRatio" title="원본 비율 → 결과물 비율"></div>
       </div>
     </div>
@@ -534,7 +537,7 @@
             </div>
             <div class="field"></div>
           </div>
-          <p class="note" style="margin-top:2px">위치는 미리보기에서 <b>경계</b>를 켜고 요소를 끌어 정합니다 · 하단 공간·테두리 여백은 프레임 경계선을 끌어 조절합니다</p>
+          <p class="note" style="margin-top:2px">위치는 미리보기에서 <b>경계</b>를 켜고 요소를 끌어 정합니다 · 인스탁스 우상단 그립은 왼쪽·아래로 끌면 여백이 커집니다 · 마지막 조작은 줌바의 <b>돌아가기</b>로 복원합니다</p>
           <div class="field" style="margin:10px 0 0">
             <span>레이아웃 프리셋 <button type="button" id="layoutReset" title="이 방향의 배치를 처음 상태로">초기화</button></span>
             <div class="gearcol" id="layoutRow"></div>
@@ -1714,9 +1717,44 @@ const freshAdv = () => Object.fromEntries(STYLE_KEYS.map(style =>
   [style, { port:{ ...DEF_ADV }, land:{ ...DEF_ADV } }]));
 const adv = freshAdv();
 let advTab = 'port';
+let layoutUndo = null;   // 마지막 레이아웃 조작 직전 상태 1단계(세션 한정)
 
 function profileFor(style = state.style, dir = advTab){
   return adv[STYLE_KEYS.includes(style) ? style : 'film'][dir];
+}
+function layoutSnapshot(style = state.style){
+  return { style, port:{ ...adv[style].port }, land:{ ...adv[style].land } };
+}
+function sameProfile(a, b){
+  return [...ADV_KEYS, ...OFF_KEYS].every(k => String(a?.[k] ?? DEF_ADV[k]) === String(b?.[k] ?? DEF_ADV[k]));
+}
+function sameStyleLayout(a, b){
+  return !!a && !!b && a.style === b.style && sameProfile(a.port, b.port) && sameProfile(a.land, b.land);
+}
+function updateLayoutUndo(){
+  const enabled = !!layoutUndo && layoutUndo.style === state.style;
+  $('zUndo').disabled = !enabled;
+  $('zUndo').title = enabled
+    ? `${layoutUndo.label} 전 상태로 돌아갑니다`
+    : '마지막 레이아웃 조작을 취소합니다';
+}
+function setLayoutUndo(label, before){
+  if (!before) return;
+  layoutUndo = { ...before, label };
+  updateLayoutUndo();
+}
+function clearLayoutUndo(){
+  layoutUndo = null;
+  updateLayoutUndo();
+}
+function undoLayout(){
+  if (!layoutUndo || layoutUndo.style !== state.style) return;
+  const prev = layoutUndo;
+  adv[prev.style].port = { ...DEF_ADV, ...prev.port };
+  adv[prev.style].land = { ...DEF_ADV, ...prev.land };
+  layoutUndo = null;
+  syncAdv(); saveSettings(); refresh(true); updateLayoutUndo();
+  toast(`${prev.label} 전 상태로 돌아갔습니다`);
 }
 function resetAdv(){
   const fresh = freshAdv();
@@ -1835,6 +1873,7 @@ $('zBox').onclick = () => {
   store.write('frame.ui', { ...store.read('frame.ui', {}), boxes: state.showBoxes });
   refresh(true);
 };
+$('zUndo').onclick = undoLayout;
 
 /* ============================================================
    미리보기 오버레이 + 경계 드래그 (요소 위치 지정)
@@ -1978,7 +2017,7 @@ function startEdgeDrag(e){
   // 좌표를 renderW 비율로 정규화 — 드래그 중 축소본으로 바뀌어 캔버스 크기가
   // 달라져도 이동량 계산이 흔들리지 않는다
   const R = state._pv.renderW;
-  edgeDrag = { h: hit.h, prof, base, pct: base,
+  edgeDrag = { h: hit.h, prof, base, pct: base, before:layoutSnapshot(),
                nStart: { x: hit.pt.x / R, y: hit.pt.y / R },
                nUnit: state._pv.units[hit.h.key] / R };   // 100%에 해당하는 길이 (W 비율)
   // 드래그 중에는 축소본으로 렌더 — 고해상도 원본을 매 프레임 다시 그리면 버벅인다.
@@ -1996,13 +2035,18 @@ function startEdgeDrag(e){
   return true;
 }
 
+function cornerScaleDelta(n, start){
+  return ((n.y - start.y) - (n.x - start.x)) / 2;
+}
+
 function moveEdgeDrag(e){
   const pt = canvasPoint(e);
   const R = state._pv.renderW;
   const n = { x: pt.x / R, y: pt.y / R };
-  // 모서리 그립(사진 우상단): 바깥쪽(오른쪽·위)으로 끌면 여백이 커진다
+  // 모서리 그립(사진 우상단): 사진 크기 조절 감각에 맞춰 왼쪽·아래로 끌면
+  // 여백이 커지고, 오른쪽·위로 끌면 여백이 작아진다
   const d = edgeDrag.h.type === 'corner'
-    ? ((n.x - edgeDrag.nStart.x) - (n.y - edgeDrag.nStart.y)) / 2
+    ? cornerScaleDelta(n, edgeDrag.nStart)
     : (edgeDrag.h.axis === 'y' ? n.y - edgeDrag.nStart.y : n.x - edgeDrag.nStart.x) * edgeDrag.h.dir;
   const [lo, hi] = edgeDrag.h.key === 'bandScale' ? [50, 500] : [0, 300];
   const pct = Math.round(Math.min(hi, Math.max(lo, edgeDrag.base + d / edgeDrag.nUnit * 100)));
@@ -2014,8 +2058,10 @@ function moveEdgeDrag(e){
 }
 
 function endEdgeDrag(){
+  const drag = edgeDrag;
   edgeDrag = null;
   state._dragImg = null;   // 원본 해상도로 복귀
+  if (drag && drag.pct !== drag.base) setLayoutUndo('프레임 크기 변경', drag.before);
   saveSettings();
   refresh(true);
 }
@@ -2037,7 +2083,8 @@ function hitBox(e){
 function startBoxDrag(e){
   const hit = hitBox(e);
   if (!hit) return false;
-  boxDrag = { key: hit.b.key, sx: hit.pt.x, sy: hit.pt.y, ddx: 0, ddy: 0, gx: null, gy: null };
+  boxDrag = { key: hit.b.key, sx: hit.pt.x, sy: hit.pt.y, ddx: 0, ddy: 0,
+              gx: null, gy: null, before:layoutSnapshot() };
   return true;
 }
 
@@ -2080,13 +2127,14 @@ function moveBoxDrag(e){
 
 function endBoxDrag(){
   const P = state._pv;
-  const { key, ddx, ddy } = boxDrag;
+  const { key, ddx, ddy, before } = boxDrag;
   boxDrag = null;
   if (!P || (Math.abs(ddx) < 1 && Math.abs(ddy) < 1)){ paintOverlay(null); return; }
   const s = state.shots[state.current]; if (!s) return;
   const w = s.img.naturalWidth || s.img.width, h = s.img.naturalHeight || s.img.height;
   const p = profileFor(state.style, w > h ? 'land' : 'port');
   const r4 = v => String(Math.round(v * 10000) / 10000);
+  setLayoutUndo(`${LABEL[key]} 이동`, before);
   p[key + 'DX'] = r4((Number(p[key + 'DX']) || 0) + ddx / P.renderW);
   p[key + 'DY'] = r4((Number(p[key + 'DY']) || 0) + ddy / P.renderW);
   saveSettings();
@@ -2101,6 +2149,8 @@ vp.addEventListener('dblclick', e => {
   const s = state.shots[state.current]; if (!s) return;
   const w = s.img.naturalWidth || s.img.width, h = s.img.naturalHeight || s.img.height;
   const p = profileFor(state.style, w > h ? 'land' : 'port');
+  if (!(Number(p[hit.b.key + 'DX']) || 0) && !(Number(p[hit.b.key + 'DY']) || 0)) return;
+  setLayoutUndo(`${LABEL[hit.b.key]} 위치 초기화`, layoutSnapshot());
   p[hit.b.key + 'DX'] = '0'; p[hit.b.key + 'DY'] = '0';
   saveSettings(); refresh(true);
   toast('위치 초기화됨');
@@ -2432,6 +2482,7 @@ vp.addEventListener('drop', e => {
 function setStyle(style){
   state.style = style;
   [...$('styleSeg').children].forEach(x => x.setAttribute('aria-pressed', x.dataset.style === style));
+  updateLayoutUndo();
 }
 
 /* 촬영 정보·표시 설정·내보내기 설정을 localStorage에 자동 저장
@@ -2539,11 +2590,31 @@ function syncAdv(){
 }
 ADV_KEYS.forEach(id => {
   const ev = id.endsWith('Scale') ? 'input' : 'change';
-  $(id).addEventListener(ev, () => {
-    profileFor()[id] = $(id).value;
+  const el = $(id);
+  let before = null, settle = null;
+  const begin = () => { before ||= layoutSnapshot(); };
+  const end = () => { before = null; clearTimeout(settle); settle = null; };
+  el.addEventListener('focus', begin);
+  el.addEventListener('pointerdown', begin);
+  el.addEventListener('keydown', begin);
+  el.addEventListener('blur', end);
+  if (ev === 'input'){
+    el.addEventListener('pointerup', end);     // 스피너 한 번/길게 누르기 = 한 단계
+    el.addEventListener('change', end);
+  }
+  el.addEventListener(ev, () => {
+    const p = profileFor(), next = el.value;
+    if (String(p[id]) === String(next)) return;
+    setLayoutUndo('레이아웃 설정 변경', before || layoutSnapshot());
+    p[id] = next;
     saveSettings();
     if (id === 'lines') refresh();   // 비율이 바뀌므로 맞춤 리셋
     else refresh(true);
+    if (ev === 'change') end();
+    else {
+      clearTimeout(settle);
+      settle = setTimeout(() => { before = null; settle = null; }, 600);
+    }
   });
 });
 $('advTab').onclick = e => {
@@ -2559,6 +2630,11 @@ $('advTab').onclick = e => {
 let layouts = store.read('frame.layouts', []);
 
 $('layoutReset').onclick = () => {
+  if (sameProfile(profileFor(), DEF_ADV)){
+    toast('이미 초기 배치입니다');
+    return;
+  }
+  setLayoutUndo('레이아웃 초기화', layoutSnapshot());
   adv[state.style][advTab] = { ...DEF_ADV };
   syncAdv(); saveSettings(); refresh();
   toast(`${STYLE_LABELS[state.style]} · ${advTab === 'land' ? '가로' : '세로'} 배치를 초기화했습니다`);
@@ -2577,8 +2653,12 @@ function drawLayouts(){
       if (e.target === x){
         layouts.splice(i, 1); store.write('frame.layouts', layouts); drawLayouts(); return;
       }
-      adv[state.style].port = { ...DEF_ADV, ...l.port };
-      adv[state.style].land = { ...DEF_ADV, ...l.land };
+      const before = layoutSnapshot();
+      const next = { style:state.style,
+        port:{ ...DEF_ADV, ...l.port }, land:{ ...DEF_ADV, ...l.land } };
+      if (!sameStyleLayout(before, next)) setLayoutUndo('레이아웃 프리셋 적용', before);
+      adv[state.style].port = next.port;
+      adv[state.style].land = next.land;
       syncAdv(); saveSettings(); refresh();
       toast(`${STYLE_LABELS[state.style]} 레이아웃 적용됨`);
     };
@@ -3046,6 +3126,7 @@ $('projectPicker').onchange = async e => {
     clearShots();
     mergeProjectLogo(data.activeLogo, settings);
     logoState.name = '';
+    clearLayoutUndo();
     resetAdv();
     store.write('frame.settings', settings);
     loadSettings();
