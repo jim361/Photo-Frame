@@ -77,15 +77,15 @@
   }
   .dropzone p{color:var(--rebate);font-size:13px}
   .dropzone .guide{
-    text-align:left;margin:26px auto 0;max-width:430px;
+    text-align:left;margin:26px auto 0;max-width:480px;
     padding-left:20px;color:var(--rebate);font-size:12.5px;line-height:1.65;
     word-break:keep-all;
   }
-  .dropzone .guide li{margin-bottom:7px}
+  .dropzone .guide li{margin-bottom:7px;text-wrap:pretty}
   .dropzone .guide b{color:#b9b1a4;font-weight:600}
   .dropzone .guide-note{
     margin-top:14px;font-size:11.5px;color:#5c5850;line-height:1.6;
-    word-break:keep-all;max-width:430px;margin-left:auto;margin-right:auto;
+    word-break:keep-all;text-wrap:pretty;max-width:480px;margin-left:auto;margin-right:auto;
   }
   .dropzone .guide-note b{color:var(--rebate);font-weight:600}
 
@@ -528,6 +528,17 @@
     <hr>
 
     <div class="group">
+      <span class="glabel">프로젝트</span>
+      <div class="row">
+        <button class="btn solid" id="projectSave" disabled>프로젝트 저장</button>
+        <button class="btn" id="projectOpen">프로젝트 열기</button>
+      </div>
+      <p class="note" id="projectNote">사진 원본은 넣지 않습니다. 프로젝트를 열면 원본 사진을 다시 선택해 연결합니다.</p>
+    </div>
+
+    <hr>
+
+    <div class="group">
       <span class="glabel">내보내기</span>
       <div class="row3">
         <div class="field">
@@ -593,6 +604,7 @@
 
 <input type="file" id="picker" accept="image/*" multiple hidden>
 <input type="file" id="logoPicker" accept="image/*" hidden>
+<input type="file" id="projectPicker" accept=".json,.photoframe.json,application/json" hidden>
 
 <div class="advpanel" id="advPanel" hidden>
   <h3>개인 설정</h3>
@@ -673,6 +685,7 @@ const state = {
   dirHandle: null,
   showBoxes: true,    // 경계 표시 — 기본 켜짐, 줌바 토글로 끌 수 있고 frame.ui에 기억
 };
+let pendingProject = null;   // 프로젝트를 연 뒤 원본 파일과 연결할 manifest
 /* 프리셋: 카메라/렌즈/필름을 각각 독립 목록으로 저장 (frame.gear).
    구버전 조합 프리셋(frame.presets)이 남아 있으면 값만 이전한다 */
 let gear = store.read('frame.gear', null);
@@ -1809,6 +1822,7 @@ function refresh(keepZoom = false){
     $('zoombar').hidden = !has;
     $('exportAll').disabled = !state.shots.length;
     $('exportOne').disabled = !has;
+    $('projectSave').disabled = !state.shots.length;
     $('toneField').style.display = (state.style==='bottom'||state.style==='top') ? '' : 'none';
     if (!has) return;
     const shot = state.shots[state.current];
@@ -1990,20 +2004,41 @@ async function loadImage(file){
 
 async function addFiles(files){
   const imgs = [...files].filter(f => f.type.startsWith('image/'));
-  let failed = 0, exifCount = 0;
+  const wasCurrent = state.shots[state.current];
+  let failed = 0, exifCount = 0, projectCount = 0;
   for (const f of imgs){
     try {
       const img = await loadImage(f);
-      const shot = { img, url: URL.createObjectURL(f), name: f.name };
+      const shot = { img, url: URL.createObjectURL(f), name: f.name,
+        file: { name:f.name, size:f.size, lastModified:f.lastModified, type:f.type } };
       const x = await readExif(f);
       // 렌즈 정보까지 있어야 실제 카메라 EXIF로 신뢰 — 필름 스캐너가 남긴
       // 기기명(Noritsu 등)을 걸러낸다. EXIF는 전역 입력을 건드리지 않고
       // 이 사진에만 붙는다 (필름/디지털 혼합 작업 시 서로 오염 방지)
       if (x && x.lens){ shot.exif = { body: x.camera, lens: x.lens, date: x.date, set: x.set }; exifCount++; }
+      const saved = matchProjectPhoto(f);
+      if (saved){
+        if (saved.exif) shot.exif = { ...saved.exif };
+        if (saved.own) shot.own = { ...saved.own };
+        shot._projectOrder = saved.order;
+        projectCount++;
+      }
       state.shots.push(shot);
     } catch { failed++; }
   }
-  if (exifCount) toast(`${exifCount}장은 EXIF 촬영 정보를 사용합니다`);
+  if (pendingProject && projectCount){
+    state.shots.sort((a, b) => (a._projectOrder ?? Infinity) - (b._projectOrder ?? Infinity));
+    const target = state.shots.findIndex(s => s._projectOrder === pendingProject.current);
+    if (target >= 0) state.current = target;
+    else if (wasCurrent) state.current = state.shots.indexOf(wasCurrent);
+    const matched = pendingProject.photos.filter(p => p.matched).length;
+    const total = pendingProject.photos.length;
+    $('projectNote').textContent = matched === total
+      ? `프로젝트 복원 완료 · 원본 ${total}장 연결됨`
+      : `프로젝트 원본 연결 중 · ${matched}/${total}장 · 나머지 사진을 더 불러오세요`;
+    if (matched === total){ pendingProject = null; toast(`프로젝트 ${total}장을 복원했습니다`); }
+    else toast(`프로젝트 사진 ${matched}/${total}장 연결됨`);
+  } else if (exifCount) toast(`${exifCount}장은 EXIF 촬영 정보를 사용합니다`);
   if (failed) toast(`${failed}장을 읽지 못했습니다`);
   if (state.current < 0 && state.shots.length) state.current = 0;
   drawStrip(); syncFields(); refresh();
@@ -2420,6 +2455,149 @@ $('logoPicker').onchange = async e => {
     setLogo(name);
     toast('로고 저장됨');
   } catch { toast('이미지를 읽지 못했습니다'); }
+};
+
+/* ============================================================
+   프로젝트 저장·복원 — 사진 바이트는 넣지 않고 파일 manifest와 현재 작업만 JSON으로 저장.
+   프로젝트를 연 뒤 사용자가 원본을 다시 고르면 파일명·크기·수정 시각으로 연결한다.
+   ============================================================ */
+const PROJECT_KIND = 'photoframe-project';
+const PROJECT_VERSION = 1;
+const INFO_KEYS = ['body','lens','date','set'];
+
+function cleanInfo(v){
+  if (!v || typeof v !== 'object') return null;
+  const out = {};
+  for (const k of INFO_KEYS) if (typeof v[k] === 'string') out[k] = v[k];
+  return Object.keys(out).length ? out : null;
+}
+
+function cleanProjectSettings(v){
+  if (!v || typeof v !== 'object') throw new Error('settings');
+  const out = {};
+  const scalar = ['body','lens','film','date','set','caption','logo','sigText','fontEn','fontKo',
+                  'ratio','ratioBg','title','style','tone','size','fmt','quality'];
+  for (const k of scalar){
+    if (typeof v[k] === 'string' || typeof v[k] === 'number') out[k] = String(v[k]);
+  }
+  if (v.show && typeof v.show === 'object'){
+    out.show = {};
+    for (const k of ['body','lens','film','date','set','caption']) out.show[k] = v.show[k] !== false;
+  }
+  const profile = p => {
+    const r = {};
+    if (!p || typeof p !== 'object') return r;
+    for (const k of [...ADV_KEYS, ...OFF_KEYS]){
+      if (typeof p[k] === 'string' || typeof p[k] === 'number') r[k] = String(p[k]);
+    }
+    return r;
+  };
+  out.advPort = profile(v.advPort);
+  out.advLand = profile(v.advLand);
+  if (!['film','instax','bottom','top'].includes(out.style)) out.style = 'film';
+  if (!['light','dark'].includes(out.tone)) out.tone = 'light';
+  if (!['png','jpeg'].includes(out.fmt)) out.fmt = 'png';
+  return out;
+}
+
+function matchProjectPhoto(file){
+  if (!pendingProject) return null;
+  const exact = p => !p.matched && p.file.name === file.name &&
+    (!p.file.size || p.file.size === file.size) &&
+    (!p.file.lastModified || p.file.lastModified === file.lastModified);
+  let saved = pendingProject.photos.find(exact);
+  if (!saved) saved = pendingProject.photos.find(p => !p.matched && p.file.name === file.name);
+  if (saved) saved.matched = true;
+  return saved || null;
+}
+
+function clearShots(){
+  for (const s of state.shots){ URL.revokeObjectURL(s.url); s.img.close?.(); }
+  state.shots = [];
+  state.current = -1;
+  state._pv = null;
+  drawStrip(); syncFields(); refresh();
+}
+
+function mergeProjectLogo(entry, settings){
+  if (!entry || typeof entry.name !== 'string' || typeof entry.data !== 'string' ||
+      !entry.data.startsWith('data:image/')){
+    settings.logo = '';
+    return;
+  }
+  const same = logos.find(l => l.name === entry.name && l.data === entry.data);
+  if (same){ settings.logo = same.name; return; }
+  let name = entry.name || 'project-logo', n = 2;
+  if (logos.some(l => l.name === name)){
+    const base = `${name} (프로젝트)`;
+    name = base;
+    while (logos.some(l => l.name === name)) name = `${base} ${n++}`;
+  }
+  logos.push({ name, data:entry.data });
+  store.write('frame.logos', logos);
+  settings.logo = name;
+}
+
+$('projectSave').onclick = async () => {
+  if (!state.shots.length) return;
+  saveSettings();
+  const settings = cleanProjectSettings(store.read('frame.settings', {}));
+  const activeLogo = logos.find(l => l.name === logoState.name);
+  const project = {
+    kind: PROJECT_KIND,
+    version: PROJECT_VERSION,
+    savedAt: new Date().toISOString(),
+    settings,
+    activeLogo: activeLogo ? { name:activeLogo.name, data:activeLogo.data } : null,
+    current: state.current,
+    photos: state.shots.map(s => ({
+      file: { ...(s.file || { name:s.name }) },
+      exif: cleanInfo(s.exif),
+      own: cleanInfo(s.own),
+    })),
+  };
+  const title = $('title').value.trim().replace(/[\\/:*?"<>|]/g, '');
+  const base = title || `PhotoFrame-${new Date().toISOString().slice(0, 10)}`;
+  try {
+    await save(new Blob([JSON.stringify(project, null, 2)], { type:'application/json' }), `${base}.photoframe.json`);
+    $('projectNote').textContent = `프로젝트 저장됨 · ${project.photos.length}장 · 사진 원본은 포함되지 않음`;
+    toast('프로젝트를 저장했습니다');
+  } catch { toast('프로젝트를 저장하지 못했습니다'); }
+};
+
+$('projectOpen').onclick = () => $('projectPicker').click();
+$('projectPicker').onchange = async e => {
+  const file = e.target.files[0]; e.target.value = '';
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    if (data.kind !== PROJECT_KIND || data.version !== PROJECT_VERSION || !Array.isArray(data.photos))
+      throw new Error('format');
+    const settings = cleanProjectSettings(data.settings);
+    const photos = data.photos.map((p, order) => {
+      if (!p || !p.file || typeof p.file.name !== 'string') throw new Error('photo');
+      return {
+        order,
+        file: { name:p.file.name, size:Number(p.file.size) || 0,
+                lastModified:Number(p.file.lastModified) || 0, type:String(p.file.type || '') },
+        exif: cleanInfo(p.exif), own: cleanInfo(p.own), matched:false,
+      };
+    });
+    if (state.shots.length && !confirm('현재 불러온 사진을 비우고 프로젝트를 여시겠습니까?')) return;
+    clearShots();
+    mergeProjectLogo(data.activeLogo, settings);
+    logoState.name = '';
+    adv.port = { ...DEF_ADV }; adv.land = { ...DEF_ADV };
+    store.write('frame.settings', settings);
+    loadSettings();
+    pendingProject = { photos, current:Math.min(Math.max(0, Number(data.current) || 0), Math.max(0, photos.length - 1)) };
+    syncAdv(); updateEyes(); updateExportNote(); applyLogoImage(); drawLogos();
+    $('projectNote').textContent = `프로젝트 설정 복원됨 · 원본 사진 ${photos.length}장을 놓거나 클릭해 선택하세요`;
+    refresh();
+    toast('이제 프로젝트의 원본 사진을 불러오세요');
+  } catch {
+    toast('올바른 PhotoFrame 프로젝트 파일이 아닙니다');
+  }
 };
 
 

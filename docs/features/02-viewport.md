@@ -32,7 +32,8 @@ CSS `transform: translate(x,y) scale(s)` 기반. 상태는 `zoom { scale, fit, x
 
 ## 개선 계획
 
-- [ ] 3단계: 핀치 줌 (two-pointer)
+- [ ] 레이아웃 조작 돌아가기 버튼 — 요소 이동·프레임 크기·프리셋 적용 직전 상태 복원
+- [ ] 보류: 핀치 줌 (모바일 작업 재개 시 UX부터 재검토)
 - [ ] 2단계: viewport 모듈 분리
 
 ## 수용 기준
