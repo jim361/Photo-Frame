@@ -377,7 +377,7 @@
         <button id="zFit" title="화면에 맞추기 (0)">맞춤</button>
         <button id="z100" title="원본 크기 (1)">1:1</button>
         <button id="zBox" title="요소 경계 표시 — 결과물에는 포함되지 않습니다" aria-pressed="true">경계</button>
-        <button id="zUndo" title="마지막 레이아웃 조작을 취소합니다" disabled>↶ 돌아가기</button>
+        <button id="zUndo" title="현재 프레임 스타일의 이전 레이아웃 조작을 취소합니다" disabled>↶ 돌아가기</button>
         <div class="pct" id="zRatio" title="원본 비율 → 결과물 비율"></div>
       </div>
     </div>
@@ -537,7 +537,7 @@
             </div>
             <div class="field"></div>
           </div>
-          <p class="note" style="margin-top:2px">위치는 미리보기에서 <b>경계</b>를 켜고 요소를 끌어 정합니다 · 인스탁스 우상단 그립은 왼쪽·아래로 끌면 여백이 커집니다 · 마지막 조작은 줌바의 <b>돌아가기</b>로 복원합니다</p>
+          <p class="note" style="margin-top:2px">위치는 미리보기에서 <b>경계</b>를 켜고 요소를 끌어 정합니다 · 인스탁스 우상단 그립은 왼쪽·아래로 끌면 여백이 커집니다 · 이전 조작은 줌바의 <b>돌아가기</b>로 여러 단계 복원합니다</p>
           <div class="field" style="margin:10px 0 0">
             <span>레이아웃 프리셋 <button type="button" id="layoutReset" title="이 방향의 배치를 처음 상태로">초기화</button></span>
             <div class="gearcol" id="layoutRow"></div>
@@ -1717,7 +1717,8 @@ const freshAdv = () => Object.fromEntries(STYLE_KEYS.map(style =>
   [style, { port:{ ...DEF_ADV }, land:{ ...DEF_ADV } }]));
 const adv = freshAdv();
 let advTab = 'port';
-let layoutUndo = null;   // 마지막 레이아웃 조작 직전 상태 1단계(세션 한정)
+const LAYOUT_UNDO_LIMIT = 50;
+const layoutUndo = Object.fromEntries(STYLE_KEYS.map(style => [style, []]));
 
 function profileFor(style = state.style, dir = advTab){
   return adv[STYLE_KEYS.includes(style) ? style : 'film'][dir];
@@ -1731,30 +1732,45 @@ function sameProfile(a, b){
 function sameStyleLayout(a, b){
   return !!a && !!b && a.style === b.style && sameProfile(a.port, b.port) && sameProfile(a.land, b.land);
 }
+function layoutUndoStack(style = state.style){
+  return layoutUndo[STYLE_KEYS.includes(style) ? style : 'film'];
+}
 function updateLayoutUndo(){
-  const enabled = !!layoutUndo && layoutUndo.style === state.style;
-  $('zUndo').disabled = !enabled;
-  $('zUndo').title = enabled
-    ? `${layoutUndo.label} 전 상태로 돌아갑니다`
-    : '마지막 레이아웃 조작을 취소합니다';
+  const stack = layoutUndoStack();
+  const prev = stack[stack.length - 1];
+  const count = stack.length;
+  $('zUndo').disabled = !prev;
+  $('zUndo').textContent = count ? `↶ 돌아가기 (${count})` : '↶ 돌아가기';
+  $('zUndo').title = prev
+    ? `${STYLE_LABELS[state.style]} · ${prev.label} 전 상태로 돌아갑니다 (${count}단계 남음)`
+    : `현재 ${STYLE_LABELS[state.style]}에서 되돌릴 레이아웃 조작이 없습니다`;
 }
 function setLayoutUndo(label, before){
-  if (!before) return;
-  layoutUndo = { ...before, label };
+  if (!before || !STYLE_KEYS.includes(before.style)) return;
+  const stack = layoutUndoStack(before.style);
+  const prev = { ...before, label };
+  const last = stack[stack.length - 1];
+  // 같은 시작 상태가 연달아 전달돼도 중복 단계를 만들지 않는다.
+  if (last && sameStyleLayout(last, prev)) last.label = label;
+  else {
+    stack.push(prev);
+    if (stack.length > LAYOUT_UNDO_LIMIT) stack.splice(0, stack.length - LAYOUT_UNDO_LIMIT);
+  }
   updateLayoutUndo();
 }
-function clearLayoutUndo(){
-  layoutUndo = null;
+function clearLayoutUndo(style = null){
+  if (STYLE_KEYS.includes(style)) layoutUndo[style].length = 0;
+  else STYLE_KEYS.forEach(key => { layoutUndo[key].length = 0; });
   updateLayoutUndo();
 }
 function undoLayout(){
-  if (!layoutUndo || layoutUndo.style !== state.style) return;
-  const prev = layoutUndo;
+  const stack = layoutUndoStack();
+  const prev = stack.pop();
+  if (!prev) return;
   adv[prev.style].port = { ...DEF_ADV, ...prev.port };
   adv[prev.style].land = { ...DEF_ADV, ...prev.land };
-  layoutUndo = null;
   syncAdv(); saveSettings(); refresh(true); updateLayoutUndo();
-  toast(`${prev.label} 전 상태로 돌아갔습니다`);
+  toast(`${prev.label} 전 상태로 돌아갔습니다${stack.length ? ` · ${stack.length}단계 더 가능` : ''}`);
 }
 function resetAdv(){
   const fresh = freshAdv();
@@ -2591,29 +2607,35 @@ function syncAdv(){
 ADV_KEYS.forEach(id => {
   const ev = id.endsWith('Scale') ? 'input' : 'change';
   const el = $(id);
-  let before = null, settle = null;
+  let before = null, dirty = false, settle = null;
   const begin = () => { before ||= layoutSnapshot(); };
-  const end = () => { before = null; clearTimeout(settle); settle = null; };
+  const commit = () => {
+    clearTimeout(settle); settle = null;
+    if (dirty && before && !sameStyleLayout(before, layoutSnapshot(before.style)))
+      setLayoutUndo('레이아웃 설정 변경', before);
+    before = null; dirty = false;
+  };
   el.addEventListener('focus', begin);
   el.addEventListener('pointerdown', begin);
   el.addEventListener('keydown', begin);
-  el.addEventListener('blur', end);
+  el.addEventListener('blur', commit);
   if (ev === 'input'){
-    el.addEventListener('pointerup', end);     // 스피너 한 번/길게 누르기 = 한 단계
-    el.addEventListener('change', end);
+    el.addEventListener('pointerup', commit);     // 스피너 한 번/길게 누르기 = 한 단계
+    el.addEventListener('change', commit);
   }
   el.addEventListener(ev, () => {
     const p = profileFor(), next = el.value;
     if (String(p[id]) === String(next)) return;
-    setLayoutUndo('레이아웃 설정 변경', before || layoutSnapshot());
+    begin();
     p[id] = next;
+    dirty = true;
     saveSettings();
     if (id === 'lines') refresh();   // 비율이 바뀌므로 맞춤 리셋
     else refresh(true);
-    if (ev === 'change') end();
+    if (ev === 'change') commit();
     else {
       clearTimeout(settle);
-      settle = setTimeout(() => { before = null; settle = null; }, 600);
+      settle = setTimeout(commit, 600);
     }
   });
 });
