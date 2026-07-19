@@ -1108,14 +1108,14 @@ function captionLines(o){
 
 function drawLogo(ctx, o, left, center, right, yCenter, baseH, align, sigColor, limitH, limitW){
   // 로고·서명 — 이미지가 있으면 이미지, 없으면 텍스트 서명(필기체)을 같은 자리에.
-  // limitH/limitW = 텍스트 영역(여백) 크기 — 이를 넘지 않게 자동 축소한다
+  // limitH/limitW = 텍스트 서명이 여백을 넘지 않게 하는 최대 크기
   // 위치는 스타일별 기본값(align) — 조정은 경계 드래그로 한다
   const maxH = limitH || Infinity, maxW = limitW || Infinity;
   if (o.logoImg){
     const img = o.logoImg;
-    let h = Math.min(baseH * o.logoScale, maxH);
-    let w = h * (img.width / img.height);
-    if (w > maxW){ w = maxW; h = w * (img.height / img.width); }
+    // 이미지 로고는 입력 배율을 그대로 쓰고, 넘침은 기존 경계 경고로 알린다.
+    const h = baseH * o.logoScale;
+    const w = h * (img.width / img.height);
     const x = align === 'left' ? left : align === 'center' ? center - w / 2 : right - w;
     ctx.drawImage(img, x, yCenter - h / 2, w, h);
     if (o._box) o._box('logo', x, yCenter - h / 2, w, h, '로고');
@@ -1278,6 +1278,7 @@ function render(img, o, info){
     const fcap = bar*0.30*o.fontScale, capLH = fcap*1.8;
     const botBar = bar * (two ? 2.3 : 1.75) * o.bandScale;
     cv.width = bar + W + botBar; cv.height = H;   // 왼쪽 얇은 바 + 사진 + 오른쪽 텍스트 바
+    if (collect) info.area = { x: bar + W, y: 0, w: botBar, h: H };
     ctx.fillStyle = C.base; ctx.fillRect(0,0,cv.width,cv.height);
     ctx.drawImage(img, bar, 0, W, H);
 
@@ -1298,7 +1299,11 @@ function render(img, o, info){
     holesV(bar + W + bar*0.70);   // 사진 바로 오른쪽 고정
 
     // 엣지 프린트 — -90° 회전 좌표계에서 가로 필름과 동일 배치 (글씨가 아래→위)
-    const keepBox = o._box; o._box = null;
+    const keepBox = o._box;
+    // 회전 좌표를 캔버스 좌표로 바꿔 경고용 경계만 수집한다(드래그는 비활성).
+    o._box = collect ? (_key, x, y, w, h, label) => info.boxes.push({
+      label, x: y, y: H - x - w, w: h, h: w, key: null, moved: false, warn: true,
+    }) : null;
     ctx.save();
     ctx.translate(0, cv.height);
     ctx.rotate(-Math.PI/2);
@@ -1863,11 +1868,11 @@ $('zUndo').onclick = undoLayout;
 /* ============================================================
    미리보기 오버레이 + 경계 드래그 (요소 위치 지정)
    ============================================================ */
-/* 넘침 판정 — 글자가 길어 텍스트 영역을 벗어났는가.
+/* 넘침 판정 — 요소가 정보 영역을 벗어났는가.
    사용자가 직접 끌어다 놓은 요소(moved)는 의도된 배치이므로 결과물 밖으로
    나갈 때만 경고한다 */
 function boxOver(b, P){
-  if (!b.key) return false;
+  if (!b.key && !b.warn) return false;
   const out = (r) => b.x < r.x - 1 || b.y < r.y - 1 ||
                      b.x + b.w > r.x + r.w + 1 || b.y + b.h > r.y + r.h + 1;
   if (out({ x: 0, y: 0, w: P.raw.width, h: P.raw.height })) return true;
@@ -1942,7 +1947,7 @@ function paintOverlay(drag){
     pctx.lineWidth = hov ? lw * 2 : lw;
     pctx.strokeStyle = col;
     pctx.strokeRect(bx - g, by - g, b.w + g * 2, b.h + g * 2);
-    const label = over ? ` ${b.label} — 넘침: 하단 공간을 늘리거나 글자를 줄이세요 ` : ` ${b.label} `;
+    const label = over ? ` ${b.label} — 넘침: 하단 공간을 늘리거나 크기를 줄이세요 ` : ` ${b.label} `;
     const tw = pctx.measureText(label).width;
     pctx.fillStyle = col;
     pctx.fillRect(bx - g, by - g - fsL * 1.25, tw, fsL * 1.25);
