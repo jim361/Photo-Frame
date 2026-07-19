@@ -135,7 +135,7 @@
     user-select:none;
   }
   .chip:active{cursor:grabbing}
-  .chip img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+  .chip img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
   .chip.on{opacity:1;border-color:var(--edge)}
   .chip.dragging{opacity:.25;border-style:dashed}
   .chip.dropTarget::before{
@@ -1120,11 +1120,22 @@ function render(img, o, info){
 
     const fs1 = H*0.0392*o.fontScale, fs2 = H*0.0284*o.fontScale;
     const dt = dateText(o);
+    const colX = m + W;
+    if (collect){   // 텍스트 영역(우측 컬럼) — 글씨 방향과 무관하게 같은 경계를 쓴다
+      info.area = { x: colX, y: m, w: colW, h: H };
+      info.areaSide = 'right';
+      info.units = { bandScale: H*0.27, borderScale: H*0.055 };
+      info.photo = { x: m, y: m, w: W, h: H };
+    }
 
     if (rotate){
       // 세로 카드 레이아웃을 통째로 -90° 회전 — 글씨가 오른쪽 여백을 따라 아래→위로 흐른다
-      o._drag = false;                         // 회전 좌표계 — 개별 드래그는 지원하지 않는다
-      const keepBox = o._box; o._box = null;
+      // 저장 오프셋은 화면 좌표 기준이므로 가상 회전 좌표로 역변환해서 적용한다.
+      const vOff = key => ({ x:-OFF[key].y, y:OFF[key].x });
+      const rotatedBox = (key, x, y, w, h, label) =>
+        box(key, y, cv.height - x - w, h, w, label);
+      const keepBox = o._box;
+      o._box = rotatedBox;
       ctx.save();
       ctx.translate(0, cv.height);
       ctx.rotate(-Math.PI/2);
@@ -1139,38 +1150,43 @@ function render(img, o, info){
       const techRow = rows.flat().filter(k => k === 'film' || k === 'set');
       if (eqRow && eqRow.length)
         for (const it of rowLayout(ctx, instaxItems(eqRow, fs1, fs2, FSANS, FMONO), fs1*0.9, maxW, cx, 'center')){
+          const off = vOff(it.k), x = it.x + off.x, y = cy - colBase*0.11 + off.y;
           ctx.font = `${it.wt} ${it.size}px ${it.fam}`; ctx.fillStyle = it.col;
-          ctx.fillText(it.t, it.x, cy - colBase*0.11);
+          ctx.fillText(it.t, x, y);
+          rotatedBox(it.k, x, y - it.size*0.65, it.w, it.size*1.3);
         }
       if (techRow.length)
         for (const it of rowLayout(ctx, instaxItems(techRow, fs1, fs2, FSANS, FMONO), fs2*1.2, maxW, cx, 'center')){
+          const off = vOff(it.k), x = it.x + off.x, y = cy + colBase*0.14 + off.y;
           ctx.font = `${it.wt} ${it.size}px ${it.fam}`; ctx.fillStyle = it.col;
-          ctx.fillText(it.t, it.x, cy + colBase*0.14);
+          ctx.fillText(it.t, x, y);
+          rotatedBox(it.k, x, y - it.size*0.65, it.w, it.size*1.3);
         }
       caps.forEach((t, i) => {
-        fitSize(ctx, t, fcap, 'italic 400', FSANS, maxW, 0);
+        const sc = fitSize(ctx, t, fcap, 'italic 400', FSANS, maxW, 0);
+        const off = vOff('cap'), w = ctx.measureText(t).width;
+        const x = cx - w/2 + off.x, y = photoBottom + colBase*0.64 + fcap*1.8*(i + 1) + off.y;
         ctx.fillStyle = '#5f584d';
-        ctx.fillText(t, cx - ctx.measureText(t).width/2, photoBottom + colBase*0.64 + fcap*1.8*(i + 1));
+        ctx.fillText(t, x, y);
+        rotatedBox('cap', x, y - sc*0.65, w, sc*1.3);
       });
       if (dt){
         ctx.font = `600 ${fs2}px ${FMONO}`;
+        const off = vOff('date'), w = ctx.measureText(dt).width;
+        const x = m + H - p2 - w + off.x, y = photoBottom + colW - colBase*0.14 + off.y;
         ctx.fillStyle = '#c2bab0';
-        ctx.fillText(dt, m + H - p2 - ctx.measureText(dt).width, photoBottom + colW - colBase*0.14);
+        ctx.fillText(dt, x, y);
+        rotatedBox('date', x, y - fs2*0.65, w, fs2*1.3);
       }
-      drawLogo(ctx, o, m + p2, cx, m + H - p2, photoBottom + colW - colBase*0.14, colBase*0.14, 'left', '#5f584d', colBase*0.24, maxW);
+      const lo = vOff('logo');
+      drawLogo(ctx, o, m + p2 + lo.x, cx + lo.x, m + H - p2 + lo.x,
+        photoBottom + colW - colBase*0.14 + lo.y, colBase*0.14, 'left', '#5f584d', colBase*0.24, maxW);
       ctx.restore();
       o._box = keepBox;
-      box(null, m + W, 0, colW, cv.height, '정보·날짜·메모 (회전)');   // 회전 좌표계라 컬럼 영역으로 표시
     }
     else {
       // 오른쪽 컬럼에 항목별 한 줄씩 세로 스택 — 각 항목이 개별로 움직인다
-      const p = H*0.02, colX = m + W;
-      if (collect){   // 텍스트 영역(우측 컬럼) — 가로 카드라 경계선이 세로
-        info.area = { x: colX, y: m, w: colW, h: H };
-        info.areaSide = 'right';
-        info.units = { bandScale: H*0.27, borderScale: H*0.055 };
-        info.photo = { x: m, y: m, w: W, h: H };
-      }
+      const p = H*0.02;
       const items = [];
       if (o.show.body && o.body) items.push({ k:'body', t: o.body,               size: fs1,  lh: fs1*1.7, col: C.ink,     fam: FSANS, wt: 500 });
       if (o.show.lens && o.lens) items.push({ k:'lens', t: o.lens,               size: fs2,  lh: fs2*1.8, col: '#6b6459', fam: FSANS, wt: 500 });
@@ -1347,21 +1363,35 @@ function downscale(cv, longEdge){
 /* ============================================================
    설정 읽기
    ============================================================ */
-/* 방향별 프로파일 — 가로/세로 사진이 섞인 묶음에서 레이아웃 설정이 서로 어긋나지
-   않게, 방향 종속 항목은 세로(port)/가로(land) 프로파일로 따로 저장한다.
-   렌더 시 각 사진이 자기 방향의 프로파일을 자동으로 쓴다 */
+/* 스타일·방향별 프로파일 — 스타일을 오갈 때 서로 다른 프레임의 여백·배치를 섞지 않고,
+   가로/세로 사진이 섞인 묶음에서도 각 사진이 자기 프로파일을 자동으로 쓴다 */
 const ADV_KEYS = ['lines','fontScale','bandScale','borderScale','sideText','logoScale'];
 /* 요소별 드래그 오프셋(사진 폭 W 비율) — UI 컨트롤 없이 드래그로만 바뀐다 */
 const OFF_KEYS = ELEM_KEYS.flatMap(k => [k + 'DX', k + 'DY']);
 const DEF_ADV = { lines:'1', fontScale:'100', bandScale:'100', borderScale:'100',
                   sideText:'stack', logoScale:'100',
                   ...Object.fromEntries(OFF_KEYS.map(k => [k, '0'])) };
-const adv = { port: { ...DEF_ADV }, land: { ...DEF_ADV } };
+const STYLE_KEYS = ['film','instax','bottom','top'];
+const STYLE_LABELS = { film:'필름 스트립', instax:'인스탁스', bottom:'하단 여백', top:'상단 여백' };
+const freshAdv = () => Object.fromEntries(STYLE_KEYS.map(style =>
+  [style, { port:{ ...DEF_ADV }, land:{ ...DEF_ADV } }]));
+const adv = freshAdv();
 let advTab = 'port';
+
+function profileFor(style = state.style, dir = advTab){
+  return adv[STYLE_KEYS.includes(style) ? style : 'film'][dir];
+}
+function resetAdv(){
+  const fresh = freshAdv();
+  for (const style of STYLE_KEYS){
+    adv[style].port = fresh[style].port;
+    adv[style].land = fresh[style].land;
+  }
+}
 
 function withProfile(o, shot){
   const w = shot.img.naturalWidth || shot.img.width, h = shot.img.naturalHeight || shot.img.height;
-  const p = w > h ? adv.land : adv.port;   // 정사각형은 세로 취급 (레이아웃 분기와 동일 기준)
+  const p = profileFor(o.style, w > h ? 'land' : 'port');   // 정사각형은 세로 취급
   const pv = (v, min, max) => {
     const n = v === '' ? 100 : Number(v);
     return Math.min(max, Math.max(min, isNaN(n) ? 100 : n)) / 100;
@@ -1606,7 +1636,7 @@ function startEdgeDrag(e){
   if (!hit) return false;
   const s = state.shots[state.current]; if (!s) return false;
   const w = s.img.naturalWidth || s.img.width, hh = s.img.naturalHeight || s.img.height;
-  const prof = adv[w > hh ? 'land' : 'port'];
+  const prof = profileFor(state.style, w > hh ? 'land' : 'port');
   const base = prof[hit.h.key] === '' ? 100 : Number(prof[hit.h.key]);
   // 좌표를 renderW 비율로 정규화 — 드래그 중 축소본으로 바뀌어 캔버스 크기가
   // 달라져도 이동량 계산이 흔들리지 않는다
@@ -1718,7 +1748,7 @@ function endBoxDrag(){
   if (!P || (Math.abs(ddx) < 1 && Math.abs(ddy) < 1)){ paintOverlay(null); return; }
   const s = state.shots[state.current]; if (!s) return;
   const w = s.img.naturalWidth || s.img.width, h = s.img.naturalHeight || s.img.height;
-  const p = adv[w > h ? 'land' : 'port'];
+  const p = profileFor(state.style, w > h ? 'land' : 'port');
   const r4 = v => String(Math.round(v * 10000) / 10000);
   p[key + 'DX'] = r4((Number(p[key + 'DX']) || 0) + ddx / P.renderW);
   p[key + 'DY'] = r4((Number(p[key + 'DY']) || 0) + ddy / P.renderW);
@@ -1733,7 +1763,7 @@ vp.addEventListener('dblclick', e => {
   if (!hit) return;
   const s = state.shots[state.current]; if (!s) return;
   const w = s.img.naturalWidth || s.img.width, h = s.img.naturalHeight || s.img.height;
-  const p = adv[w > h ? 'land' : 'port'];
+  const p = profileFor(state.style, w > h ? 'land' : 'port');
   p[hit.b.key + 'DX'] = '0'; p[hit.b.key + 'DY'] = '0';
   saveSettings(); refresh(true);
   toast('위치 초기화됨');
@@ -1867,6 +1897,8 @@ function drawStrip(){
     d.draggable = true;
     d.dataset.i = i;
     d.innerHTML = `<img src="${s.url}" alt=""><span class="x" title="삭제">×</span>`;
+    const iw = s.img.naturalWidth || s.img.width, ih = s.img.naturalHeight || s.img.height;
+    if (iw && ih) d.style.width = Math.round(Math.min(88, Math.max(36, 52 * iw / ih))) + 'px';
 
     d.onclick = e => {
       if (e.target.classList.contains('x')){
@@ -2074,7 +2106,9 @@ function saveSettings(){
     show: { body: $('showBody').checked, lens: $('showLens').checked,
             film: $('showFilm').checked, date: $('showDate').checked,
             set: $('showSet').checked, caption: $('showCaption').checked },
-    advPort: { ...adv.port }, advLand: { ...adv.land },
+    advByStyle: Object.fromEntries(STYLE_KEYS.map(style => [style, {
+      port:{ ...adv[style].port }, land:{ ...adv[style].land },
+    }])),
     logo: logoState.name, sigText: $('sigText').value,
     fontEn: $('fontEn').value, fontKo: $('fontKo').value,
     ratio: $('ratio').value, ratioBg: $('ratioBg').value,
@@ -2100,15 +2134,25 @@ function loadSettings(){
     $('showSet').checked = s.show.set ?? true;
     $('showCaption').checked = s.show.caption ?? true;
   }
-  // 방향별 프로파일 복원 — 구버전(평면) 설정은 양쪽 프로파일로 이전
+  // 스타일·방향별 프로파일 복원. 구버전 방향 프로파일은 당시 선택한 스타일에만 이전한다.
   const flat = {};
   for (const k of ADV_KEYS) if (s[k] != null && s[k] !== '') flat[k] = String(s[k]);
-  Object.assign(adv.port, flat, s.advPort || {});
-  Object.assign(adv.land, flat, s.advLand || {});
+  if (s.advByStyle && typeof s.advByStyle === 'object'){
+    for (const style of STYLE_KEYS){
+      const saved = s.advByStyle[style];
+      if (!saved || typeof saved !== 'object') continue;
+      Object.assign(adv[style].port, saved.port || {});
+      Object.assign(adv[style].land, saved.land || {});
+    }
+  } else {
+    const oldStyle = STYLE_KEYS.includes(s.style) ? s.style : 'film';
+    Object.assign(adv[oldStyle].port, flat, s.advPort || {});
+    Object.assign(adv[oldStyle].land, flat, s.advLand || {});
+  }
   if (s.fontEn || s.font) $('fontEn').value = s.fontEn || s.font;   // s.font = 구버전 단일 글꼴
   if (s.fontKo) $('fontKo').value = s.fontKo;
   // 구버전 통합 정보 오프셋(infoDX/DY)은 네 항목 모두에 적용해 배치를 보존한다
-  for (const p of [adv.port, adv.land]){
+  for (const p of STYLE_KEYS.flatMap(style => [adv[style].port, adv[style].land])){
     if (p.infoDX || p.infoDY){
       for (const k of ['body','lens','film','set']){
         p[k + 'DX'] = p[k + 'DX'] && p[k + 'DX'] !== '0' ? p[k + 'DX'] : (p.infoDX || '0');
@@ -2132,6 +2176,7 @@ function loadSettings(){
 $('styleSeg').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
   setStyle(b.dataset.style);
+  syncAdv(); drawLayouts();
   saveSettings();
   refresh();   // 스타일이 바뀌면 캔버스 비율이 바뀌므로 화면 맞춤으로 리셋
 };
@@ -2149,15 +2194,16 @@ $('tone').onchange = e => { state.tone = e.target.value; saveSettings(); refresh
   $(id).addEventListener('input', () => { saveSettings(); refresh(true); });
 });
 
-/* 고급 설정(방향 종속) 컨트롤 — 선택된 탭의 프로파일에 기록 */
+/* 고급 설정(스타일·방향 종속) 컨트롤 — 현재 스타일과 선택된 탭의 프로파일에 기록 */
 function syncAdv(){
-  ADV_KEYS.forEach(k => $(k).value = adv[advTab][k]);
+  const p = profileFor();
+  ADV_KEYS.forEach(k => $(k).value = p[k]);
   [...$('advTab').children].forEach(b => b.setAttribute('aria-pressed', b.dataset.t === advTab));
 }
 ADV_KEYS.forEach(id => {
   const ev = id.endsWith('Scale') ? 'input' : 'change';
   $(id).addEventListener(ev, () => {
-    adv[advTab][id] = $(id).value;
+    profileFor()[id] = $(id).value;
     saveSettings();
     if (id === 'lines') refresh();   // 비율이 바뀌므로 맞춤 리셋
     else refresh(true);
@@ -2171,19 +2217,20 @@ $('advTab').onclick = e => {
 
 /* ============================================================
    레이아웃 초기화 / 프리셋 — 배치가 마음에 안 들면 되돌리고,
-   마음에 들면 이름 붙여 저장해 둔다 (세로·가로 프로파일 한 쌍)
+   마음에 들면 이름 붙여 저장해 둔다 (현재 스타일의 세로·가로 프로파일 한 쌍)
    ============================================================ */
 let layouts = store.read('frame.layouts', []);
 
 $('layoutReset').onclick = () => {
-  adv[advTab] = { ...DEF_ADV };
+  adv[state.style][advTab] = { ...DEF_ADV };
   syncAdv(); saveSettings(); refresh();
-  toast(`${advTab === 'land' ? '가로' : '세로'} 사진 배치를 초기화했습니다`);
+  toast(`${STYLE_LABELS[state.style]} · ${advTab === 'land' ? '가로' : '세로'} 배치를 초기화했습니다`);
 };
 
 function drawLayouts(){
   const el = $('layoutRow'); el.innerHTML = '';
   layouts.forEach((l, i) => {
+    if (l.style && l.style !== state.style) return;
     const b = document.createElement('button');
     b.className = 'gear'; b.title = l.name;
     const em = document.createElement('em'); em.textContent = l.name;
@@ -2193,24 +2240,25 @@ function drawLayouts(){
       if (e.target === x){
         layouts.splice(i, 1); store.write('frame.layouts', layouts); drawLayouts(); return;
       }
-      adv.port = { ...DEF_ADV, ...l.port };
-      adv.land = { ...DEF_ADV, ...l.land };
+      adv[state.style].port = { ...DEF_ADV, ...l.port };
+      adv[state.style].land = { ...DEF_ADV, ...l.land };
       syncAdv(); saveSettings(); refresh();
-      toast('레이아웃 적용됨');
+      toast(`${STYLE_LABELS[state.style]} 레이아웃 적용됨`);
     };
     el.appendChild(b);
   });
   const add = document.createElement('button');
   add.className = 'gearadd'; add.textContent = '＋ 현재 배치 저장';
-  add.title = '지금의 세로·가로 배치를 이름 붙여 저장';
+  add.title = `현재 ${STYLE_LABELS[state.style]}의 세로·가로 배치를 이름 붙여 저장`;
   add.onclick = () => {
     const name = prompt('레이아웃 이름', `배치 ${layouts.length + 1}`);
     if (!name) return;
-    const i = layouts.findIndex(l => l.name === name);
-    const entry = { name, port: { ...adv.port }, land: { ...adv.land } };
+    const i = layouts.findIndex(l => l.name === name && (!l.style || l.style === state.style));
+    const entry = { name, style:state.style,
+      port:{ ...adv[state.style].port }, land:{ ...adv[state.style].land } };
     if (i >= 0) layouts[i] = entry; else layouts.push(entry);
     store.write('frame.layouts', layouts);
-    drawLayouts(); toast('레이아웃 저장됨');
+    drawLayouts(); toast(`${STYLE_LABELS[state.style]} 레이아웃 저장됨`);
   };
   el.appendChild(add);
 }
@@ -2492,8 +2540,19 @@ function cleanProjectSettings(v){
     }
     return r;
   };
-  out.advPort = profile(v.advPort);
-  out.advLand = profile(v.advLand);
+  if (v.advByStyle && typeof v.advByStyle === 'object'){
+    out.advByStyle = {};
+    for (const style of STYLE_KEYS){
+      const saved = v.advByStyle[style];
+      out.advByStyle[style] = {
+        port:profile(saved?.port), land:profile(saved?.land),
+      };
+    }
+  } else {
+    // v1.0 프로젝트와의 호환: 당시 선택 스타일에 방향 프로파일을 복원한다.
+    out.advPort = profile(v.advPort);
+    out.advLand = profile(v.advLand);
+  }
   if (!['film','instax','bottom','top'].includes(out.style)) out.style = 'film';
   if (!['light','dark'].includes(out.tone)) out.tone = 'light';
   if (!['png','jpeg'].includes(out.fmt)) out.fmt = 'png';
@@ -2587,7 +2646,7 @@ $('projectPicker').onchange = async e => {
     clearShots();
     mergeProjectLogo(data.activeLogo, settings);
     logoState.name = '';
-    adv.port = { ...DEF_ADV }; adv.land = { ...DEF_ADV };
+    resetAdv();
     store.write('frame.settings', settings);
     loadSettings();
     pendingProject = { photos, current:Math.min(Math.max(0, Number(data.current) || 0), Math.max(0, photos.length - 1)) };
