@@ -229,6 +229,9 @@
   .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
   .row .btn+.btn,.row3 .btn+.btn{margin-top:0}
+  .fonttools{display:flex;gap:6px;margin-top:-2px}
+  .fonttools .gearadd{flex:1;padding:6px 8px}
+  .fonttools .gearadd:disabled{opacity:.35;cursor:not-allowed}
 
   /* 고급 설정 — 마스트헤드 우측 톱니바퀴(테두리 없음) + 팝오버 */
   .gearbtn{
@@ -483,22 +486,37 @@
             <div class="field">
               <span>영문 글꼴</span>
               <select id="fontEn">
-                <option value="auto">기본 (스타일별)</option>
-                <option value="mono">모노스페이스</option>
-                <option value="sans">산세리프</option>
-                <option value="serif">세리프</option>
-                <option value="script">필기체</option>
+                <optgroup label="기본 글꼴 · 시스템">
+                  <option value="auto">기본 (스타일별)</option>
+                  <option value="mono">모노스페이스</option>
+                  <option value="sans">산세리프</option>
+                  <option value="serif">세리프</option>
+                  <option value="script">필기체</option>
+                </optgroup>
+                <optgroup label="PC 글꼴" id="fontEnPc"></optgroup>
+                <optgroup label="파일 글꼴" id="fontEnFile"></optgroup>
+                <optgroup label="현재 사용할 수 없음" id="fontEnMissing"></optgroup>
               </select>
             </div>
             <div class="field">
               <span>한글 글꼴</span>
               <select id="fontKo">
-                <option value="gothic">고딕</option>
-                <option value="myeongjo">명조</option>
-                <option value="script">손글씨</option>
+                <optgroup label="기본 글꼴 · 시스템">
+                  <option value="gothic">고딕</option>
+                  <option value="myeongjo">명조</option>
+                  <option value="script">손글씨</option>
+                </optgroup>
+                <optgroup label="PC 글꼴" id="fontKoPc"></optgroup>
+                <optgroup label="파일 글꼴" id="fontKoFile"></optgroup>
+                <optgroup label="현재 사용할 수 없음" id="fontKoMissing"></optgroup>
               </select>
             </div>
           </div>
+          <div class="fonttools">
+            <button type="button" class="gearadd" id="pcFontLoad">PC 글꼴 불러오기</button>
+            <button type="button" class="gearadd" id="fontFileAdd">폰트 파일 추가</button>
+          </div>
+          <p class="note" id="fontNote">기본 글꼴은 PC의 시스템 글꼴을 사용합니다. PC·파일 글꼴의 사용 권한은 사용자가 확인해야 합니다.</p>
           <div class="row">
             <div class="field">
               <span>가로 인스탁스 글씨</span>
@@ -533,7 +551,7 @@
         <button class="btn solid" id="projectSave" disabled>프로젝트 저장</button>
         <button class="btn" id="projectOpen">프로젝트 열기</button>
       </div>
-      <p class="note" id="projectNote">사진 원본은 넣지 않습니다. 프로젝트를 열면 원본 사진을 다시 선택해 연결합니다.</p>
+      <p class="note" id="projectNote">사진 원본은 넣지 않고, 현재 설정과 사용 중인 파일 글꼴은 함께 저장합니다.</p>
     </div>
 
     <hr>
@@ -604,6 +622,7 @@
 
 <input type="file" id="picker" accept="image/*" multiple hidden>
 <input type="file" id="logoPicker" accept="image/*" hidden>
+<input type="file" id="fontPicker" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" multiple hidden>
 <input type="file" id="projectPicker" accept=".json,.photoframe.json,application/json" hidden>
 
 <div class="advpanel" id="advPanel" hidden>
@@ -623,9 +642,8 @@
    ============================================================ */
 const MONO = '"SF Mono", Menlo, "Roboto Mono", "Courier New", monospace';
 const SANS = '"Helvetica Neue", Helvetica, Arial, sans-serif';
-/* 글꼴 선택 — 시스템 폰트 스택만 사용 (외부 요청 없음, 단일 파일 원칙).
-   스택을 [영문, 한글] 순으로 이으면 브라우저가 글리프마다 앞에서부터 찾으므로
-   영문·한글에 서로 다른 글꼴이 자동으로 적용된다 */
+/* 기본 글꼴은 시스템 스택, PC·파일 글꼴은 사용자가 명시적으로 허용한 로컬 데이터만 쓴다.
+   어떤 경로도 네트워크 요청을 만들지 않으며 글꼴은 Canvas 렌더에만 사용한다. */
 const FONT_EN = {
   mono:   MONO,
   sans:   SANS,
@@ -638,12 +656,105 @@ const FONT_KO = {
   script:   '"Nanum Pen Script", "HYgungso", "Gungsuh", cursive',
 };
 const KO_DEFAULT = FONT_KO.gothic;
+const FONT_ENTRIES = new Map();   // value -> { source, name, family, alias, data?, loaded }
+const PC_FONT_DATA = new Map();   // value -> Local Font Access API의 FontData (세션 한정)
+const FONT_PAIRS = new Map();     // Canvas에서 영문·한글 run을 분리하기 위한 합성 글꼴 ID
+const FONT_PAIR_IDS = new Map();
+let fontSerial = 0;
+let fontPairSerial = 0;
 
-/* 결과물 글꼴 스택 — def = 스타일 기본(모노/산세리프) */
-function fontStack(o, def){
-  const en = !o.fontEn || o.fontEn === 'auto' ? def : FONT_EN[o.fontEn];
-  const ko = !o.fontKo || o.fontKo === 'auto' ? KO_DEFAULT : FONT_KO[o.fontKo];
-  return `${en}, ${ko}`;
+function quotedFont(name){
+  return `"${String(name || '').replace(/["\\]/g, '')}"`;
+}
+function fontValue(value, basic, fallback){
+  if (!value || value === 'auto') return fallback;
+  if (basic[value]) return basic[value];
+  const entry = FONT_ENTRIES.get(value);
+  if (!entry) return fallback;
+  return `${quotedFont(entry.alias || entry.family || entry.name)}, ${fallback}`;
+}
+
+/* 결과물 글꼴 스택 — def/koDef = 스타일별 기본.
+   Canvas의 일반 폴백은 앞쪽 범용 글꼴이 한글까지 삼킬 수 있으므로 합성 ID를 돌려주고,
+   installLanguageText()가 문자열을 영문/한글 run으로 나눠 정확한 스택으로 그린다. */
+function fontStack(o, def, koDef = KO_DEFAULT){
+  const en = fontValue(o.fontEn, FONT_EN, def);
+  const ko = fontValue(o.fontKo, FONT_KO, koDef);
+  const key = `${en}\u0000${ko}`;
+  let alias = FONT_PAIR_IDS.get(key);
+  if (!alias){
+    alias = `PhotoFramePair${++fontPairSerial}`;
+    FONT_PAIR_IDS.set(key, alias);
+    FONT_PAIRS.set(alias, { en, ko });
+  }
+  return alias;
+}
+
+function koreanGlyph(ch){
+  const cp = ch.codePointAt(0);
+  return (cp >= 0x1100 && cp <= 0x11ff) || (cp >= 0x3130 && cp <= 0x318f) ||
+    (cp >= 0xa960 && cp <= 0xa97f) || (cp >= 0xac00 && cp <= 0xd7ff) ||
+    (cp >= 0x2e80 && cp <= 0x9fff) || (cp >= 0xf900 && cp <= 0xfaff);
+}
+function languageRuns(text){
+  const runs = [];
+  for (const ch of String(text)){
+    const ko = koreanGlyph(ch);
+    const last = runs[runs.length - 1];
+    if (last && last.ko === ko) last.text += ch;
+    else runs.push({ ko, text:ch });
+  }
+  return runs;
+}
+function installLanguageText(ctx){
+  const rawMeasure = ctx.measureText.bind(ctx);
+  const rawFill = ctx.fillText.bind(ctx);
+  const pairFor = font => {
+    const alias = /PhotoFramePair\d+/.exec(font)?.[0];
+    return alias ? { alias, ...FONT_PAIRS.get(alias) } : null;
+  };
+  const runFont = (base, pair, ko) => base.replace(pair.alias, ko ? pair.ko : pair.en);
+  ctx.measureText = text => {
+    const base = ctx.font, pair = pairFor(base);
+    if (!pair?.en || !pair?.ko) return rawMeasure(text);
+    let width = 0, asc = 0, desc = 0;
+    for (const run of languageRuns(text)){
+      ctx.font = runFont(base, pair, run.ko);
+      const m = rawMeasure(run.text);
+      width += m.width;
+      asc = Math.max(asc, m.actualBoundingBoxAscent || 0);
+      desc = Math.max(desc, m.actualBoundingBoxDescent || 0);
+    }
+    ctx.font = base;
+    return { width, actualBoundingBoxAscent:asc, actualBoundingBoxDescent:desc };
+  };
+  ctx.fillText = (text, x, y, maxWidth) => {
+    const base = ctx.font, pair = pairFor(base);
+    if (!pair?.en || !pair?.ko){
+      if (maxWidth == null) rawFill(text, x, y); else rawFill(text, x, y, maxWidth);
+      return;
+    }
+    const runs = languageRuns(text);
+    const widths = runs.map(run => {
+      ctx.font = runFont(base, pair, run.ko);
+      return rawMeasure(run.text).width;
+    });
+    const total = widths.reduce((sum, width) => sum + width, 0);
+    const scale = maxWidth != null && total > maxWidth ? maxWidth / total : 1;
+    let cx = x;
+    if (ctx.textAlign === 'center') cx -= total * scale / 2;
+    else if (ctx.textAlign === 'right' || ctx.textAlign === 'end') cx -= total * scale;
+    const align = ctx.textAlign;
+    ctx.textAlign = 'left';
+    runs.forEach((run, i) => {
+      ctx.font = runFont(base, pair, run.ko);
+      if (scale === 1) rawFill(run.text, cx, y);
+      else rawFill(run.text, cx, y, widths[i] * scale);
+      cx += widths[i] * scale;
+    });
+    ctx.textAlign = align;
+    ctx.font = base;
+  };
 }
 
 const C = {
@@ -684,6 +795,7 @@ const state = {
   tone: 'light',
   dirHandle: null,
   showBoxes: true,    // 경계 표시 — 기본 켜짐, 줌바 토글로 끌 수 있고 frame.ui에 기억
+  fontBusy: 0,
 };
 let pendingProject = null;   // 프로젝트를 연 뒤 원본 파일과 연결할 manifest
 /* 프리셋: 카메라/렌즈/필름을 각각 독립 목록으로 저장 (frame.gear).
@@ -700,6 +812,230 @@ if (!gear){
 }
 
 const $ = id => document.getElementById(id);
+
+/* ============================================================
+   로컬 글꼴 — 기본 시스템 스택 / PC 설치 글꼴 / 사용자가 고른 폰트 파일.
+   파일 글꼴은 세션에만 등록하고, 실제 재사용 데이터는 프로젝트에 선택적으로 담는다.
+   ============================================================ */
+const MAX_FONT_BYTES = 24 * 1024 * 1024;
+const MAX_PROJECT_FONT_BYTES = 40 * 1024 * 1024;
+const MAX_PC_FONT_BYTES = 32 * 1024 * 1024;
+const FONT_FILE_RE = /\.(ttf|otf|woff2?)$/i;
+const canQueryFonts = typeof window.queryLocalFonts === 'function';
+
+function fontId(source, name){
+  const tail = source === 'file'
+    ? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}` : '';
+  return `${source}:${encodeURIComponent(name)}${tail ? ':' + tail : ''}`;
+}
+function fontNameFromValue(value){
+  const p = String(value || '').split(':');
+  if (p[0] !== 'pc' && p[0] !== 'file') return '';
+  try {
+    const bits = String(p[1] || '').split('|');
+    return decodeURIComponent(bits[1] || bits[0] || '') || '로컬 글꼴';
+  }
+  catch { return '로컬 글꼴'; }
+}
+function optionExists(select, value){
+  return [...select.options].some(o => o.value === value);
+}
+function removeFontOption(select, value){
+  for (const o of [...select.options]) if (o.value === value) o.remove();
+}
+function addFontOption(entry){
+  for (const lang of ['En','Ko']){
+    const select = $(`font${lang}`);
+    const selected = select.value;
+    removeFontOption(select, entry.value);
+    const o = document.createElement('option');
+    o.value = entry.value; o.textContent = entry.name;
+    $(`font${lang}${entry.source === 'pc' ? 'Pc' : 'File'}`).appendChild(o);
+    if (selected === entry.value) select.value = selected;
+  }
+}
+function setFontSelect(id, value){
+  const select = $(id);
+  if (!value) return;
+  if (!optionExists(select, value)){
+    const o = document.createElement('option');
+    o.value = value;
+    o.textContent = `${fontNameFromValue(value)} · 다시 불러오기 필요`;
+    $(`${id}Missing`).appendChild(o);
+  }
+  select.value = value;
+}
+function updateFontNote(message = ''){
+  if (message){ $('fontNote').textContent = message; return; }
+  $('fontNote').textContent = canQueryFonts
+    ? '기본은 시스템 글꼴입니다. PC 글꼴은 권한 후 이름만 저장하고, 파일 글꼴은 프로젝트에 포함할 수 있습니다.'
+    : '이 브라우저는 PC 글꼴 목록을 지원하지 않습니다. 폰트 파일 추가는 사용할 수 있습니다.';
+}
+function setFontBusy(on){
+  state.fontBusy = Math.max(0, state.fontBusy + (on ? 1 : -1));
+  const busy = state.fontBusy > 0;
+  const has = state.current >= 0;
+  $('exportAll').disabled = busy || !state.shots.length;
+  $('exportOne').disabled = busy || !has;
+  $('projectSave').disabled = busy || !state.shots.length;
+  $('projectOpen').disabled = busy;
+  $('pcFontLoad').disabled = busy || !canQueryFonts;
+  $('fontFileAdd').disabled = busy;
+  $('fontEn').disabled = busy;
+  $('fontKo').disabled = busy;
+}
+function validFontMagic(buffer){
+  const b = new Uint8Array(buffer, 0, Math.min(4, buffer.byteLength));
+  if (b.length < 4) return false;
+  if (b[0] === 0x00 && b[1] === 0x01 && b[2] === 0x00 && b[3] === 0x00) return true;
+  return ['true','typ1','OTTO','wOFF','wOF2'].includes(String.fromCharCode(...b));
+}
+async function fontDigest(buffer){
+  if (globalThis.crypto?.subtle){
+    const hash = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', buffer));
+    return [...hash].map(v => v.toString(16).padStart(2, '0')).join('');
+  }
+  let h = 2166136261;
+  for (const v of new Uint8Array(buffer)){ h ^= v; h = Math.imul(h, 16777619); }
+  return (h >>> 0).toString(16).padStart(8, '0') + '-' + buffer.byteLength;
+}
+async function registerFontEntry(entry, buffer){
+  if (typeof FontFace !== 'function') throw new Error('fontface');
+  if (!validFontMagic(buffer)) throw new Error('font-format');
+  const alias = entry.alias || `PhotoFrameLocal${++fontSerial}`;
+  const face = new FontFace(alias, buffer);
+  await face.load();
+  document.fonts.add(face);
+  Object.assign(entry, { alias, loaded:true });
+  FONT_ENTRIES.set(entry.value, entry);
+  return entry;
+}
+async function activatePcFont(value){
+  const entry = FONT_ENTRIES.get(value);
+  if (!entry || entry.source !== 'pc') return !String(value).startsWith('pc:');
+  if (entry.loaded) return true;
+  const data = PC_FONT_DATA.get(value);
+  if (!data) return false;
+  const blob = await data.blob();
+  if (blob.size > MAX_PC_FONT_BYTES) throw new Error('font-size');
+  await registerFontEntry(entry, await blob.arrayBuffer());
+  return true;
+}
+async function loadPcFontList(){
+  if (!canQueryFonts) return;
+  const keep = { fontEn:$('fontEn').value, fontKo:$('fontKo').value };
+  $('pcFontLoad').disabled = true;
+  setFontBusy(true);
+  try {
+    const list = await window.queryLocalFonts();
+    const families = new Map();
+    for (const data of list){
+      const family = String(data.family || data.fullName || data.postscriptName || '').trim();
+      if (!family) continue;
+      const prev = families.get(family);
+      const regular = /regular|normal/i.test(`${data.style || ''} ${data.fullName || ''}`);
+      if (!prev || regular) families.set(family, data);
+    }
+    PC_FONT_DATA.clear();
+    for (const [value, entry] of [...FONT_ENTRIES]) if (entry.source === 'pc') FONT_ENTRIES.delete(value);
+    $('fontEnPc').innerHTML = ''; $('fontKoPc').innerHTML = '';
+    for (const family of [...families.keys()].sort((a, b) => a.localeCompare(b))){
+      const data = families.get(family);
+      const postscriptName = String(data.postscriptName || family);
+      const value = `pc:${encodeURIComponent(postscriptName)}|${encodeURIComponent(family)}`;
+      const entry = { value, source:'pc', name:family, family, postscriptName, loaded:false };
+      FONT_ENTRIES.set(value, entry);
+      PC_FONT_DATA.set(value, data);
+      addFontOption(entry);
+    }
+    setFontSelect('fontEn', keep.fontEn); setFontSelect('fontKo', keep.fontKo);
+    for (const value of new Set([keep.fontEn, keep.fontKo])){
+      if (String(value).startsWith('pc:')) await activatePcFont(value);
+    }
+    saveSettings(); refresh(true);
+    updateFontNote(`PC 글꼴 ${families.size}개를 불러왔습니다. 글꼴 파일 자체는 프로젝트에 복사하지 않습니다.`);
+    toast(`PC 글꼴 ${families.size}개 불러옴`);
+  } catch (err) {
+    updateFontNote(err?.name === 'NotAllowedError'
+      ? 'PC 글꼴 권한이 허용되지 않았습니다. 기본 또는 파일 글꼴을 사용하세요.'
+      : 'PC 글꼴을 불러오지 못했습니다. 기본 또는 파일 글꼴을 사용하세요.');
+  } finally {
+    setFontBusy(false);
+  }
+}
+function fontFileData(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+function fontDataBuffer(data){
+  const m = /^data:([^;,]*);base64,([A-Za-z0-9+/=]+)$/.exec(String(data));
+  if (!m || (m[1] && !/^(font\/|application\/(font|x-font|octet-stream|vnd\.ms-opentype))/.test(m[1]))) throw new Error('font-data');
+  const bin = atob(m[2]);
+  if (bin.length > MAX_FONT_BYTES) throw new Error('font-size');
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  if (!validFontMagic(out.buffer)) throw new Error('font-format');
+  return out.buffer;
+}
+async function registerFileFont(saved){
+  const name = String(saved.name || '파일 글꼴').slice(0, 120);
+  const value = String(saved.value || fontId('file', name));
+  if (!value.startsWith('file:') || typeof saved.data !== 'string') throw new Error('font-entry');
+  const entry = { value, source:'file', name, family:name, data:saved.data, loaded:false };
+  await registerFontEntry(entry, fontDataBuffer(saved.data));
+  addFontOption(entry);
+  return entry;
+}
+async function addFontFiles(files){
+  let added = 0, failed = 0;
+  setFontBusy(true);
+  try {
+    for (const file of files){
+      if (!FONT_FILE_RE.test(file.name) || file.size > MAX_FONT_BYTES){ failed++; continue; }
+      try {
+        const buffer = await file.arrayBuffer();
+        if (!validFontMagic(buffer)) throw new Error('font-format');
+        const name = file.name.replace(/\.[^.]+$/, '') || '파일 글꼴';
+        const prefix = `file:${await fontDigest(buffer)}`;
+        const existing = [...FONT_ENTRIES.values()].find(e => e.source === 'file' && e.value.split('|')[0] === prefix);
+        const value = existing?.value || `${prefix}|${encodeURIComponent(name)}`;
+        if (!existing) await registerFileFont({ value, name, data:await fontFileData(file) });
+        added++;
+      } catch { failed++; }
+    }
+    if (added){
+      await document.fonts.ready;
+      saveSettings(); refresh(true);
+      updateFontNote(`${added}개 파일 글꼴을 추가했습니다. 선택해 사용하면 프로젝트 저장 시 해당 파일을 함께 보관합니다.`);
+      toast(`파일 글꼴 ${added}개 추가됨`);
+    }
+    if (failed) toast(`${failed}개 폰트를 읽지 못했습니다`);
+  } finally {
+    setFontBusy(false);
+  }
+}
+
+$('pcFontLoad').disabled = !canQueryFonts;
+$('pcFontLoad').onclick = loadPcFontList;
+$('fontFileAdd').onclick = () => $('fontPicker').click();
+$('fontPicker').onchange = async e => { const files = [...e.target.files]; e.target.value = ''; await addFontFiles(files); };
+['fontEn','fontKo'].forEach(id => $(id).addEventListener('change', async () => {
+  const value = $(id).value;
+  setFontBusy(true);
+  try {
+    if (String(value).startsWith('pc:') && !await activatePcFont(value)){
+      updateFontNote('이 PC 글꼴을 사용하려면 PC 글꼴 불러오기를 다시 눌러 주세요. 현재는 기본 글꼴로 표시됩니다.');
+    }
+    await document.fonts.ready;
+  } catch { updateFontNote('선택한 PC 글꼴을 읽지 못해 기본 글꼴로 표시합니다.'); }
+  finally { setFontBusy(false); }
+  saveSettings(); refresh(true);
+}));
+updateFontNote();
 
 /* ============================================================
    그리기
@@ -808,7 +1144,7 @@ function drawLogo(ctx, o, left, center, right, yCenter, baseH, def, sigColor, li
   // 글꼴마다 잉크 높이가 달라 em 크기로는 여백을 넘치기 쉽다 —
   // 실측 잉크 상자로 크기를 제한하고, 잉크 기준으로 세로 중앙을 맞춘다
   // (textBaseline:middle은 글꼴 내부 메트릭을 따라 필기체에서 아래로 밀린다)
-  const sigStack = `${FONT_EN.script}, ${FONT_KO.script}`;
+  const sigStack = fontStack(o, FONT_EN.script, FONT_KO.script);
   const measure = s => { ctx.font = `italic 400 ${s}px ${sigStack}`; return ctx.measureText(o.sigText); };
   let size = baseH * o.logoScale * 0.9;
   let m = measure(size);
@@ -908,7 +1244,8 @@ function safeScale(W, H, o){
 function render(img, o, info){
   const cv = document.createElement('canvas');
   const ctx = cv.getContext('2d');
-  // 글꼴: 영문·한글 스택을 이어 글리프마다 각자의 글꼴이 적용되게 한다
+  installLanguageText(ctx);
+  // 글꼴: 영문·한글을 합성 ID로 지정하고 Canvas 호출에서 문자권별로 나눠 그린다
   const FMONO = fontStack(o, MONO);
   const FSANS = fontStack(o, SANS);
 
@@ -1850,9 +2187,9 @@ function refresh(keepZoom = false){
     $('drop').hidden = has;
     pv.hidden = !has;
     $('zoombar').hidden = !has;
-    $('exportAll').disabled = !state.shots.length;
-    $('exportOne').disabled = !has;
-    $('projectSave').disabled = !state.shots.length;
+    $('exportAll').disabled = state.fontBusy || !state.shots.length;
+    $('exportOne').disabled = state.fontBusy || !has;
+    $('projectSave').disabled = state.fontBusy || !state.shots.length;
     $('toneField').style.display = (state.style==='bottom'||state.style==='top') ? '' : 'none';
     if (!has) return;
     const shot = state.shots[state.current];
@@ -2149,8 +2486,8 @@ function loadSettings(){
     Object.assign(adv[oldStyle].port, flat, s.advPort || {});
     Object.assign(adv[oldStyle].land, flat, s.advLand || {});
   }
-  if (s.fontEn || s.font) $('fontEn').value = s.fontEn || s.font;   // s.font = 구버전 단일 글꼴
-  if (s.fontKo) $('fontKo').value = s.fontKo;
+  if (s.fontEn || s.font) setFontSelect('fontEn', s.fontEn || s.font);   // s.font = 구버전 단일 글꼴
+  if (s.fontKo) setFontSelect('fontKo', s.fontKo);
   // 구버전 통합 정보 오프셋(infoDX/DY)은 네 항목 모두에 적용해 배치를 보존한다
   for (const p of STYLE_KEYS.flatMap(style => [adv[style].port, adv[style].land])){
     if (p.infoDX || p.infoDY){
@@ -2316,7 +2653,7 @@ document.addEventListener('click', e => {
   if (!$('advPanel').hidden && !e.target.closest('#advPanel') && !e.target.closest('#gearBtn'))
     $('advPanel').hidden = true;
 });
-['showBody','showLens','showFilm','showDate','showSet','showCaption','fontEn','fontKo'].forEach(id => {
+['showBody','showLens','showFilm','showDate','showSet','showCaption'].forEach(id => {
   $(id).addEventListener('change', () => { saveSettings(); refresh(true); });
 });
 
@@ -2511,6 +2848,7 @@ $('logoPicker').onchange = async e => {
    ============================================================ */
 const PROJECT_KIND = 'photoframe-project';
 const PROJECT_VERSION = 1;
+const MAX_PROJECT_BYTES = 64 * 1024 * 1024;
 const INFO_KEYS = ['body','lens','date','set'];
 
 function cleanInfo(v){
@@ -2559,6 +2897,35 @@ function cleanProjectSettings(v){
   return out;
 }
 
+function projectFontFiles(settings){
+  const files = [], missing = [];
+  for (const value of new Set([settings.fontEn, settings.fontKo])){
+    if (!String(value || '').startsWith('file:')) continue;
+    const entry = FONT_ENTRIES.get(value);
+    if (!entry?.data){ missing.push(fontNameFromValue(value)); continue; }
+    files.push({ value:entry.value, name:entry.name, data:entry.data });
+  }
+  return { files, missing };
+}
+function cleanProjectFonts(v){
+  if (v == null) return [];
+  if (!Array.isArray(v) || v.length > 2) throw new Error('fonts');
+  const out = [], seen = new Set();
+  let totalBytes = 0;
+  for (const f of v){
+    if (!f || typeof f.value !== 'string' || !f.value.startsWith('file:') ||
+        typeof f.name !== 'string' || typeof f.data !== 'string' || seen.has(f.value))
+      throw new Error('font');
+    if (f.data.length > Math.ceil(MAX_FONT_BYTES * 4 / 3) + 256) throw new Error('font-size');
+    const payload = f.data.slice(f.data.indexOf(',') + 1);
+    totalBytes += Math.floor(payload.length * 3 / 4) - ((payload.match(/=*$/)?.[0].length) || 0);
+    if (totalBytes > MAX_PROJECT_FONT_BYTES) throw new Error('fonts-size');
+    seen.add(f.value);
+    out.push({ value:f.value, name:f.name.slice(0, 120), data:f.data });
+  }
+  return out;
+}
+
 function matchProjectPhoto(file){
   if (!pendingProject) return null;
   const exact = p => !p.matched && p.file.name === file.name &&
@@ -2601,12 +2968,26 @@ $('projectSave').onclick = async () => {
   if (!state.shots.length) return;
   saveSettings();
   const settings = cleanProjectSettings(store.read('frame.settings', {}));
+  const projectFonts = projectFontFiles(settings);
+  if (projectFonts.missing.length){
+    updateFontNote(`파일 글꼴(${projectFonts.missing.join(', ')})을 다시 추가한 뒤 프로젝트를 저장하세요.`);
+    toast('선택한 파일 글꼴을 다시 추가해 주세요');
+    return;
+  }
+  let fontFiles;
+  try { fontFiles = cleanProjectFonts(projectFonts.files); }
+  catch {
+    updateFontNote('사용 중인 파일 글꼴은 각각 24MB, 합계 40MB 안에서 프로젝트에 저장할 수 있습니다.');
+    toast('파일 글꼴 용량을 줄여 주세요');
+    return;
+  }
   const activeLogo = logos.find(l => l.name === logoState.name);
   const project = {
     kind: PROJECT_KIND,
     version: PROJECT_VERSION,
     savedAt: new Date().toISOString(),
     settings,
+    fonts: fontFiles,
     activeLogo: activeLogo ? { name:activeLogo.name, data:activeLogo.data } : null,
     current: state.current,
     photos: state.shots.map(s => ({
@@ -2618,8 +2999,14 @@ $('projectSave').onclick = async () => {
   const title = $('title').value.trim().replace(/[\\/:*?"<>|]/g, '');
   const base = title || `PhotoFrame-${new Date().toISOString().slice(0, 10)}`;
   try {
-    await save(new Blob([JSON.stringify(project, null, 2)], { type:'application/json' }), `${base}.photoframe.json`);
-    $('projectNote').textContent = `프로젝트 저장됨 · ${project.photos.length}장 · 사진 원본은 포함되지 않음`;
+    const blob = new Blob([JSON.stringify(project, null, 2)], { type:'application/json' });
+    if (blob.size > MAX_PROJECT_BYTES){
+      updateFontNote('프로젝트 전체 크기는 64MB까지 저장할 수 있습니다. 사용 중인 파일 글꼴을 줄여 주세요.');
+      toast('프로젝트 용량이 64MB를 넘습니다');
+      return;
+    }
+    await save(blob, `${base}.photoframe.json`);
+    $('projectNote').textContent = `프로젝트 저장됨 · ${project.photos.length}장 · 파일 글꼴 ${project.fonts.length}개 · 사진 원본은 미포함`;
     toast('프로젝트를 저장했습니다');
   } catch { toast('프로젝트를 저장하지 못했습니다'); }
 };
@@ -2629,10 +3016,12 @@ $('projectPicker').onchange = async e => {
   const file = e.target.files[0]; e.target.value = '';
   if (!file) return;
   try {
+    if (file.size > MAX_PROJECT_BYTES) throw new Error('size');
     const data = JSON.parse(await file.text());
     if (data.kind !== PROJECT_KIND || data.version !== PROJECT_VERSION || !Array.isArray(data.photos))
       throw new Error('format');
     const settings = cleanProjectSettings(data.settings);
+    const projectFonts = cleanProjectFonts(data.fonts);
     const photos = data.photos.map((p, order) => {
       if (!p || !p.file || typeof p.file.name !== 'string') throw new Error('photo');
       return {
@@ -2643,6 +3032,17 @@ $('projectPicker').onchange = async e => {
       };
     });
     if (state.shots.length && !confirm('현재 불러온 사진을 비우고 프로젝트를 여시겠습니까?')) return;
+    let restoredFonts = 0, failedFonts = 0;
+    setFontBusy(true);
+    try {
+      for (const font of projectFonts){
+        try { await registerFileFont(font); restoredFonts++; }
+        catch { failedFonts++; }
+      }
+      try { await document.fonts.ready; } catch { /* 개별 실패는 기본 글꼴 폴백 */ }
+    } finally {
+      setFontBusy(false);
+    }
     clearShots();
     mergeProjectLogo(data.activeLogo, settings);
     logoState.name = '';
@@ -2651,9 +3051,9 @@ $('projectPicker').onchange = async e => {
     loadSettings();
     pendingProject = { photos, current:Math.min(Math.max(0, Number(data.current) || 0), Math.max(0, photos.length - 1)) };
     syncAdv(); updateEyes(); updateExportNote(); applyLogoImage(); drawLogos();
-    $('projectNote').textContent = `프로젝트 설정 복원됨 · 원본 사진 ${photos.length}장을 놓거나 클릭해 선택하세요`;
+    $('projectNote').textContent = `프로젝트 설정·파일 글꼴 ${restoredFonts}개 복원됨${failedFonts ? ` (${failedFonts}개 실패)` : ''} · 원본 사진 ${photos.length}장을 선택하세요`;
     refresh();
-    toast('이제 프로젝트의 원본 사진을 불러오세요');
+    toast(failedFonts ? '일부 글꼴은 기본 글꼴로 대체했습니다' : '이제 프로젝트의 원본 사진을 불러오세요');
   } catch {
     toast('올바른 PhotoFrame 프로젝트 파일이 아닙니다');
   }
