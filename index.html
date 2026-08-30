@@ -6,17 +6,28 @@
 <title>PhotoFrame — 사진 프레임 합성기</title>
 <style>
   :root{
-    --base:      #14130f;
-    --panel:     #1c1a15;
-    --panel-hi:  #24211b;
-    --rebate:    #6e6a5f;
-    --bone:      #efeae0;
-    --edge:      #e8873a;
-    --line:      #322e26;
+    color-scheme:light;
+    --canvas:          #f2f2ee;
+    --surface:         #ffffff;
+    --ink:             #171717;
+    --muted-ink:       #676762;
+    --line:            #d4d4ce;
+    --primary:         #1d4ed8;
+    --primary-pressed: #0037b0;
+    --primary-soft:    #e8efff;
+    --neutral-soft:    #e8e8e3;
+    --success:         #18794e;
+    --warning:         #a15c00;
+    --error:           #b42318;
+    --base:var(--canvas);--panel:var(--surface);--panel-hi:var(--neutral-soft);
+    --rebate:var(--muted-ink);--bone:var(--ink);--edge:var(--primary);
+    --space-1:4px;--space-2:8px;--space-3:16px;--space-4:24px;--space-5:32px;
+    --radius-button:2px;--radius-control:4px;--touch:48px;
     --mono: ui-monospace, "SF Mono", Menlo, "Cascadia Mono", "Roboto Mono", monospace;
     --sans: system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
+  [hidden]{display:none!important}
   html,body{height:100%}
   body{
     background:var(--base);
@@ -28,26 +39,29 @@
     overflow:hidden;
   }
 
-  .shell{display:grid;grid-template-columns:1fr var(--railw, 350px);height:100vh}
+  .shell{display:grid;grid-template-columns:minmax(0,1fr) var(--railw, 376px);height:100dvh}
 
   /* ---------- left: light table ---------- */
   .table{
     position:relative;
     display:flex;flex-direction:column;
-    background:
-      radial-gradient(120% 90% at 50% 0%, #211e18 0%, #14130f 70%);
+    background:var(--canvas);
     overflow:hidden;min-width:0;
   }
   .masthead{
-    display:flex;align-items:baseline;gap:14px;
-    padding:16px 24px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:var(--space-3);
+    min-height:64px;padding:0 var(--space-4);border-bottom:3px solid var(--ink);
     flex:0 0 auto;
   }
   .wordmark{
-    font-family:var(--mono);font-size:13px;font-weight:600;
-    letter-spacing:.42em;text-transform:uppercase;color:var(--edge);
+    font-family:var(--sans);font-size:24px;line-height:1;font-weight:800;
+    letter-spacing:-.04em;color:var(--ink);
   }
-  .subtitle{font-size:12px;color:var(--rebate);letter-spacing:.02em}
+  .subtitle{
+    min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    font-family:var(--mono);font-size:11px;font-weight:700;
+    color:var(--muted-ink);letter-spacing:.06em;
+  }
 
   /* ----- zoomable viewport ----- */
   .viewport{
@@ -59,279 +73,345 @@
   #preview{
     position:absolute;left:0;top:0;
     transform-origin:0 0;
-    box-shadow:0 30px 70px -30px rgba(0,0,0,.9);
+    outline:1px solid var(--line);
   }
 
   .dropzone{
     position:absolute;inset:0;margin:auto;
-    width:min(560px, calc(100% - 64px));height:fit-content;
-    padding:56px 32px;text-align:center;
-    border:1px dashed var(--line);border-radius:2px;
+    width:min(680px, calc(100% - 64px));height:fit-content;
+    padding:48px;text-align:left;background:var(--surface);
+    border:1px solid var(--ink);border-left:8px solid var(--primary);border-radius:0;
     transition:border-color .18s, background .18s;
     cursor:pointer;
   }
-  .dropzone:hover,.dropzone.hot{border-color:var(--edge);background:rgba(232,135,58,.04)}
-  .dropzone h2{
-    font-family:var(--mono);font-size:15px;font-weight:500;
-    letter-spacing:.08em;margin-bottom:10px;
+  .dropzone::before{
+    content:"01 / INPUT";display:block;margin-bottom:var(--space-4);
+    font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--primary);
   }
-  .dropzone p{color:var(--rebate);font-size:13px}
+  .dropzone:hover,.dropzone.hot{background:var(--primary-soft)}
+  .dropzone:focus-visible{outline:3px solid var(--primary);outline-offset:3px}
+  .dropzone h2{
+    font-size:36px;line-height:1.1;font-weight:800;
+    letter-spacing:-.04em;margin-bottom:var(--space-2);word-break:keep-all;
+  }
+  .dropzone p{color:var(--muted-ink);font-size:14px}
   .dropzone .guide{
-    text-align:left;margin:26px auto 0;max-width:480px;
-    padding-left:20px;color:var(--rebate);font-size:12.5px;line-height:1.65;
+    text-align:left;margin:var(--space-4) 0 0;max-width:560px;
+    padding-left:22px;color:var(--muted-ink);font-size:13px;line-height:1.6;
     word-break:keep-all;
   }
-  .dropzone .guide li{margin-bottom:7px;text-wrap:pretty}
-  .dropzone .guide b{color:#b9b1a4;font-weight:600}
+  .dropzone .guide li{margin-bottom:var(--space-2);padding-left:var(--space-1);text-wrap:pretty}
+  .dropzone .guide li::marker{font-family:var(--mono);font-weight:700;color:var(--primary)}
+  .dropzone .guide b{color:var(--ink);font-weight:700}
   .dropzone .guide-note{
-    margin-top:14px;font-size:11.5px;color:#5c5850;line-height:1.6;
-    word-break:keep-all;text-wrap:pretty;max-width:480px;margin-left:auto;margin-right:auto;
+    margin-top:var(--space-3);font-size:12px;color:var(--muted-ink);line-height:1.5;
+    word-break:keep-all;text-wrap:pretty;max-width:560px;
   }
-  .dropzone .guide-note b{color:var(--rebate);font-weight:600}
+  .dropzone .guide-note b{color:var(--ink);font-weight:700}
 
   /* ----- zoom toolbar ----- */
   .zoombar{
-    position:absolute;left:50%;bottom:14px;transform:translateX(-50%);
-    display:flex;align-items:center;gap:1px;
-    background:var(--line);border:1px solid var(--line);
-    box-shadow:0 8px 24px rgba(0,0,0,.5);
+    position:absolute;left:50%;bottom:var(--space-3);transform:translateX(-50%);
+    display:flex;align-items:stretch;gap:0;
+    max-width:calc(100% - 32px);overflow-x:auto;
+    background:var(--surface);border:2px solid var(--ink);
     z-index:5;
   }
-  .zoombar[hidden]{display:none}
   .zoombar button{
-    background:var(--panel-hi);border:0;color:var(--bone);cursor:pointer;
-    font-family:var(--mono);font-size:12px;padding:8px 13px;
-    transition:color .15s;
-    min-width:40px;
+    min-width:var(--touch);min-height:var(--touch);padding:0 12px;
+    flex-shrink:0;word-break:keep-all;white-space:nowrap;
+    background:var(--surface);border:0;border-right:1px solid var(--line);
+    color:var(--ink);cursor:pointer;font-family:var(--mono);font-size:12px;
+    transition:color .15s,background .15s;
   }
-  .zoombar button:hover{color:var(--edge)}
-  .zoombar button[aria-pressed="true"]{color:var(--edge)}
-  .zoombar button:disabled{color:#4f4a41;cursor:not-allowed}
-  .zoombar button.warn{color:#ff4d3d}
+  .zoombar button:hover{background:var(--primary-soft);color:var(--primary-pressed)}
+  .zoombar button[aria-pressed="true"]{background:var(--primary-pressed);color:#fff}
+  .zoombar button:disabled{background:var(--neutral-soft);color:var(--muted-ink);cursor:not-allowed}
+  .zoombar button.warn{color:var(--error)}
   .zoombar button.warn::after{content:" ●";font-size:9px}
   .zoombar .pct{
-    background:var(--panel);color:var(--rebate);
-    font-family:var(--mono);font-size:11px;padding:8px 10px;
-    min-width:58px;text-align:center;letter-spacing:.04em;
-    cursor:pointer;
+    display:grid;place-items:center;min-width:64px;min-height:var(--touch);padding:0 10px;
+    background:var(--neutral-soft);color:var(--muted-ink);border-right:1px solid var(--line);
+    font-family:var(--mono);font-size:11px;text-align:center;letter-spacing:.04em;
+    cursor:default;font-variant-numeric:tabular-nums;
   }
-  .zoombar .pct:hover{color:var(--bone)}
+  .zoombar button.pct{cursor:pointer}
+  .zoombar button.pct:hover{color:var(--primary-pressed)}
 
   /* ----- filmstrip of loaded frames ----- */
   .strip{
-    display:flex;gap:3px;align-items:center;
-    padding:10px 14px;min-height:76px;
-    border-top:1px solid var(--line);
-    background:#0f0e0b;overflow-x:auto;flex:0 0 auto;
+    display:flex;gap:var(--space-2);align-items:center;
+    padding:var(--space-2) var(--space-3);min-height:104px;
+    border-top:3px solid var(--ink);
+    background:var(--surface);overflow-x:auto;flex:0 0 auto;
   }
   .strip:empty::before{
     content:"불러온 사진 없음 — 드래그로 순서 조정, ×로 삭제";
-    font-family:var(--mono);font-size:11px;letter-spacing:.1em;
-    color:#3d3931;
+    font-family:var(--mono);font-size:11px;letter-spacing:.08em;
+    color:var(--muted-ink);
   }
   .chip{
-    position:relative;flex:0 0 auto;width:72px;height:52px;
-    border:1px solid transparent;background:#000;cursor:grab;
-    opacity:.5;transition:opacity .16s,border-color .16s;
+    position:relative;flex:0 0 auto;width:102px;height:128px;
+    border:1px solid var(--line);background:var(--neutral-soft);cursor:grab;
+    transition:opacity .16s,border-color .16s;
     user-select:none;
   }
   .chip:active{cursor:grabbing}
-  .chip img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
-  .chip.on{opacity:1;border-color:var(--edge)}
+  .chip img{width:100%;height:74px;object-fit:contain;display:block;pointer-events:none}
+  .chip.on{opacity:1;border:3px solid var(--ink)}
+  .chip.picked{opacity:1;outline:3px solid var(--primary);outline-offset:1px}
   .chip.dragging{opacity:.25;border-style:dashed}
   .chip.dropTarget::before{
     content:"";position:absolute;left:-3px;top:-4px;bottom:-4px;width:2px;
-    background:var(--edge);
+    background:var(--primary);
   }
   .chip.dropTarget.after::before{left:auto;right:-3px}
   .chip .x{
-    position:absolute;top:-1px;right:0;width:18px;height:18px;
+    position:absolute;bottom:0;right:0;width:48px;height:48px;
     display:grid;place-items:center;
-    font-size:13px;line-height:1;
-    color:#fff;text-shadow:0 0 4px #000;opacity:0;
+    padding:0;border:0;background:rgba(255,255,255,.92);cursor:pointer;
+    font-size:16px;line-height:1;color:var(--error);opacity:1;
     transition:opacity .12s;
   }
-  .chip:hover .x{opacity:.9}
-  .chip .x:hover{color:#ff6b52}
+  .chip .x:hover{background:#fff;color:#8e1710}
+  .chip .pickTarget{
+    position:absolute;left:0;bottom:0;width:48px;height:48px;
+    display:grid;place-items:center;background:var(--surface);cursor:pointer;
+  }
+  .chip .pick{
+    width:20px;height:20px;
+    accent-color:var(--primary);cursor:pointer;
+  }
+  .chip .stateMark{
+    position:absolute;left:4px;top:4px;min-width:20px;height:20px;
+    display:grid;place-items:center;padding:0 4px;
+    background:var(--surface);color:var(--primary);border:1px solid var(--ink);
+    font-family:var(--mono);font-size:10px;font-weight:700;line-height:1;
+  }
 
   /* ---------- right: rebate rail ---------- */
   .rail{
-    position:relative;background:var(--panel);
-    border-left:1px solid var(--line);
-    overflow-y:auto;padding:16px 20px 20px 28px;
+    position:relative;background:var(--surface);
+    container-type:inline-size;
+    border-left:3px solid var(--ink);
+    overflow-y:auto;padding:var(--space-4);
     word-break:keep-all;   /* 한국어 어절 단위 줄바꿈 — 단어 중간 잘림 방지 */
+    counter-reset:rail-section;
   }
-  .rail::before{
-    content:"";position:absolute;top:0;left:0;width:14px;height:100%;
-    background:
-      repeating-linear-gradient(
-        to bottom,
-        transparent 0 7px,
-        var(--base) 7px 17px,
-        transparent 17px 24px
-      );
-    border-right:1px solid var(--line);
-  }
+  .rail::before{display:none}
 
-  .group{margin-bottom:12px}
+  .group{margin-bottom:var(--space-4)}
+  .group:has(> .glabel){counter-increment:rail-section}
   .glabel{
-    display:block;font-family:var(--mono);font-size:11px;font-weight:600;
-    letter-spacing:.2em;text-transform:uppercase;color:var(--rebate);
-    margin-bottom:9px;
+    display:block;font-family:var(--mono);font-size:12px;font-weight:700;
+    letter-spacing:.06em;color:var(--ink);margin-bottom:var(--space-3);
   }
+  .group > .glabel::before{content:"0" counter(rail-section) " / ";color:var(--primary)}
 
-  .seg{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line)}
+  .seg{display:grid;grid-template-columns:repeat(4,1fr);gap:0;background:var(--surface);border:2px solid var(--ink)}
   .seg2{grid-template-columns:1fr 1fr}
   .seg button{
-    background:var(--panel-hi);color:var(--rebate);border:0;cursor:pointer;
-    padding:10px 6px;font-family:var(--mono);font-size:12px;letter-spacing:.06em;
+    min-height:var(--touch);background:var(--surface);color:var(--muted-ink);
+    border:0;border-right:1px solid var(--line);cursor:pointer;
+    padding:8px 6px;font-family:var(--mono);font-size:12px;letter-spacing:.02em;
     line-height:1.35;
     transition:color .15s,background .15s;
   }
-  .seg button:hover{color:var(--bone)}
-  .seg button[aria-pressed="true"]{background:var(--edge);color:#14130f;font-weight:600}
+  .seg button:last-child{border-right:0}
+  .seg button:hover{background:var(--primary-soft);color:var(--primary-pressed)}
+  .seg button[aria-pressed="true"]{background:var(--primary-pressed);color:#fff;font-weight:700}
 
-  .field{margin-bottom:9px}
+  .field{min-width:0;margin-bottom:var(--space-2)}
   .field span{
-    display:flex;align-items:center;gap:7px;
-    font-size:12px;color:var(--rebate);margin-bottom:4px;
+    display:flex;align-items:center;gap:var(--space-2);
+    min-height:var(--touch);font-size:12px;color:var(--muted-ink);margin-bottom:var(--space-1);
   }
   input[type=text],input[type=number],select,textarea{
-    width:100%;background:#100f0c;color:var(--bone);
-    border:1px solid var(--line);border-radius:0;
-    padding:9px 10px;font-family:var(--mono);font-size:13px;
+    width:100%;min-height:var(--touch);background:var(--surface);color:var(--ink);
+    border:1px solid var(--line);border-radius:var(--radius-control);
+    padding:0 var(--space-3);font-family:var(--mono);font-size:13px;
+    font-variant-numeric:tabular-nums;
   }
-  textarea{font-family:var(--sans);resize:vertical;min-height:44px;line-height:1.5}
-  input:focus,select:focus,textarea:focus,button:focus-visible{
-    outline:2px solid var(--edge);outline-offset:1px;
+  ::placeholder{color:var(--muted-ink);opacity:1}
+  textarea{font-family:var(--sans);resize:vertical;min-height:72px;padding:12px 16px;line-height:1.5}
+  input:focus,select:focus,textarea:focus,button:focus-visible,.chip:focus-visible,summary:focus-visible{
+    outline:2px solid var(--primary);outline-offset:2px;
   }
-  input.dim,textarea.dim{opacity:.45}
-  .lbl{display:flex;align-items:center;gap:6px;font-weight:400}
-  .exifbadge{
-    font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:.08em;
-    font-style:normal;color:#14130f;background:var(--edge);
-    padding:1px 5px;border-radius:2px;cursor:pointer;
+  input.dim,textarea.dim{background:var(--neutral-soft);color:var(--muted-ink)}
+  .lbl{display:flex;align-items:center;flex:1;flex-wrap:wrap;gap:var(--space-2);font-weight:600}
+  .exifbadge,.basebadge{
+    min-width:var(--touch);min-height:var(--touch);font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.06em;
+    font-style:normal;color:#fff;background:var(--primary);
+    padding:4px 8px;border:0;border-radius:var(--radius-button);cursor:pointer;
   }
-  .exifbadge:hover{background:#f09849}
+  .exifbadge:hover{background:var(--primary-pressed)}
+  .basebadge{background:var(--neutral-soft);color:var(--ink);border:1px solid var(--line)}
+  .basebadge:hover{background:var(--primary-soft);border-color:var(--primary)}
+  .basebadge[aria-pressed="true"]{background:var(--primary-soft);border-color:var(--primary);color:var(--primary-pressed)}
+  .infoScope{display:grid;grid-template-columns:1fr auto;gap:var(--space-2);align-items:stretch;margin-bottom:var(--space-2)}
+  .infoScope .seg{min-width:0}
+  .infoScope .gearadd{white-space:nowrap}
+  #scopeNote{margin:0 0 var(--space-3)}
   .eye{
-    background:none;border:0;cursor:pointer;padding:0 2px;line-height:0;
-    color:var(--edge);transition:color .15s;
+    width:var(--touch);height:var(--touch);display:grid;place-items:center;flex:0 0 var(--touch);
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-button);
+    cursor:pointer;padding:0;line-height:0;color:var(--primary);transition:color .15s,background .15s;
   }
   #layoutReset{
-    border:0;cursor:pointer;
-    line-height:1;font-family:var(--mono);font-size:9px;font-weight:700;
-    letter-spacing:.08em;color:#14130f;background:var(--rebate);
-    padding:2px 6px;border-radius:2px;transition:background .15s;
+    min-width:var(--touch);min-height:var(--touch);border:1px solid var(--ink);cursor:pointer;
+    line-height:1;font-family:var(--mono);font-size:10px;font-weight:700;
+    letter-spacing:.04em;color:var(--ink);background:var(--surface);
+    padding:4px 8px;border-radius:var(--radius-button);transition:background .15s;
   }
-  #layoutReset:hover{background:var(--edge)}
-  .eye.off{color:#4a453c}
-  .eye:hover{color:var(--bone)}
-  .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
-  .fonttools{display:flex;gap:6px;margin-top:-2px}
-  .fonttools .gearadd{flex:1;padding:6px 8px}
+  #layoutReset:hover{background:var(--primary-soft);border-color:var(--primary)}
+  .eye.off{color:var(--muted-ink);background:var(--neutral-soft)}
+  .eye:hover{color:var(--primary-pressed);background:var(--primary-soft)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2)}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-2)}
+  .fonttools{display:flex;gap:var(--space-2);margin-top:0}
+  .fonttools .gearadd{flex:1;padding:8px}
   .fonttools .gearadd:disabled{opacity:.35;cursor:not-allowed}
 
-  /* 고급 설정 — 마스트헤드 우측 톱니바퀴(테두리 없음) + 팝오버 */
+  /* 개인 설정 — 마스트헤드 우측 톱니바퀴 + 팝오버 */
   .gearbtn{
     margin-left:auto;align-self:center;
-    width:30px;height:30px;display:grid;place-items:center;
-    background:none;border:0;padding:0;color:var(--rebate);
-    cursor:pointer;transition:color .15s,transform .25s;
+    flex:0 0 var(--touch);width:var(--touch);height:var(--touch);display:grid;place-items:center;
+    background:var(--surface);border:2px solid var(--ink);border-radius:var(--radius-button);
+    padding:0;color:var(--ink);cursor:pointer;transition:color .15s,background .15s;
   }
-  .gearbtn:hover{color:var(--edge);transform:rotate(30deg)}
+  .gearbtn:hover{color:var(--primary-pressed);background:var(--primary-soft)}
   .advpanel{
     position:fixed;z-index:30;
     width:min(272px, calc(100vw - 20px));
     max-height:calc(100vh - 70px);overflow-y:auto;
-    background:var(--panel);border:1px solid var(--line);
-    box-shadow:0 18px 50px rgba(0,0,0,.55);
-    padding:14px 14px 16px;word-break:keep-all;
+    background:var(--surface);border:2px solid var(--ink);border-radius:var(--radius-control);
+    padding:var(--space-3);word-break:keep-all;
   }
 
   /* 표시·레이아웃 설정 — 촬영 정보 안의 접이식 섹션 */
-  details.disp{margin:0 0 8px;border:1px solid var(--line);background:#17150f}
+  details.disp{margin:0 0 var(--space-2);border:1px solid var(--line);background:var(--surface)}
   details.disp:last-child{margin-bottom:0}
   details.disp summary{
-    cursor:pointer;list-style:none;padding:9px 10px;
-    font-family:var(--mono);font-size:11px;font-weight:600;
-    letter-spacing:.16em;text-transform:uppercase;color:var(--rebate);
-    transition:color .15s;
+    display:flex;align-items:center;min-height:var(--touch);
+    cursor:pointer;list-style:none;padding:8px 12px;
+    font-family:var(--mono);font-size:11px;font-weight:700;
+    letter-spacing:.06em;color:var(--ink);transition:color .15s,background .15s;
   }
-  details.disp summary:hover{color:var(--bone)}
+  details.disp summary:hover{color:var(--primary-pressed);background:var(--primary-soft)}
   details.disp summary::-webkit-details-marker{display:none}
-  details.disp summary::before{content:"▸ ";color:var(--edge)}
-  details.disp[open] summary::before{content:"▾ "}
-  details.disp .inner{padding:4px 10px 12px}
+  details.disp summary::before{content:"＋";width:20px;color:var(--primary);font-size:16px}
+  details.disp[open] summary::before{content:"−"}
+  details.disp .inner{padding:var(--space-2) 12px var(--space-3);border-top:1px solid var(--line)}
   .advpanel h3{
-    font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.2em;
-    text-transform:uppercase;color:var(--rebate);margin-bottom:12px;
+    font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.06em;
+    color:var(--ink);margin-bottom:var(--space-3);
   }
 
-  .gear3{display:flex;flex-direction:column;gap:6px}
-  .gearcol{display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-width:0}
+  .gear3{display:flex;flex-direction:column;gap:var(--space-2)}
+  .gearcol{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);min-width:0}
   .gearlabel{
     flex:0 0 62px;
-    font-family:var(--mono);font-size:10px;font-weight:600;
-    letter-spacing:.12em;text-transform:uppercase;color:var(--rebate);
+    font-family:var(--mono);font-size:10px;font-weight:700;
+    letter-spacing:.04em;color:var(--muted-ink);
   }
   .gear{
-    position:relative;background:var(--panel-hi);border:1px solid var(--line);
-    color:var(--bone);font-family:var(--mono);font-size:11px;
-    padding:5px 16px 5px 7px;cursor:pointer;text-align:left;
-    transition:border-color .15s;max-width:160px;
+    position:relative;min-width:var(--touch);min-height:var(--touch);background:var(--surface);border:1px solid var(--line);
+    color:var(--ink);font-family:var(--mono);font-size:11px;
+    padding:8px 10px;cursor:pointer;text-align:left;
+    transition:border-color .15s,background .15s;max-width:180px;border-radius:var(--radius-button);
   }
-  .gear:hover,.gear.on{border-color:var(--edge)}
+  .gear:hover{border-color:var(--primary);background:var(--primary-soft)}
+  .gear.on{border:2px solid var(--primary);background:var(--primary-soft)}
   .gear img{display:inline-block;height:16px;max-width:90px;object-fit:contain;vertical-align:middle}
   .gear em{
     font-style:normal;display:block;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   }
-  .gear i{
-    position:absolute;right:4px;top:50%;transform:translateY(-50%);
-    font-style:normal;color:var(--rebate);font-size:11px;
+  .gearwrap{display:inline-flex;max-width:100%;min-width:0}
+  .gearwrap .gear{min-width:var(--touch);border-radius:2px 0 0 2px}
+  .gearDelete{
+    flex:0 0 var(--touch);width:var(--touch);min-height:var(--touch);
+    background:var(--surface);border:1px solid var(--line);border-left:0;
+    border-radius:0 2px 2px 0;color:var(--error);font-size:18px;cursor:pointer;
   }
-  .gear i:hover{color:#e05d4a}
+  .gearDelete:hover{background:var(--neutral-soft)}
   .gearadd{
-    background:none;border:1px dashed var(--line);color:var(--rebate);
-    cursor:pointer;font-size:12px;padding:4px 9px;transition:.15s;
+    min-width:var(--touch);min-height:var(--touch);background:var(--surface);border:1px solid var(--ink);
+    border-radius:var(--radius-button);color:var(--ink);
+    cursor:pointer;font-size:12px;padding:8px 12px;transition:color .15s,background .15s,border-color .15s;
   }
-  .gearadd:hover{border-color:var(--edge);color:var(--edge)}
+  .gearadd:hover{border-color:var(--primary);color:var(--primary-pressed);background:var(--primary-soft)}
 
   .btn{
-    width:100%;padding:10px 8px;border:1px solid var(--line);background:var(--panel-hi);
-    color:var(--bone);font-family:var(--mono);font-size:12px;letter-spacing:.12em;
-    text-transform:uppercase;cursor:pointer;transition:.15s;
-    line-height:1.35;
+    width:100%;min-height:var(--touch);padding:10px 12px;border:2px solid var(--ink);
+    border-radius:var(--radius-button);background:var(--surface);color:var(--ink);
+    font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.04em;
+    cursor:pointer;transition:color .15s,background .15s,border-color .15s;line-height:1.35;
   }
-  .btn:hover{border-color:var(--edge);color:var(--edge)}
-  .btn.solid{background:var(--edge);color:#14130f;border-color:var(--edge);font-weight:700}
-  .btn.solid:hover{background:#f09849}
-  .btn:disabled{opacity:.35;cursor:not-allowed}
+  .btn:hover{border-color:var(--primary);color:var(--primary-pressed);background:var(--primary-soft)}
+  .btn.solid{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .btn.solid:hover{background:var(--primary-pressed);color:#fff;border-color:var(--primary-pressed)}
+  .btn:disabled{background:var(--neutral-soft);color:var(--muted-ink);border-color:var(--line);cursor:not-allowed}
 
-  .note{font-size:12px;color:var(--rebate);margin-top:7px;line-height:1.45}
-  .note b{color:var(--edge);font-weight:600}
-  .warn{
-    border-left:2px solid var(--edge);padding:8px 10px;margin-top:10px;
-    background:rgba(232,135,58,.06);font-size:11px;color:#c9bfae;line-height:1.5;
+  .note{font-size:12px;color:var(--muted-ink);margin-top:var(--space-2);line-height:1.5}
+  .note b{color:var(--ink);font-weight:700}
+  progress{width:100%;height:8px;margin-top:var(--space-2);display:block;accent-color:var(--primary)}
+  #fsWarn{
+    border-left:3px solid var(--warning);padding:8px 12px;margin-top:var(--space-2);
+    background:#fff7e8;font-size:11px;color:#6f4100;line-height:1.5;
   }
-  hr{border:0;border-top:1px solid var(--line);margin:10px 0}
+  hr{border:0;border-top:1px solid var(--line);margin:var(--space-4) 0}
 
   #toast{
-    position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);
-    background:var(--edge);color:#14130f;font-family:var(--mono);font-size:12px;
-    font-weight:600;padding:10px 18px;opacity:0;pointer-events:none;
-    transition:opacity .2s, transform .2s;letter-spacing:.04em;z-index:20;
+    position:fixed;left:50%;bottom:var(--space-4);transform:translate(-50%,20px);
+    background:var(--primary);color:#fff;border:2px solid var(--primary-pressed);
+    font-family:var(--mono);font-size:12px;font-weight:700;padding:12px 18px;
+    opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;
+    letter-spacing:.04em;z-index:20;
   }
   #toast.on{opacity:1;transform:translate(-50%,0)}
 
+  /* 패널 폭·UI 배율로 좁아져도 입력과 필수 버튼이 가로로 잘리지 않는다. */
+  @container (max-width:280px){
+    .row,.row3,.infoScope{grid-template-columns:1fr}
+    .fonttools{flex-direction:column}
+    #styleSeg{grid-template-columns:repeat(2,minmax(0,1fr))}
+    #styleSeg button:nth-child(even){border-right:0}
+    #styleSeg button:nth-child(n+3){border-top:1px solid var(--line)}
+  }
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
-  @media (max-width:960px){
+  @media (max-width:1099px){
     body{overflow:auto}
     .shell{grid-template-columns:1fr;height:auto}
-    .rail{border-left:0;border-top:1px solid var(--line);padding-left:22px}
-    .rail::before{display:none}
-    .viewport{min-height:52vh}
+    .table{height:100dvh;min-height:640px}
+    .rail{border-left:0;border-top:3px solid var(--ink);padding:var(--space-4)}
+  }
+  @media (max-width:719px){
+    .table{height:auto;min-height:max(680px,100dvh)}
+    .masthead{padding:0 var(--space-3);gap:var(--space-2)}
+    .wordmark{font-size:20px}
+    .subtitle{font-size:10px}
+    .viewport{min-height:max(528px,calc(100dvh - 212px))}
+    .dropzone{
+      inset:var(--space-3);width:auto;max-height:calc(100% - 32px);
+      padding:32px 24px;overflow-y:auto;
+    }
+    .dropzone::before{margin-bottom:var(--space-3)}
+    .dropzone h2{font-size:28px}
+    .dropzone .guide{margin-top:var(--space-3)}
+    .zoombar{
+      left:var(--space-3);right:var(--space-3);bottom:var(--space-3);transform:none;
+      display:grid;grid-template-columns:repeat(4,minmax(0,1fr));max-width:none;overflow:visible;
+    }
+    .zoombar button,.zoombar .pct{width:100%;min-width:0;padding:0 4px;white-space:normal}
+    .zoombar > :nth-child(4n){border-right:0}
+    .zoombar > :nth-child(n+5){border-top:1px solid var(--line)}
+    .strip{padding-bottom:max(var(--space-2), env(safe-area-inset-bottom))}
+    .rail{padding:var(--space-3);padding-bottom:max(var(--space-4), env(safe-area-inset-bottom))}
+    .row,.row3{grid-template-columns:1fr}
+    .infoScope{grid-template-columns:1fr}
+    .fonttools{flex-direction:column}
+    .advpanel{width:calc(100vw - 32px)}
   }
 </style>
 </head>
@@ -340,18 +420,18 @@
 
   <!-- ================= LIGHT TABLE ================= -->
   <main class="table">
-    <div class="masthead">
-      <span class="wordmark">PhotoFrame</span>
+    <header class="masthead">
+      <h1 class="wordmark">PhotoFrame</h1>
       <span class="subtitle">사진에 프레임과 촬영 정보를 얹습니다</span>
-      <button type="button" class="gearbtn" id="gearBtn" title="개인 설정 (화면 표시)">
+      <button type="button" class="gearbtn" id="gearBtn" title="개인 설정 (화면 표시)" aria-haspopup="dialog" aria-controls="advPanel" aria-expanded="false">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </button>
-    </div>
+    </header>
 
     <div class="viewport" id="viewport">
-      <div class="dropzone" id="drop">
+      <div class="dropzone" id="drop" role="button" tabindex="0" aria-controls="picker" aria-describedby="dropHelp dropPrivacy">
         <h2>사진을 여기에 놓으세요</h2>
-        <p>클릭해서 고를 수도 있습니다 · JPG, PNG · 여러 장 한 번에</p>
+        <p id="dropHelp">클릭해서 고를 수도 있습니다 · JPG, PNG · 여러 장 한 번에</p>
         <ol class="guide">
           <li><b>사진을 놓고</b> 프레임 스타일을 고릅니다 — 필름 스트립 · 인스탁스 · 여백 띠</li>
           <li><b>촬영 정보를 입력합니다.</b> 디지털 사진이면 EXIF에서 카메라·렌즈·설정이 자동으로 채워지고, 필름이면 직접 적습니다. 기억나지 않는 항목은 <b>눈 아이콘</b>으로 끄면 됩니다</li>
@@ -359,13 +439,13 @@
         </ol>
         <p class="guide-note">자주 쓰는 장비는 <b>프리셋</b>에 ＋로 저장해 두면 다음부터 클릭 한 번입니다 ·
           미리보기의 <b>경계</b>를 켜면 글씨 위치를 마우스로 옮길 수 있습니다</p>
-        <p class="guide-note">사진은 <b>이 브라우저 밖으로 나가지 않습니다</b> — 업로드도, 서버도, 계정도 없습니다</p>
+        <p class="guide-note" id="dropPrivacy">사진은 <b>이 브라우저 밖으로 나가지 않습니다</b> — 업로드도, 서버도, 계정도 없습니다</p>
       </div>
-      <canvas id="preview" hidden></canvas>
+      <canvas id="preview" role="img" aria-label="프레임 합성 미리보기" hidden></canvas>
 
       <div class="zoombar" id="zoombar" hidden>
         <button id="zOut" title="축소 (−)">−</button>
-        <div class="pct" id="zPct" title="클릭하면 화면 맞춤">100%</div>
+        <button type="button" class="pct" id="zPct" title="클릭하면 화면 맞춤">100%</button>
         <button id="zIn" title="확대 (+)">＋</button>
         <button id="zFit" title="화면에 맞추기 (0)">맞춤</button>
         <button id="z100" title="원본 크기 (1)">1:1</button>
@@ -375,11 +455,11 @@
       </div>
     </div>
 
-    <div class="strip" id="strip"></div>
+    <div class="strip" id="strip" role="list" aria-label="불러온 사진"></div>
   </main>
 
   <!-- ================= REBATE RAIL ================= -->
-  <aside class="rail">
+  <aside class="rail" aria-label="프레임 설정">
 
     <div class="group">
       <span class="glabel">프레임 스타일</span>
@@ -402,15 +482,23 @@
 
     <div class="group">
       <span class="glabel">촬영 정보</span>
+      <div class="infoScope">
+        <div class="seg seg2" id="infoScope">
+          <button type="button" data-scope="global" aria-pressed="true">전체 기본값</button>
+          <button type="button" data-scope="shot" aria-pressed="false" disabled>현재 장</button>
+        </div>
+        <button type="button" class="gearadd" id="batchAll" disabled>전체 선택</button>
+      </div>
+      <p class="note" id="scopeNote" role="status" aria-live="polite">전체 사진의 기본 촬영 정보를 편집합니다.</p>
       <div class="row">
         <div class="field">
-          <span><b class="lbl">카메라 <i class="exifbadge" data-k="body" title="이 사진의 EXIF 원본으로 되돌리기" hidden>EXIF</i></b><button type="button" class="eye" data-for="showBody" title="결과물에 표시/숨김"></button></span>
+          <span><b class="lbl">카메라 <button type="button" class="exifbadge" data-k="body" title="선택 사진의 EXIF 원본으로 되돌리기" hidden>EXIF</button><button type="button" class="basebadge" data-k="body" title="선택 사진에서 전역값 사용" hidden>전역</button></b><button type="button" class="eye" data-for="showBody" title="결과물에 표시/숨김"></button></span>
           <input type="text" id="body" list="bodies" placeholder="Nikon F5">
           <datalist id="bodies"></datalist>
           <input type="checkbox" id="showBody" checked hidden>
         </div>
         <div class="field">
-          <span><b class="lbl">렌즈 <i class="exifbadge" data-k="lens" title="이 사진의 EXIF 원본으로 되돌리기" hidden>EXIF</i></b><button type="button" class="eye" data-for="showLens" title="결과물에 표시/숨김"></button></span>
+          <span><b class="lbl">렌즈 <button type="button" class="exifbadge" data-k="lens" title="선택 사진의 EXIF 원본으로 되돌리기" hidden>EXIF</button><button type="button" class="basebadge" data-k="lens" title="선택 사진에서 전역값 사용" hidden>전역</button></b><button type="button" class="eye" data-for="showLens" title="결과물에 표시/숨김"></button></span>
           <input type="text" id="lens" list="lenses" placeholder="50mm f/1.8G">
           <datalist id="lenses"></datalist>
           <input type="checkbox" id="showLens" checked hidden>
@@ -418,24 +506,24 @@
       </div>
       <div class="row">
         <div class="field">
-          <span>필름 · 기타 <button type="button" class="eye" data-for="showFilm" title="결과물에 표시/숨김"></button></span>
+          <span><b class="lbl">필름 · 기타 <button type="button" class="basebadge" data-k="film" title="선택 사진에서 전역값 사용" hidden>전역</button></b><button type="button" class="eye" data-for="showFilm" title="결과물에 표시/숨김"></button></span>
           <input type="text" id="film" list="films" placeholder="Portra 400 / ISO 100 / 제주 …">
           <datalist id="films"></datalist>
           <input type="checkbox" id="showFilm" checked hidden>
         </div>
         <div class="field">
-          <span><b class="lbl">날짜 <i class="exifbadge" data-k="date" title="이 사진의 EXIF 원본으로 되돌리기" hidden>EXIF</i></b><button type="button" class="eye" data-for="showDate" title="결과물에 표시/숨김"></button></span>
+          <span><b class="lbl">날짜 <button type="button" class="exifbadge" data-k="date" title="선택 사진의 EXIF 원본으로 되돌리기" hidden>EXIF</button><button type="button" class="basebadge" data-k="date" title="선택 사진에서 전역값 사용" hidden>전역</button></b><button type="button" class="eye" data-for="showDate" title="결과물에 표시/숨김"></button></span>
           <input type="text" id="date" placeholder="2026.07">
           <input type="checkbox" id="showDate" checked hidden>
         </div>
       </div>
       <div class="field">
-        <span><b class="lbl">설정 <i class="exifbadge" data-k="set" title="이 사진의 EXIF 원본으로 되돌리기" hidden>EXIF</i></b><button type="button" class="eye" data-for="showSet" title="결과물에 표시/숨김"></button></span>
+        <span><b class="lbl">설정 <button type="button" class="exifbadge" data-k="set" title="선택 사진의 EXIF 원본으로 되돌리기" hidden>EXIF</button><button type="button" class="basebadge" data-k="set" title="선택 사진에서 전역값 사용" hidden>전역</button></b><button type="button" class="eye" data-for="showSet" title="결과물에 표시/숨김"></button></span>
         <input type="text" id="set" placeholder="F1.8 · 1/250s · ISO 400 · 35mm">
         <input type="checkbox" id="showSet" checked hidden>
       </div>
       <div class="field">
-        <span>메모 — 짧은 글 <button type="button" class="eye" data-for="showCaption" title="결과물에 표시/숨김"></button></span>
+        <span><b class="lbl">메모 — 짧은 글 <button type="button" class="basebadge" data-k="caption" title="선택 사진에서 전역값 사용" hidden>전역</button></b><button type="button" class="eye" data-for="showCaption" title="결과물에 표시/숨김"></button></span>
         <textarea id="caption" rows="1" placeholder="사진 아래에 들어갈 짧은 글. 줄바꿈 가능 (최대 4줄 표시)"></textarea>
         <input type="checkbox" id="showCaption" checked hidden>
       </div>
@@ -454,6 +542,10 @@
         <div class="inner">
           <div class="gear3" id="gearGrid"></div>
           <p class="note">＋ 를 누르면 현재 입력값이 목록에 저장됩니다. 클릭해 적용, ×로 삭제.</p>
+          <div class="row" style="margin-top:8px">
+            <button type="button" class="btn" id="presetExport">프리셋 내보내기</button>
+            <button type="button" class="btn" id="presetImport">프리셋 가져오기</button>
+          </div>
         </div>
       </details>
       <details class="disp" id="dispPanel">
@@ -606,6 +698,8 @@
         <button class="btn solid" id="exportAll" disabled>전체 내보내기</button>
         <button class="btn" id="exportOne" disabled>현재 장만</button>
       </div>
+      <progress id="exportProgress" max="1" value="0" hidden></progress>
+      <p class="note" id="exportStatus" role="status" aria-live="polite" aria-atomic="true"></p>
       <p class="note" id="dirNote">폴더를 고르지 않으면 다운로드 폴더로 내려갑니다.</p>
       <div class="warn" id="fsWarn" hidden>
         이 브라우저(또는 iframe 미리보기)에서는 폴더 지정이 막혀 있습니다.
@@ -620,17 +714,19 @@
 <input type="file" id="logoPicker" accept="image/*" hidden>
 <input type="file" id="fontPicker" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" multiple hidden>
 <input type="file" id="projectPicker" accept=".json,.photoframe.json,application/json" hidden>
+<input type="file" id="presetPicker" accept=".json,.photoframe-presets.json,application/json" hidden>
 
-<div class="advpanel" id="advPanel" hidden>
+<div class="advpanel" id="advPanel" role="dialog" aria-label="개인 설정" hidden>
   <h3>개인 설정</h3>
   <div class="row">
     <div class="field"><span>설정 패널 폭 px</span><input type="number" id="uiWidth" min="300" max="600" step="10" value="350"></div>
     <div class="field"><span>UI 배율 %</span><input type="number" id="uiScale" min="90" max="130" step="5" value="100"></div>
   </div>
   <p class="note" style="margin-top:2px">화면 표시만 바꾸는 설정입니다 — 결과물에는 영향이 없습니다.</p>
+  <button type="button" class="btn" id="closeSettings" style="margin-top:16px">닫기</button>
 </div>
 
-<div id="toast"></div>
+<div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <script>
 /* ============================================================
@@ -784,11 +880,14 @@ const store = {
 const state = {
   shots: [],          // { img, url, name }
   current: -1,
+  batch: new Set(),   // 선택 사진 객체 — 정렬해도 대상이 바뀌지 않는다
+  infoScope: 'global',
   style: 'film',
   tone: 'light',
   dirHandle: null,
   showBoxes: true,    // 경계 표시 — 기본 켜짐, 줌바 토글로 끌 수 있고 frame.ui에 기억
   fontBusy: 0,
+  exportBusy: false,
 };
 let pendingProject = null;   // 프로젝트를 연 뒤 원본 파일과 연결할 manifest
 /* 프리셋: 카메라/렌즈/필름을 각각 독립 목록으로 저장 (frame.gear).
@@ -805,6 +904,18 @@ if (!gear){
 }
 
 const $ = id => document.getElementById(id);
+
+function syncActionButtons(){
+  const busy = state.fontBusy > 0 || state.exportBusy;
+  const has = state.current >= 0;
+  $('exportAll').disabled = busy || !state.shots.length;
+  $('exportOne').disabled = busy || !has;
+  $('projectSave').disabled = busy || !state.shots.length;
+  $('projectOpen').disabled = busy;
+  $('pickDir').disabled = busy || typeof window.showDirectoryPicker !== 'function';
+  $('presetExport').disabled = busy;
+  $('presetImport').disabled = busy;
+}
 
 /* ============================================================
    로컬 글꼴 — 기본 시스템 스택 / PC 설치 글꼴 / 사용자가 고른 폰트 파일.
@@ -862,11 +973,7 @@ function updateFontNote(message = ''){
 function setFontBusy(on){
   state.fontBusy = Math.max(0, state.fontBusy + (on ? 1 : -1));
   const busy = state.fontBusy > 0;
-  const has = state.current >= 0;
-  $('exportAll').disabled = busy || !state.shots.length;
-  $('exportOne').disabled = busy || !has;
-  $('projectSave').disabled = busy || !state.shots.length;
-  $('projectOpen').disabled = busy;
+  syncActionButtons();
   $('pcFontLoad').disabled = busy || !canQueryFonts;
   $('fontFileAdd').disabled = busy;
   $('fontEn').disabled = busy;
@@ -1071,34 +1178,109 @@ function dateText(o){
   return (o.show.date && o.date) ? o.date : '';
 }
 
-/* 카메라/렌즈/날짜의 전역값 — 입력 필드는 선택된 사진에 따라 전역 또는
-   장별(EXIF) 값을 보여주는 뷰이므로, 전역값은 별도로 보관한다 */
-const gInfo = { body: '', lens: '', date: '', set: '' };
+/* 입력 필드는 전역/장별 상태를 보여주는 뷰일 뿐이다. DOM을 전역 저장소로 쓰면
+   장별 값을 표시하는 순간 전역값이 오염되므로 값과 표시 여부를 따로 보관한다. */
+const INFO_KEYS = ['body','lens','film','date','set','caption'];
+const EXIF_KEYS = ['body','lens','date','set'];
+const INFO_SHOW_ID = { body:'showBody', lens:'showLens', film:'showFilm',
+  date:'showDate', set:'showSet', caption:'showCaption' };
+const gInfo = Object.fromEntries(INFO_KEYS.map(k => [k, '']));
+const gShow = Object.fromEntries(INFO_KEYS.map(k => [k, true]));
+const INFO_PLACEHOLDER = Object.fromEntries(INFO_KEYS.map(k => [k, $(k).placeholder]));
 
 function pick(...vals){ return vals.find(v => v != null && v !== '') ?? ''; }
+function hasOwn(o, k){ return !!o && Object.prototype.hasOwnProperty.call(o, k); }
+
+function photoTargets(){
+  const picked = state.shots.filter(s => state.batch.has(s));
+  const current = state.shots[state.current];
+  return picked.length ? picked : (current ? [current] : []);
+}
+
+function shotValue(shot, key){
+  const own = shot?.own, exif = shot?.exif;
+  if (hasOwn(own, key)) return own[key] === null ? gInfo[key] : own[key];
+  return pick(exif?.[key], gInfo[key]);
+}
+
+function shotShow(shot, key){
+  return hasOwn(shot?.own?.show, key) ? shot.own.show[key] : gShow[key];
+}
+
+function shotHasOwn(shot){
+  const own = shot?.own;
+  return !!own && (INFO_KEYS.some(k => hasOwn(own, k)) || INFO_KEYS.some(k => hasOwn(own.show, k)));
+}
+
+function shotHasExif(shot){ return EXIF_KEYS.some(k => !!shot?.exif?.[k]); }
+
+function compactOwn(shot){
+  if (!shot?.own) return;
+  if (shot.own.show && !INFO_KEYS.some(k => hasOwn(shot.own.show, k))) delete shot.own.show;
+  if (!INFO_KEYS.some(k => hasOwn(shot.own, k)) && !shot.own.show) delete shot.own;
+}
 
 function withShot(o, shot){
-  // EXIF가 있는 사진은 자기 정보(사용자 수정분 own > EXIF)로 렌더.
-  // 전역값으로 폴백하지 않는다 — 필름용 전역 입력이 디지털 사진에 섞이지 않게
-  if (!shot || !shot.exif) return o;
+  if (!shot) return o;
   const own = shot.own || {};
-  return { ...o,
-    body: pick(own.body, shot.exif.body),
-    lens: pick(own.lens, shot.exif.lens),
-    date: pick(own.date, shot.exif.date),
-    set:  pick(own.set,  shot.exif.set),
+  return {
+    ...o,
+    ...Object.fromEntries(INFO_KEYS.map(k => [k, shotValue(shot, k)])),
+    show: { ...o.show, ...(own.show || {}) },
   };
 }
 
+function syncScopeUi(){
+  const count = state.batch.size;
+  const has = state.current >= 0;
+  const scope = state.infoScope === 'shot' && has ? 'shot' : 'global';
+  state.infoScope = scope;
+  [...$('infoScope').children].forEach(b => b.setAttribute('aria-pressed', b.dataset.scope === scope));
+  const shotBtn = $('infoScope').querySelector('[data-scope="shot"]');
+  shotBtn.disabled = !has;
+  shotBtn.textContent = count ? `선택 ${count}장` : '현재 장';
+  $('batchAll').disabled = !state.shots.length;
+  $('batchAll').textContent = count === state.shots.length && count ? '선택 해제' : '전체 선택';
+  $('scopeNote').textContent = scope === 'global'
+    ? '전체 사진의 기본값을 편집합니다. 장별 값이 있는 사진은 그대로 유지됩니다.'
+    : count
+      ? `선택한 ${count}장에 입력값과 표시 변경을 함께 적용합니다.`
+      : '현재 사진만 수정합니다. 전역 버튼으로 항목별 기본값을 다시 사용할 수 있습니다.';
+}
+
+function syncInfoBadges(){
+  const targets = photoTargets();
+  const scoped = state.infoScope === 'shot' && targets.length;
+  document.querySelectorAll('.exifbadge').forEach(b => {
+    b.hidden = !scoped || !targets.some(s => !!s.exif?.[b.dataset.k]);
+  });
+  document.querySelectorAll('.basebadge').forEach(b => {
+    const key = b.dataset.k;
+    b.hidden = !scoped || !targets.some(s =>
+      (hasOwn(s.own, key) && s.own[key] !== null) || !!s.exif?.[key] || hasOwn(s.own?.show, key));
+    b.setAttribute('aria-pressed', String(!!scoped && targets.every(s => hasOwn(s.own, key) && s.own[key] === null)));
+  });
+}
+
 function syncFields(){
-  const s = state.shots[state.current];
-  const hasExif = !!(s && s.exif);
-  const own = hasExif ? (s.own || {}) : {};
-  $('body').value = hasExif ? pick(own.body, s.exif.body) : gInfo.body;
-  $('lens').value = hasExif ? pick(own.lens, s.exif.lens) : gInfo.lens;
-  $('date').value = hasExif ? pick(own.date, s.exif.date) : gInfo.date;
-  $('set').value  = hasExif ? pick(own.set,  s.exif.set)  : gInfo.set;
-  document.querySelectorAll('.exifbadge').forEach(b => b.hidden = !hasExif);
+  syncScopeUi();
+  const targets = photoTargets();
+  const scoped = state.infoScope === 'shot' && targets.length;
+  for (const key of INFO_KEYS){
+    const input = $(key);
+    const values = scoped ? targets.map(s => shotValue(s, key)) : [gInfo[key]];
+    const mixed = values.some(v => v !== values[0]);
+    input.value = mixed ? '' : values[0];
+    input.placeholder = mixed ? `여러 값 · 입력하면 ${targets.length}장에 적용` : INFO_PLACEHOLDER[key];
+    input.dataset.mixed = mixed ? 'true' : 'false';
+    const shows = scoped ? targets.map(s => shotShow(s, key)) : [gShow[key]];
+    const showMixed = shows.some(v => v !== shows[0]);
+    const cb = $(INFO_SHOW_ID[key]);
+    cb.indeterminate = showMixed;
+    cb.checked = showMixed ? false : shows[0];
+  }
+  syncInfoBadges();
+  updateEyes();
 }
 
 function captionLines(o){
@@ -1781,15 +1963,9 @@ function opts(){
   return {
     style: state.style,
     tone:  state.tone,
-    body:  gInfo.body.trim(),
-    lens:  gInfo.lens.trim(),
-    film:  $('film').value.trim(),
-    date:  gInfo.date.trim(),
-    set:   gInfo.set.trim(),
-    caption: $('caption').value.replace(/\s+$/,''),
-    show:  { body: $('showBody').checked, lens: $('showLens').checked,
-             film: $('showFilm').checked, date: $('showDate').checked,
-             set: $('showSet').checked, caption: $('showCaption').checked },
+    ...Object.fromEntries(INFO_KEYS.map(k => [k, k === 'caption'
+      ? gInfo[k].replace(/\s+$/,'') : gInfo[k].trim()])),
+    show:  { ...gShow },
     fontEn: $('fontEn').value,
     fontKo: $('fontKo').value,
     ratio: $('ratio').value,
@@ -1799,9 +1975,9 @@ function opts(){
   };
 }
 
-function filename(shot, idx){
-  const ext = $('fmt').value === 'jpeg' ? '.jpg' : '.png';
-  const title = $('title').value.trim().replace(/[\\/:*?"<>|]/g, '');  // 파일명 금지 문자 제거
+function filename(shot, idx, fmt = $('fmt').value, rawTitle = $('title').value){
+  const ext = fmt === 'jpeg' ? '.jpg' : '.png';
+  const title = rawTitle.trim().replace(/[\\/:*?"<>|]/g, '');  // 파일명 금지 문자 제거
   if (title) return `${title}(${idx})${ext}`;
   return shot.name.replace(/\.[^.]+$/,'') + '_framed' + ext;
 }
@@ -1814,10 +1990,16 @@ const zoom = { scale:1, fit:1, x:0, y:0, mode:'fit' };  // mode: 'fit' | 'free'
 
 function vpSize(){ return { w: vp.clientWidth, h: vp.clientHeight }; }
 
-function fitScale(){
+// 실제 툴바 높이만큼 아래를 비워 2행 툴바에서도 사진을 가리지 않는다.
+function fitRoom(){
   const { w, h } = vpSize();
+  return { w, h:Math.max(1, h - ($('zoombar').hidden ? 0 : $('zoombar').offsetHeight + 32)) };
+}
+
+function fitScale(){
+  const { w, h } = fitRoom();
   if (!pv.width || !pv.height) return 1;
-  return Math.min((w - 48) / pv.width, (h - 72) / pv.height, 1);
+  return Math.min(Math.max(1, w - 48) / pv.width, Math.max(1, h - 24) / pv.height, 1);
 }
 
 function applyZoom(){
@@ -1829,7 +2011,7 @@ function applyZoom(){
 function zoomFit(){
   zoom.fit = fitScale();
   zoom.mode = 'fit';
-  const { w, h } = vpSize();
+  const { w, h } = fitRoom();
   zoom.scale = zoom.fit;
   zoom.x = (w - pv.width * zoom.fit) / 2;
   zoom.y = (h - pv.height * zoom.fit) / 2;
@@ -1889,7 +2071,7 @@ function paintOverlay(drag){
   pctx.save();
   // 스냅 가이드라인 — 다른 경계·중앙과 수평/수직이 맞으면 강조
   if (drag && (drag.gx != null || drag.gy != null)){
-    pctx.strokeStyle = '#31b5ff';
+    pctx.strokeStyle = '#1d4ed8';
     pctx.lineWidth = lw;
     pctx.setLineDash([]);
     if (drag.gx != null){
@@ -1906,7 +2088,7 @@ function paintOverlay(drag){
   for (const h of edgeHandles()){
     const on = edgeDrag && edgeDrag.h.key === h.key;
     const hot = !on && state._hot && state._hot.type === 'handle' && state._hot.key === h.key;
-    const col = on || hot ? '#31b5ff' : 'rgba(110,106,95,.85)';
+    const col = on || hot ? '#1d4ed8' : 'rgba(103,103,98,.85)';
     pctx.strokeStyle = col; pctx.fillStyle = col;
     pctx.lineWidth = on || hot ? lw * 2 : lw;
     let labelX, labelY;
@@ -1928,9 +2110,9 @@ function paintOverlay(drag){
       const t = ` ${h.label} ${edgeDrag.pct}% `;
       const tw = pctx.measureText(t).width;
       const lx = Math.min(Math.max(0, labelX - tw/2 + fsL*3), P.cv.width - tw);
-      pctx.fillStyle = '#31b5ff';
+      pctx.fillStyle = '#1d4ed8';
       pctx.fillRect(lx, labelY - fsL*1.25, tw, fsL*1.25);
-      pctx.fillStyle = '#14130f';
+      pctx.fillStyle = '#fff';
       pctx.fillText(t, lx, labelY);
     }
   }
@@ -1943,7 +2125,7 @@ function paintOverlay(drag){
     const bx = b.x + P.padX + (mv ? drag.ddx : 0);
     const by = b.y + P.padY + (mv ? drag.ddy : 0);
     const g = lw * 2;
-    const col = mv || hov ? '#31b5ff' : over ? '#ff4d3d' : 'rgba(232,135,58,.95)';
+    const col = mv || hov ? '#1d4ed8' : over ? '#b42318' : 'rgba(29,78,216,.95)';
     pctx.lineWidth = hov ? lw * 2 : lw;
     pctx.strokeStyle = col;
     pctx.strokeRect(bx - g, by - g, b.w + g * 2, b.h + g * 2);
@@ -1951,7 +2133,7 @@ function paintOverlay(drag){
     const tw = pctx.measureText(label).width;
     pctx.fillStyle = col;
     pctx.fillRect(bx - g, by - g - fsL * 1.25, tw, fsL * 1.25);
-    pctx.fillStyle = '#14130f';
+    pctx.fillStyle = '#fff';
     pctx.fillText(label, bx - g, by - g);
   }
   pctx.restore();
@@ -2224,9 +2406,7 @@ function refresh(keepZoom = false){
     $('drop').hidden = has;
     pv.hidden = !has;
     $('zoombar').hidden = !has;
-    $('exportAll').disabled = state.fontBusy || !state.shots.length;
-    $('exportOne').disabled = state.fontBusy || !has;
-    $('projectSave').disabled = state.fontBusy || !state.shots.length;
+    syncActionButtons();
     $('toneField').style.display = (state.style==='bottom'||state.style==='top') ? '' : 'none';
     if (!has) return;
     const shot = state.shots[state.current];
@@ -2264,24 +2444,66 @@ function refresh(keepZoom = false){
    필름 스트립: 선택 / 삭제 / 드래그 정렬
    ============================================================ */
 function drawStrip(){
-  const el = $('strip'); el.innerHTML = '';
+  const el = $('strip');
+  const focused = el.contains(document.activeElement) ? document.activeElement : null;
+  const focusedShot = focused?.closest('.chip')?._shot;
+  const focusControl = focused?.classList.contains('pick') ? '.pick' : focused?.classList.contains('x') ? '.x' : null;
+  el.innerHTML = '';
   state.shots.forEach((s, i) => {
     const d = document.createElement('div');
-    d.className = 'chip' + (i===state.current ? ' on' : '');
+    d.className = 'chip' + (i===state.current ? ' on' : '') + (state.batch.has(s) ? ' picked' : '');
     d.draggable = true;
+    d._shot = s;
     d.dataset.i = i;
-    d.innerHTML = `<img src="${s.url}" alt=""><span class="x" title="삭제">×</span>`;
+    d.tabIndex = 0;
+    d.setAttribute('role', 'listitem');
+    if (i === state.current) d.setAttribute('aria-current', 'true');
+    d.setAttribute('aria-label', `${i + 1}번 ${s.name}${i === state.current ? ' · 현재 사진' : ''}`);
+    const im = document.createElement('img');
+    im.src = s.url; im.alt = '';
+    const pickBox = document.createElement('input');
+    pickBox.type = 'checkbox'; pickBox.className = 'pick'; pickBox.checked = state.batch.has(s);
+    pickBox.setAttribute('aria-label', `${s.name} 배치 선택`);
+    const pickTarget = document.createElement('label');
+    pickTarget.className = 'pickTarget'; pickTarget.appendChild(pickBox);
+    pickTarget.onclick = e => e.stopPropagation();
+    const mark = document.createElement('span');
+    mark.className = 'stateMark';
+    mark.textContent = shotHasOwn(s) ? '●' : shotHasExif(s) ? 'E' : '';
+    mark.title = shotHasOwn(s) ? '장별 설정 있음' : shotHasExif(s) ? 'EXIF 장별 정보 있음' : '';
+    mark.hidden = !mark.textContent;
+    const del = document.createElement('button');
+    del.type = 'button'; del.className = 'x'; del.title = '삭제'; del.textContent = '×';
+    del.setAttribute('aria-label', `${s.name} 삭제`);
+    d.append(im, pickTarget, mark, del);
     const iw = s.img.naturalWidth || s.img.width, ih = s.img.naturalHeight || s.img.height;
-    if (iw && ih) d.style.width = Math.round(Math.min(88, Math.max(36, 52 * iw / ih))) + 'px';
+    if (iw && ih) d.style.width = Math.round(Math.min(144, Math.max(102, 74 * iw / ih))) + 'px';
 
     d.onclick = e => {
-      if (e.target.classList.contains('x')){
+      if (e.target === del){
+        const wasCurrent = state.shots[state.current];
         URL.revokeObjectURL(s.url);
         s.img.close?.();
+        state.batch.delete(s);
         state.shots.splice(i,1);
-        if (state.current >= state.shots.length) state.current = state.shots.length - 1;
+        state.current = state.shots.indexOf(wasCurrent);
+        if (state.current < 0) state.current = Math.min(i, state.shots.length - 1);
         drawStrip(); syncFields(); refresh(); return;
       }
+      if (e.target === pickBox) return;
+      state.current = i; drawStrip(); syncFields(); refresh(true);
+    };
+    pickBox.onclick = e => e.stopPropagation();
+    pickBox.onchange = () => {
+      if (pickBox.checked) state.batch.add(s); else state.batch.delete(s);
+      state.current = i;
+      state.infoScope = 'shot';
+      drawStrip(); syncFields(); refresh(true);
+    };
+    d.onkeydown = e => {
+      if (e.target === pickBox || e.target === del) return;
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
       state.current = i; drawStrip(); syncFields(); refresh(true);
     };
 
@@ -2316,11 +2538,16 @@ function drawStrip(){
       const [moved] = state.shots.splice(from, 1);
       state.shots.splice(to, 0, moved);
       state.current = state.shots.indexOf(wasCurrent);
-      drawStrip(); refresh(true);
+      drawStrip(); syncFields(); refresh(true);
     });
 
     el.appendChild(d);
   });
+  if (focused && state.shots.length){
+    const i = Math.max(0, state.shots.indexOf(focusedShot));
+    const chip = el.children[i];
+    (focusControl ? chip.querySelector(focusControl) : chip).focus({ preventScroll:true });
+  }
 }
 
 /* ============================================================
@@ -2372,10 +2599,10 @@ async function readExif(file){
     const ifd0 = readIFD(tiff + u32(tiff + 4));
     const exif = ifd0[0x8769] ? readIFD(tiff + ifd0[0x8769]) : {};
     const make = ifd0[0x010F] || '', model = ifd0[0x0110] || '';
-    if (!model) return null;
     const brand = (make.split(' ')[0] || '').toLowerCase();
-    const camera = !brand || model.toLowerCase().includes(brand)
-      ? model : make.split(' ')[0] + ' ' + model;
+    const camera = model
+      ? (!brand || model.toLowerCase().includes(brand) ? model : `${make.split(' ')[0]} ${model}`)
+      : '';
     const m = (exif[0x9003] || '').match(/^(\d{4}):(\d{2}):(\d{2})/);      // DateTimeOriginal
     // 촬영 설정값: 조리개 / 셔터 / ISO / 초점거리
     const parts = [];
@@ -2386,8 +2613,9 @@ async function readExif(file){
     }
     if (exif[0x8827]) parts.push('ISO ' + exif[0x8827]);                               // ISO
     if (exif[0x920A]) parts.push(Math.round(exif[0x920A]) + 'mm');                     // FocalLength
-    return { camera, lens: exif[0xA434] || '', date: m ? `${m[1]}.${m[2]}.${m[3]}` : '',
-             set: parts.join(' · ') };
+    const out = { camera, lens: exif[0xA434] || '', date: m ? `${m[1]}.${m[2]}.${m[3]}` : '',
+      set: parts.join(' · ') };
+    return Object.values(out).some(Boolean) ? out : null;
   } catch { return null; }
 }
 
@@ -2415,14 +2643,18 @@ async function addFiles(files){
       const shot = { img, url: URL.createObjectURL(f), name: f.name,
         file: { name:f.name, size:f.size, lastModified:f.lastModified, type:f.type } };
       const x = await readExif(f);
-      // 렌즈 정보까지 있어야 실제 카메라 EXIF로 신뢰 — 필름 스캐너가 남긴
-      // 기기명(Noritsu 등)을 걸러낸다. EXIF는 전역 입력을 건드리지 않고
-      // 이 사진에만 붙는다 (필름/디지털 혼합 작업 시 서로 오염 방지)
-      if (x && x.lens){ shot.exif = { body: x.camera, lens: x.lens, date: x.date, set: x.set }; exifCount++; }
+      // ponytail: 렌즈 또는 노출값을 실제 촬영 신호로 본다. 노출값까지 쓰는
+      // 스캐너 사례가 확인되면 장비명 가드를 추가한다.
+      if (x && (x.lens || x.set)){
+        shot.exif = Object.fromEntries([
+          ['body', x.camera], ['lens', x.lens], ['date', x.date], ['set', x.set],
+        ].filter(([, value]) => value));
+        exifCount++;
+      }
       const saved = matchProjectPhoto(f);
       if (saved){
         if (saved.exif) shot.exif = { ...saved.exif };
-        if (saved.own) shot.own = { ...saved.own };
+        if (saved.own) shot.own = { ...saved.own, show:saved.own.show ? { ...saved.own.show } : undefined };
         shot._projectOrder = saved.order;
         projectCount++;
       }
@@ -2449,6 +2681,10 @@ async function addFiles(files){
 
 const drop = $('drop');
 drop.onclick = () => $('picker').click();
+drop.onkeydown = e => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  e.preventDefault(); $('picker').click();
+};
 $('picker').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
 ['dragenter','dragover'].forEach(t => vp.addEventListener(t, e => {
   if (e.dataTransfer?.types.includes('Files')) { e.preventDefault(); drop.classList.add('hot'); }
@@ -2473,9 +2709,8 @@ function setStyle(style){
    (시작 프레임은 롤마다 달라 저장하지 않는다) */
 function saveSettings(){
   store.write('frame.settings', {
-    body: gInfo.body, lens: gInfo.lens, film: $('film').value,
-    date: gInfo.date, set: gInfo.set, caption: $('caption').value,
-    show: opts().show,
+    ...gInfo,
+    show: { ...gShow },
     advByStyle: Object.fromEntries(STYLE_KEYS.map(style => [style, {
       port:{ ...adv[style].port }, land:{ ...adv[style].land },
     }])),
@@ -2493,16 +2728,9 @@ function loadSettings(){
   if (!s){
     return;   // 첫 실행 — 입력은 비운 채로 시작한다
   }
-  gInfo.body = s.body ?? ''; gInfo.lens = s.lens ?? ''; $('film').value = s.film ?? '';
-  gInfo.date = s.date ?? ''; gInfo.set = s.set ?? '';
-  $('caption').value = s.caption ?? '';
+  INFO_KEYS.forEach(k => { gInfo[k] = s[k] ?? ''; });
   if (s.show){
-    $('showBody').checked = !!s.show.body;
-    $('showLens').checked = !!s.show.lens;
-    $('showFilm').checked = !!s.show.film;
-    $('showDate').checked = s.show.date ?? true;
-    $('showSet').checked = s.show.set ?? true;
-    $('showCaption').checked = s.show.caption ?? true;
+    INFO_KEYS.forEach(k => { gShow[k] = s.show[k] ?? true; });
   }
   // 스타일·방향별 프로파일 복원. 구버전 방향 프로파일은 당시 선택한 스타일에만 이전한다.
   const flat = {};
@@ -2551,18 +2779,37 @@ $('styleSeg').onclick = e => {
   refresh();   // 스타일이 바뀌면 캔버스 비율이 바뀌므로 화면 맞춤으로 리셋
 };
 $('tone').onchange = e => { state.tone = e.target.value; saveSettings(); refresh(true); };
-/* 카메라/렌즈/날짜/설정: EXIF 사진이 선택돼 있으면 그 사진에만(own), 아니면 전역에 기록 */
-['body','lens','date','set'].forEach(id => {
-  $(id).addEventListener('input', () => {
-    const s = state.shots[state.current];
-    if (s && s.exif){ (s.own ||= {})[id] = $(id).value.trim(); }
-    else { gInfo[id] = $(id).value; saveSettings(); }
+INFO_KEYS.forEach(key => {
+  $(key).addEventListener('input', () => {
+    const value = $(key).value;
+    const targets = photoTargets();
+    if (state.infoScope === 'shot' && targets.length){
+      targets.forEach(s => { (s.own ||= {})[key] = value; });
+      drawStrip();
+    } else {
+      gInfo[key] = value;
+      saveSettings();
+    }
+    syncScopeUi();
+    syncInfoBadges();
     refresh(true);
   });
 });
-['film','caption','sigText'].forEach(id => {
-  $(id).addEventListener('input', () => { saveSettings(); refresh(true); });
-});
+$('sigText').addEventListener('input', () => { saveSettings(); refresh(true); });
+
+$('infoScope').onclick = e => {
+  const b = e.target.closest('button[data-scope]');
+  if (!b || b.disabled) return;
+  state.infoScope = b.dataset.scope;
+  syncFields();
+};
+
+$('batchAll').onclick = () => {
+  if (state.batch.size === state.shots.length) state.batch.clear();
+  else state.shots.forEach(s => state.batch.add(s));
+  if (state.batch.size) state.infoScope = 'shot';
+  drawStrip(); syncFields(); refresh(true);
+};
 
 /* 고급 설정(스타일·방향 종속) 컨트롤 — 현재 스타일과 선택된 탭의 프로파일에 기록 */
 function syncAdv(){
@@ -2617,6 +2864,21 @@ $('advTab').onclick = e => {
    ============================================================ */
 let layouts = store.read('frame.layouts', []);
 
+// 적용과 삭제는 형제 버튼으로 나눠 둘 다 키보드와 터치로 실행할 수 있게 한다.
+function paletteItem(content, name, apply, remove, selected = null){
+  const wrap = document.createElement('span'); wrap.className = 'gearwrap';
+  const button = document.createElement('button'); button.type = 'button';
+  button.className = 'gear' + (selected ? ' on' : ''); button.title = name;
+  if (selected !== null) button.setAttribute('aria-pressed', String(selected));
+  button.appendChild(content); button.onclick = apply;
+  const del = document.createElement('button'); del.type = 'button';
+  del.className = 'gearDelete'; del.textContent = '×';
+  del.setAttribute('aria-label', `${name} 삭제`);
+  del.onclick = () => { if (confirm(`“${name}”을 목록에서 삭제할까요?`)) remove(); };
+  wrap.append(button, del);
+  return wrap;
+}
+
 $('layoutReset').onclick = () => {
   if (sameProfile(profileFor(), DEF_ADV)){
     toast('이미 초기 배치입니다');
@@ -2632,15 +2894,8 @@ function drawLayouts(){
   const el = $('layoutRow'); el.innerHTML = '';
   layouts.forEach((l, i) => {
     if (l.style && l.style !== state.style) return;
-    const b = document.createElement('button');
-    b.className = 'gear'; b.title = l.name;
     const em = document.createElement('em'); em.textContent = l.name;
-    const x = document.createElement('i'); x.title = '삭제'; x.textContent = '×';
-    b.append(em, x);
-    b.onclick = e => {
-      if (e.target === x){
-        layouts.splice(i, 1); store.write('frame.layouts', layouts); drawLayouts(); return;
-      }
+    el.appendChild(paletteItem(em, l.name, () => {
       const before = layoutSnapshot();
       const next = { style:state.style,
         port:{ ...DEF_ADV, ...l.port }, land:{ ...DEF_ADV, ...l.land } };
@@ -2649,8 +2904,9 @@ function drawLayouts(){
       adv[state.style].land = next.land;
       syncAdv(); saveSettings(); refresh();
       toast(`${STYLE_LABELS[state.style]} 레이아웃 적용됨`);
-    };
-    el.appendChild(b);
+    }, () => {
+      layouts.splice(i, 1); store.write('frame.layouts', layouts); drawLayouts();
+    }));
   });
   const add = document.createElement('button');
   add.className = 'gearadd'; add.textContent = '＋ 현재 배치 저장';
@@ -2668,22 +2924,55 @@ function drawLayouts(){
   el.appendChild(add);
 }
 
-/* EXIF 배지 클릭 = 해당 필드를 EXIF 원본으로 되돌리기 */
+/* EXIF 배지 클릭 = 선택 사진의 해당 필드를 EXIF 원본으로 되돌리기 */
 document.querySelectorAll('.exifbadge').forEach(b => b.onclick = () => {
-  const s = state.shots[state.current];
-  if (s && s.own) delete s.own[b.dataset.k];
-  syncFields(); refresh(true);
-  toast('EXIF 원본으로 되돌렸습니다');
+  let count = 0;
+  photoTargets().forEach(s => {
+    if (!s.exif?.[b.dataset.k]) return;
+    if (s.own) delete s.own[b.dataset.k];
+    compactOwn(s); count++;
+  });
+  drawStrip(); syncFields(); refresh(true);
+  if (count) toast(`${count}장의 EXIF 원본으로 되돌렸습니다`);
+});
+
+/* 전역 배지 클릭 = EXIF가 있어도 선택 사진에서 전역값과 표시 여부 사용 */
+document.querySelectorAll('.basebadge').forEach(b => b.onclick = () => {
+  const key = b.dataset.k;
+  const targets = photoTargets();
+  targets.forEach(s => {
+    if (s.exif?.[key]) (s.own ||= {})[key] = null;
+    else if (s.own) delete s.own[key];
+    if (s.own?.show) delete s.own.show[key];
+    compactOwn(s);
+  });
+  drawStrip(); syncFields(); refresh(true);
+  toast(`${targets.length}장이 전역 ${LABEL[key === 'caption' ? 'cap' : key] || '값'}을 사용합니다`);
 });
 
 /* 고급 설정 팝오버 — 톱니바퀴 토글, 버튼 위치 기준으로 열림, 바깥 클릭으로 닫힘 */
+function closeSettings(restoreFocus = true){
+  $('advPanel').hidden = true;
+  $('gearBtn').setAttribute('aria-expanded', 'false');
+  if (restoreFocus) $('gearBtn').focus();
+}
+$('closeSettings').onclick = () => closeSettings();
 $('gearBtn').onclick = () => {
   const p = $('advPanel');
-  p.hidden = !p.hidden;
-  if (!p.hidden){
-    const r = $('gearBtn').getBoundingClientRect();
-    p.style.top = Math.round(r.bottom + 8) + 'px';
-    p.style.right = Math.max(10, Math.round(window.innerWidth - r.right - 4)) + 'px';
+  if (!p.hidden) return closeSettings();
+  p.hidden = false;
+  $('gearBtn').setAttribute('aria-expanded', 'true');
+  const r = $('gearBtn').getBoundingClientRect();
+  p.style.top = Math.round(r.bottom + 8) + 'px';
+  p.style.right = Math.max(10, Math.round(window.innerWidth - r.right - 4)) + 'px';
+  $('uiWidth').focus();
+};
+$('advPanel').onkeydown = e => {
+  if (e.key === 'Escape'){ e.preventDefault(); closeSettings(); }
+  if (e.key === 'Tab'){
+    const first = $('uiWidth'), last = $('closeSettings');
+    if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
   }
 };
 
@@ -2708,19 +2997,34 @@ function applyUi(){
   const w = Math.min(600, Math.max(300, Number($('uiWidth').value) || 350));
   const s = Math.min(130, Math.max(90, Number($('uiScale').value) || 100));
   document.documentElement.style.setProperty('--railw', w + 'px');
-  document.querySelector('.rail').style.zoom = s / 100;
+  const rail = document.querySelector('.rail');
+  rail.style.zoom = s / 100;
+  // 글자 배율은 유지하되 버튼의 실제 클릭 영역은 48px보다 작아지지 않는다.
+  rail.style.setProperty('--touch', Math.max(48, 4800 / s) + 'px');
 }
 ['uiWidth','uiScale'].forEach(id => $(id).addEventListener('input', () => {
   applyUi();
   store.write('frame.ui', { ...store.read('frame.ui', {}), width: $('uiWidth').value, scale: $('uiScale').value });
 }));
 document.addEventListener('click', e => {
-  if (!$('advPanel').hidden && !e.target.closest('#advPanel') && !e.target.closest('#gearBtn'))
-    $('advPanel').hidden = true;
+  if (!$('advPanel').hidden && !e.target.closest('#advPanel') && !e.target.closest('#gearBtn')){
+    closeSettings(false);
+  }
 });
-const EYE_INPUT = { showBody:'body', showLens:'lens', showFilm:'film', showDate:'date', showSet:'set', showCaption:'caption' };
-Object.keys(EYE_INPUT).forEach(id => {
-  $(id).addEventListener('change', () => { saveSettings(); refresh(true); });
+const EYE_INPUT = Object.fromEntries(Object.entries(INFO_SHOW_ID).map(([key, id]) => [id, key]));
+Object.entries(EYE_INPUT).forEach(([id, key]) => {
+  $(id).addEventListener('change', () => {
+    const targets = photoTargets();
+    if (state.infoScope === 'shot' && targets.length){
+      targets.forEach(s => { ((s.own ||= {}).show ||= {})[key] = $(id).checked; });
+      drawStrip();
+    } else {
+      gShow[key] = $(id).checked;
+      saveSettings();
+    }
+    $(id).indeterminate = false;
+    syncInfoBadges(); updateEyes(); refresh(true);
+  });
 });
 
 /* 눈 아이콘 — 항목별 표시/숨김을 입력 필드 옆에서 바로 토글 */
@@ -2730,9 +3034,11 @@ const EYE_SVG = on => on
 
 function updateEyes(){
   document.querySelectorAll('.eye[data-for]').forEach(b => {
-    const on = $(b.dataset.for).checked;
+    const cb = $(b.dataset.for), on = cb.checked;
     b.innerHTML = EYE_SVG(on);
     b.classList.toggle('off', !on);
+    b.setAttribute('aria-label', `${LABEL[EYE_INPUT[b.dataset.for] === 'caption' ? 'cap' : EYE_INPUT[b.dataset.for]]} 표시`);
+    b.setAttribute('aria-pressed', cb.indeterminate ? 'mixed' : String(on));
     $(EYE_INPUT[b.dataset.for]).classList.toggle('dim', !on);
   });
 }
@@ -2766,7 +3072,10 @@ $('fmt').addEventListener('change', saveSettings);
    프리셋
    ============================================================ */
 function fillDatalists(){
-  const put = (id, arr) => $(id).innerHTML = arr.map(v => `<option value="${v}">`).join('');
+  const put = (id, arr) => {
+    const list = $(id); list.replaceChildren();
+    arr.forEach(v => { const o = document.createElement('option'); o.value = v; list.appendChild(o); });
+  };
   put('bodies', gear.body);
   put('lenses', gear.lens);
   put('films',  gear.film);
@@ -2789,30 +3098,22 @@ function drawGear(){
     col.appendChild(label);
 
     gear[g.key].forEach((v, i) => {
-      const b = document.createElement('button');
-      b.className = 'gear';
-      b.title = v;
       const em = document.createElement('em');
       em.textContent = v;
-      const x = document.createElement('i');
-      x.title = '삭제'; x.textContent = '×';
-      b.append(em, x);
-      b.onclick = e => {
-        if (e.target === x){
-          gear[g.key].splice(i, 1);
-          store.write('frame.gear', gear);
-          drawGear(); fillDatalists(); return;
-        }
+      col.appendChild(paletteItem(em, v, () => {
         $(g.input).value = v;
         $(g.input).dispatchEvent(new Event('input'));  // 자동 저장 + 미리보기 갱신
         toast(`${g.label} 적용됨`);
-      };
-      col.appendChild(b);
+      }, () => {
+        gear[g.key].splice(i, 1); store.write('frame.gear', gear);
+        drawGear(); fillDatalists();
+      }));
     });
 
     const add = document.createElement('button');
     add.className = 'gearadd';
     add.textContent = '＋';
+    add.setAttribute('aria-label', `${g.label} 프리셋 저장`);
     add.title = '현재 입력값을 목록에 저장';
     add.onclick = () => {
       const v = $(g.input).value.trim();
@@ -2826,6 +3127,94 @@ function drawGear(){
     el.appendChild(col);
   }
 }
+
+/* 장비·레이아웃 프리셋 이동 — 현재 작업과 사진은 포함하지 않고 안전하게 병합한다 */
+const PRESET_KIND = 'photoframe-presets';
+const PRESET_VERSION = 1;
+const MAX_PRESET_BYTES = 1024 * 1024;
+
+function cleanPresetGear(v){
+  if (!v || typeof v !== 'object') throw new Error('gear');
+  const out = {};
+  for (const key of GEAR_COLS.map(g => g.key)){
+    if (!Array.isArray(v[key]) || v[key].length > 500) throw new Error('gear');
+    const values = v[key].map(x => {
+      if (typeof x !== 'string') throw new Error('gear');
+      const value = x.trim();
+      if (!value || value.length > 200) throw new Error('gear');
+      return value;
+    });
+    out[key] = [...new Set(values)];
+  }
+  return out;
+}
+
+function cleanPresetProfile(v){
+  if (!v || typeof v !== 'object') throw new Error('profile');
+  const out = {};
+  for (const key of PROFILE_KEYS){
+    if (!hasOwn(v, key)) continue;
+    const value = String(v[key]);
+    if (key === 'lines'){
+      if (!['1','2'].includes(value)) throw new Error('profile');
+    } else if (key === 'sideText'){
+      if (!['stack','rotate'].includes(value)) throw new Error('profile');
+    } else if (value.length > 32 || !Number.isFinite(Number(value))) throw new Error('profile');
+    out[key] = value;
+  }
+  return out;
+}
+
+function cleanPresetLayouts(v){
+  if (!Array.isArray(v) || v.length > 200) throw new Error('layouts');
+  return v.map(l => {
+    if (!l || typeof l.name !== 'string' || !STYLE_KEYS.includes(l.style) ||
+        !l.port || !l.land) throw new Error('layout');
+    const name = l.name.trim();
+    if (!name || name.length > 100) throw new Error('layout');
+    return { name, style:l.style, port:cleanPresetProfile(l.port), land:cleanPresetProfile(l.land) };
+  });
+}
+
+$('presetExport').onclick = async () => {
+  try {
+    const data = { kind:PRESET_KIND, version:PRESET_VERSION, exportedAt:new Date().toISOString(),
+      gear:cleanPresetGear(gear),
+      layouts:cleanPresetLayouts(layouts.map(l => ({ ...l, style:l.style || state.style }))) };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+    await save(blob, `PhotoFrame-presets-${new Date().toISOString().slice(0, 10)}.photoframe-presets.json`);
+    toast(`장비 ${Object.values(data.gear).flat().length}개 · 레이아웃 ${data.layouts.length}개 내보냄`);
+  } catch { toast('프리셋을 내보내지 못했습니다'); }
+};
+
+$('presetImport').onclick = () => $('presetPicker').click();
+$('presetPicker').onchange = async e => {
+  const file = e.target.files[0]; e.target.value = '';
+  if (!file) return;
+  try {
+    if (file.size > MAX_PRESET_BYTES) throw new Error('size');
+    const data = JSON.parse(await file.text());
+    if (data.kind !== PRESET_KIND || data.version !== PRESET_VERSION) throw new Error('format');
+    const importedGear = cleanPresetGear(data.gear);
+    const importedLayouts = cleanPresetLayouts(data.layouts);
+    const nextGear = Object.fromEntries(GEAR_COLS.map(g =>
+      [g.key, [...new Set([...(gear[g.key] || []), ...importedGear[g.key]])]]));
+    const nextLayouts = layouts.map(l => ({ ...l, port:{ ...l.port }, land:{ ...l.land } }));
+    let addedLayouts = 0;
+    for (const imported of importedLayouts){
+      const same = nextLayouts.find(l => (l.style || imported.style) === imported.style && l.name === imported.name);
+      if (same && sameStyleLayout(same, imported)) continue;
+      let name = imported.name, n = 2;
+      while (nextLayouts.some(l => (l.style || imported.style) === imported.style && l.name === name))
+        name = `${imported.name} (${n++})`;
+      nextLayouts.push({ ...imported, name }); addedLayouts++;
+    }
+    gear = nextGear; layouts = nextLayouts;
+    store.write('frame.gear', gear); store.write('frame.layouts', layouts);
+    drawGear(); fillDatalists(); drawLayouts();
+    toast(`프리셋 가져옴 · 레이아웃 ${addedLayouts}개 추가`);
+  } catch { toast('올바른 PhotoFrame 프리셋 파일이 아닙니다'); }
+};
 
 /* ============================================================
    로고 · 서명 — 사용자가 넣은 이미지(dataURL)를 팔레트로 저장해 재사용
@@ -2858,25 +3247,13 @@ function drawLogos(){
   el.appendChild(none);
 
   logos.forEach((l, i) => {
-    const b = document.createElement('button');
-    b.className = 'gear' + (logoState.name === l.name ? ' on' : '');
-    b.title = l.name;
     const im = document.createElement('img');
     im.src = l.data; im.alt = l.name;
-    const x = document.createElement('i');
-    x.title = '삭제'; x.textContent = '×';
-    b.append(im, x);
-    b.onclick = e => {
-      if (e.target === x){
-        logos.splice(i, 1);
-        store.write('frame.logos', logos);
-        if (logoState.name === l.name) setLogo('');
-        else drawLogos();
-        return;
-      }
-      setLogo(l.name);
-    };
-    el.appendChild(b);
+    el.appendChild(paletteItem(im, l.name, () => setLogo(l.name), () => {
+      logos.splice(i, 1); store.write('frame.logos', logos);
+      if (logoState.name === l.name) setLogo('');
+      else drawLogos();
+    }, logoState.name === l.name));
   });
 
   const add = document.createElement('button');
@@ -2912,14 +3289,26 @@ $('logoPicker').onchange = async e => {
    프로젝트를 연 뒤 사용자가 원본을 다시 고르면 파일명·크기·수정 시각으로 연결한다.
    ============================================================ */
 const PROJECT_KIND = 'photoframe-project';
-const PROJECT_VERSION = 1;
+const PROJECT_VERSION = 2;
+const PROJECT_VERSIONS = new Set([1, PROJECT_VERSION]);
 const MAX_PROJECT_BYTES = 64 * 1024 * 1024;
-const INFO_KEYS = ['body','lens','date','set'];
 
-function cleanInfo(v){
+function cleanExif(v){
   if (!v || typeof v !== 'object') return null;
   const out = {};
-  for (const k of INFO_KEYS) if (typeof v[k] === 'string') out[k] = v[k];
+  for (const k of EXIF_KEYS) if (typeof v[k] === 'string' && v[k]) out[k] = v[k];
+  return Object.keys(out).length ? out : null;
+}
+
+function cleanOwn(v){
+  if (!v || typeof v !== 'object') return null;
+  const out = {};
+  for (const k of INFO_KEYS) if (typeof v[k] === 'string' || v[k] === null) out[k] = v[k];
+  if (v.show && typeof v.show === 'object'){
+    const show = {};
+    for (const k of INFO_KEYS) if (typeof v.show[k] === 'boolean') show[k] = v.show[k];
+    if (Object.keys(show).length) out.show = show;
+  }
   return Object.keys(out).length ? out : null;
 }
 
@@ -2933,7 +3322,7 @@ function cleanProjectSettings(v){
   }
   if (v.show && typeof v.show === 'object'){
     out.show = {};
-    for (const k of ['body','lens','film','date','set','caption']) out.show[k] = v.show[k] !== false;
+    for (const k of INFO_KEYS) out.show[k] = v.show[k] !== false;
   }
   const profile = p => {
     const r = {};
@@ -3007,6 +3396,8 @@ function clearShots(){
   for (const s of state.shots){ URL.revokeObjectURL(s.url); s.img.close?.(); }
   state.shots = [];
   state.current = -1;
+  state.batch.clear();
+  state.infoScope = 'global';
   state._pv = null;
   drawStrip(); syncFields(); refresh();
 }
@@ -3058,8 +3449,8 @@ $('projectSave').onclick = async () => {
     current: state.current,
     photos: state.shots.map(s => ({
       file: { ...(s.file || { name:s.name }) },
-      exif: cleanInfo(s.exif),
-      own: cleanInfo(s.own),
+      exif: cleanExif(s.exif),
+      own: cleanOwn(s.own),
     })),
   };
   const title = $('title').value.trim().replace(/[\\/:*?"<>|]/g, '');
@@ -3084,7 +3475,7 @@ $('projectPicker').onchange = async e => {
   try {
     if (file.size > MAX_PROJECT_BYTES) throw new Error('size');
     const data = JSON.parse(await file.text());
-    if (data.kind !== PROJECT_KIND || data.version !== PROJECT_VERSION || !Array.isArray(data.photos))
+    if (data.kind !== PROJECT_KIND || !PROJECT_VERSIONS.has(data.version) || !Array.isArray(data.photos))
       throw new Error('format');
     const settings = cleanProjectSettings(data.settings);
     const projectFonts = cleanProjectFonts(data.fonts);
@@ -3094,7 +3485,7 @@ $('projectPicker').onchange = async e => {
         order,
         file: { name:p.file.name, size:Number(p.file.size) || 0,
                 lastModified:Number(p.file.lastModified) || 0, type:String(p.file.type || '') },
-        exif: cleanInfo(p.exif), own: cleanInfo(p.own), matched:false,
+        exif: cleanExif(p.exif), own: cleanOwn(p.own), matched:false,
       };
     });
     if (state.shots.length && !confirm('현재 불러온 사진을 비우고 프로젝트를 여시겠습니까?')) return;
@@ -3116,6 +3507,7 @@ $('projectPicker').onchange = async e => {
     resetAdv();
     store.write('frame.settings', settings);
     loadSettings();
+    syncFields();
     pendingProject = { photos, current:Math.min(Math.max(0, Number(data.current) || 0), Math.max(0, photos.length - 1)) };
     syncAdv(); updateEyes(); updateExportNote(); applyLogoImage(); drawLogos();
     $('projectNote').textContent = `프로젝트 설정·파일 글꼴 ${restoredFonts}개 복원됨${failedFonts ? ` (${failedFonts}개 실패)` : ''} · 원본 사진 ${photos.length}장을 선택하세요`;
@@ -3141,43 +3533,102 @@ $('pickDir').onclick = async () => {
   } catch { /* 사용자가 취소 */ }
 };
 
-function toBlob(cv){
-  if ($('fmt').value === 'jpeg'){
-    const q = Math.min(100, Math.max(50, Number($('quality').value) || 92)) / 100;
-    return new Promise(r => cv.toBlob(r, 'image/jpeg', q));
-  }
-  return new Promise(r => cv.toBlob(r, 'image/png'));
+function toBlob(cv, fmt = $('fmt').value, quality = $('quality').value){
+  const type = fmt === 'jpeg' ? 'image/jpeg' : 'image/png';
+  const q = Math.min(100, Math.max(50, Number(quality) || 92)) / 100;
+  return new Promise((resolve, reject) => cv.toBlob(
+    blob => blob ? resolve(blob) : reject(new Error('encode')),
+    type, fmt === 'jpeg' ? q : undefined,
+  ));
 }
 
 $('fmt').onchange = () => {
   $('qualityField').style.visibility = $('fmt').value === 'jpeg' ? 'visible' : 'hidden';
 };
 
+async function availableName(name){
+  if (!state.dirHandle) return name;
+  const dot = name.lastIndexOf('.');
+  const base = dot > 0 ? name.slice(0, dot) : name;
+  const ext = dot > 0 ? name.slice(dot) : '';
+  for (let n = 1; ; n++){
+    const candidate = n === 1 ? name : `${base} (${n})${ext}`;
+    try { await state.dirHandle.getFileHandle(candidate); }
+    catch (err) {
+      if (err?.name === 'NotFoundError') return candidate;
+      if (err?.name !== 'TypeMismatchError') throw err;
+    }
+  }
+}
+
 async function save(blob, name){
   if (state.dirHandle){
-    const fh = await state.dirHandle.getFileHandle(name, { create:true });
-    const w = await fh.createWritable();
-    await w.write(blob); await w.close();
-    return;
+    const actual = await availableName(name);
+    const fh = await state.dirHandle.getFileHandle(actual, { create:true });
+    let w;
+    try {
+      w = await fh.createWritable();
+      await w.write(blob); await w.close();
+    } catch (err) {
+      try { await w?.abort(); } catch { /* 원래 저장 오류를 유지 */ }
+      throw err;
+    }
+    return actual;
   }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = name;
   a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  return name;
 }
 
 async function exportShots(list){
-  const long = Number($('size').value);
-  const o = opts();
-  let shrunk = 0;
-  for (const shot of list){
-    const info = {};
-    const cv = downscale(padToRatio(render(shot.img, withShot(withProfile(o, shot), shot), info), o), long);
-    if (info.shrunk) shrunk++;
-    // 순번은 스트립 순서 기준 — 한 장만 내보내도 전체 순서와 번호가 일치한다
-    await save(await toBlob(cv), filename(shot, state.shots.indexOf(shot) + 1));
-    if (!state.dirHandle) await new Promise(r => setTimeout(r, 350)); // 다운로드 연타 방지
+  if (state.exportBusy || !list.length) return;
+  const config = { long:Number($('size').value), opts:opts(), fmt:$('fmt').value,
+    quality:$('quality').value, title:$('title').value };
+  const jobs = list.map(shot => ({
+    shot,
+    options:withShot(withProfile(config.opts, shot), shot),
+    name:filename(shot, state.shots.indexOf(shot) + 1, config.fmt, config.title),
+  }));
+  const progress = $('exportProgress'), status = $('exportStatus');
+  let saved = 0, shrunk = 0, renamed = 0, permissionLost = false;
+  const failed = [];
+  state.exportBusy = true;
+  syncActionButtons();
+  progress.hidden = false; progress.max = jobs.length; progress.value = 0;
+  try {
+    for (let i = 0; i < jobs.length; i++){
+      const job = jobs[i];
+      status.textContent = `${i + 1}/${jobs.length} · ${job.name}`;
+      await new Promise(requestAnimationFrame);
+      try {
+        const info = {};
+        const cv = downscale(padToRatio(render(job.shot.img, job.options, info), config.opts), config.long);
+        const actual = await save(await toBlob(cv, config.fmt, config.quality), job.name);
+        if (actual !== job.name) renamed++;
+        if (info.shrunk) shrunk++;
+        saved++;
+      } catch (err) {
+        failed.push(job.shot.name);
+        if (['NotAllowedError','SecurityError','InvalidStateError'].includes(err?.name)){
+          permissionLost = true;
+          failed.push(...jobs.slice(i + 1).map(x => x.shot.name));
+          progress.value = jobs.length;
+          break;
+        }
+      }
+      progress.value = i + 1;
+      if (!state.dirHandle) await new Promise(r => setTimeout(r, 350)); // 다운로드 연타 방지
+    }
+    const details = [shrunk ? `${shrunk}장 자동 축소` : '', renamed ? `${renamed}개 이름 변경` : ''].filter(Boolean);
+    status.textContent = permissionLost
+      ? `${saved}장 저장 · 폴더 권한이 끊겼습니다. 저장 폴더를 다시 선택하세요.`
+      : `${saved}장 저장${failed.length ? ` · ${failed.length}장 실패: ${failed.slice(0, 3).join(', ')}${failed.length > 3 ? '…' : ''}` : ''}${details.length ? ` · ${details.join(' · ')}` : ''}`;
+    toast(failed.length ? `${saved}장 저장 · ${failed.length}장 실패` : `${saved}장 저장됨`);
+  } finally {
+    state.exportBusy = false;
+    syncActionButtons();
   }
-  toast(shrunk ? `${list.length}장 저장됨 (${shrunk}장은 브라우저 한계로 축소)` : `${list.length}장 저장됨`);
 }
 
 $('exportOne').onclick = () => exportShots([state.shots[state.current]]);
@@ -3192,9 +3643,39 @@ function toast(msg){
   clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), 1800);
 }
 
+const A11Y_LABELS = {
+  tone:'여백 색', body:'카메라', lens:'렌즈', film:'필름·기타', date:'날짜', set:'촬영 설정',
+  caption:'메모', sigText:'텍스트 서명', lines:'레이아웃 줄 수', fontScale:'글자 크기 비율',
+  bandScale:'하단 공간 비율', borderScale:'인스탁스 테두리 여백 비율', fontEn:'영문 글꼴',
+  fontKo:'한글 글꼴', sideText:'가로 인스탁스 글씨 방향', logoScale:'로고 크기 비율',
+  ratio:'내보내기 비율', ratioBg:'비율 여백 색', size:'내보내기 긴 변 크기', fmt:'내보내기 형식',
+  quality:'JPEG 품질', title:'파일 제목', uiWidth:'설정 패널 폭', uiScale:'UI 배율',
+};
+function applyA11y(){
+  Object.entries(A11Y_LABELS).forEach(([id, label]) => $(id).setAttribute('aria-label', label));
+}
+
+function selfCheck(){
+  const base = { ...gInfo, show:{ ...gShow } };
+  const merged = withShot(base, { exif:{ body:'EXIF' }, own:{ body:null, lens:'장별', show:{ film:false } } });
+  console.assert(merged.body === gInfo.body && merged.lens === '장별' && merged.show.film === false,
+    'PhotoFrame 장별 병합 검사 실패');
+  const cleaned = cleanOwn({ body:'', film:null, show:{ lens:false } });
+  console.assert(cleaned.body === '' && cleaned.film === null && cleaned.show.lens === false,
+    'PhotoFrame 프로젝트 장별 상태 검사 실패');
+  console.assert(filename({ name:'photo.raw' }, 2, 'jpeg', '강릉여행') === '강릉여행(2).jpg',
+    'PhotoFrame 내보내기 순번 검사 실패');
+  console.assert([...document.querySelectorAll('input:not([hidden]),select,textarea')]
+    .every(el => el.labels?.length || el.getAttribute('aria-label')), 'PhotoFrame 폼 레이블 검사 실패');
+  const item = paletteItem(document.createTextNode('검사'), '검사', () => {}, () => {});
+  console.assert(item.children.length === 2 && !item.querySelector('button button') &&
+    item.lastElementChild.getAttribute('aria-label') === '검사 삭제', 'PhotoFrame 팔레트 버튼 검사 실패');
+}
+
 /* ============================================================
    초기화
    ============================================================ */
+applyA11y();
 loadSettings();
 const savedUi = store.read('frame.ui', null);
 if (savedUi){
@@ -3216,6 +3697,7 @@ drawLayouts();
 applyLogoImage();
 drawLogos();
 refresh();
+selfCheck();
 </script>
 </body>
 </html>

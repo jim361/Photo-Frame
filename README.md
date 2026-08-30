@@ -5,7 +5,13 @@
 
 **▶ 바로 쓰기: https://jim361.github.io/Photo-Frame/**
 
-<!-- TODO: 데모 GIF — 사진 드롭 → 스타일 선택 → 전체 내보내기 흐름 -->
+![필름 스트립, 인스탁스, 하단 여백 결과 예시](docs/assets/readme-results.svg)
+
+## English summary
+
+PhotoFrame is a free, privacy-first browser tool for adding film, Instax, or clean borders with camera metadata to JPG and PNG photos. Everything runs locally — no uploads, account, analytics, external fonts, install, or build. It supports multi-photo ordering and export, global defaults with per-photo overrides, reusable layouts, local fonts, and portable project files that do not contain the original photos.
+
+**[Open PhotoFrame](https://jim361.github.io/Photo-Frame/)** · The interface is currently available in Korean.
 
 ## 왜 만들었나
 
@@ -28,8 +34,10 @@ Nikon F5로 필름 풍경 사진을 찍고 롤 단위로 인스타그램에 올�
 
 **촬영 정보 — 필름과 디지털 양쪽 대응**
 - 카메라 / 렌즈 / 필름·기타 / 날짜 / 설정값(조리개·셔터·ISO·초점거리) / 여러 줄 메모
-- 디지털 JPEG은 EXIF에서 카메라·렌즈·촬영일·설정값 **장별 자동 입력** (필름 스캐너 기기명 오입력 가드 포함). 필름·디지털을 섞어 작업해도 서로 오염되지 않고, EXIF 배지 클릭으로 원본 복원
+- `전체 기본값`을 기준으로 현재 장 또는 체크한 여러 장만 값·표시 여부를 다르게 적용. EXIF·전역 버튼으로 항목별 복원
+- 디지털 JPEG은 EXIF에서 카메라·렌즈·촬영일·설정값 **장별 자동 입력**. 읽힌 필드만 사용해 필름·디지털·폰 사진을 섞어도 서로 오염되지 않음
 - 항목별 **눈 아이콘**으로 표시/숨김, 자주 쓰는 장비는 프리셋 팔레트에 저장
+- 장비·레이아웃 프리셋은 전용 JSON으로 내보내 다른 기기에서 기존 목록과 병합 가능
 - 로고·서명: 이미지(투명 PNG) 또는 텍스트 서명(`@아이디`)을 프레임에 각인
 
 **레이아웃 — 프레임 스타일·세로/가로 사진별 프로파일**
@@ -42,6 +50,7 @@ Nikon F5로 필름 풍경 사진을 찍고 롤 단위로 인스타그램에 올�
 - 비율 맞춤: 인스타 자동(허용 범위 4:5~1.91:1 벗어날 때만 패딩) / 4:5 / 1:1 / 1.91:1 / 9:16 스토리
 - PNG/JPEG(품질), 긴 변 2048px, 폴더 지정 일괄 저장(Chromium)
 - 파일 제목 입력 시 스트립 순서대로 `제목(1).jpg, 제목(2).jpg…` 명명
+- 폴더에 같은 이름이 있으면 ` (2)`, ` (3)`을 붙여 기존 파일을 보존하고 진행률·실패 결과를 표시
 
 **프로젝트 — 롤 작업 이어하기**
 - 사진 순서·설정·장별 EXIF 수정값을 `.photoframe.json`으로 저장
@@ -52,7 +61,7 @@ Nikon F5로 필름 풍경 사진을 찍고 롤 단위로 인스타그램에 올�
 
 1. **열기** — 배포 페이지를 열거나, `index.html`을 내려받아 브라우저로 엽니다. 설치·빌드 불필요.
 2. **사진 놓기** — JPG/PNG를 드래그하거나 클릭해서 여러 장 선택. 사진 전체가 보이는 하단 필름 스트립에서 드래그로 순서 조정.
-3. **스타일 선택 + 정보 입력** — 디지털이면 EXIF가 자동으로 채워지고, 필름이면 직접 입력하거나 프리셋 클릭.
+3. **스타일 선택 + 정보 입력** — 전체 기본값을 먼저 적고, 필요한 사진은 현재 장 또는 스트립 체크박스로 골라 개별 수정. 디지털이면 EXIF가 자동으로 채워집니다.
 4. **다듬기** — "표시 · 레이아웃 설정"에서 현재 프레임의 세로/가로 탭을 조절하거나, 미리보기의 경계 박스·핸들을 직접 드래그.
 5. **프로젝트 저장 또는 내보내기** — 나중에 이어 할 작업은 프로젝트로 저장하고, 완성본은 저장 폴더 지정(Chrome/Edge) 후 전체 내보내기.
 
