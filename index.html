@@ -26,6 +26,19 @@
     --mono: ui-monospace, "SF Mono", Menlo, "Cascadia Mono", "Roboto Mono", monospace;
     --sans: system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   }
+  /* 화면의 무채색만 반전한다. 강조색과 Canvas 합성 색상은 그대로 둔다. */
+  :root[data-theme="dark"]{
+    color-scheme:dark;
+    --canvas:#171717;--surface:#000000;--ink:#ffffff;
+    --muted-ink:#adada8;--line:#484844;--neutral-soft:#262622;
+  }
+  :root[data-theme="dark"] .dropzone:is(:hover,.hot){
+    background:var(--neutral-soft);
+  }
+  /* 기존의 밝은 코발트 hover·선택 배경에서는 어두운 글자를 유지한다. */
+  :root[data-theme="dark"] :is(.gear:hover,.gear.on,.basebadge:hover,#layoutReset:hover){
+    color:var(--primary-pressed);
+  }
   *{box-sizing:border-box;margin:0;padding:0}
   [hidden]{display:none!important}
   html,body{height:100%}
@@ -79,7 +92,7 @@
   .dropzone{
     position:absolute;inset:0;margin:auto;
     width:min(680px, calc(100% - 64px));height:fit-content;
-    padding:48px;text-align:left;background:var(--surface);
+    padding:48px;text-align:left;background:var(--surface);color:var(--ink);
     border:1px solid var(--ink);border-left:8px solid var(--primary);border-radius:0;
     transition:border-color .18s, background .18s;
     cursor:pointer;
@@ -169,11 +182,11 @@
   .chip .x{
     position:absolute;bottom:0;right:0;width:48px;height:48px;
     display:grid;place-items:center;
-    padding:0;border:0;background:rgba(255,255,255,.92);cursor:pointer;
+    padding:0;border:0;background:var(--surface);cursor:pointer;
     font-size:16px;line-height:1;color:var(--error);opacity:1;
     transition:opacity .12s;
   }
-  .chip .x:hover{background:#fff;color:#8e1710}
+  .chip .x:hover{background:var(--neutral-soft);color:var(--error)}
   .chip .pickTarget{
     position:absolute;left:0;bottom:0;width:48px;height:48px;
     display:grid;place-items:center;background:var(--surface);cursor:pointer;
@@ -721,6 +734,10 @@
   <div class="row">
     <div class="field"><span>설정 패널 폭 px</span><input type="number" id="uiWidth" min="300" max="600" step="10" value="350"></div>
     <div class="field"><span>UI 배율 %</span><input type="number" id="uiScale" min="90" max="130" step="5" value="100"></div>
+  </div>
+  <div class="field">
+    <span>화면 테마</span>
+    <select id="uiTheme"><option value="light">화이트</option><option value="dark">블랙</option></select>
   </div>
   <p class="note" style="margin-top:2px">화면 표시만 바꾸는 설정입니다 — 결과물에는 영향이 없습니다.</p>
   <button type="button" class="btn" id="closeSettings" style="margin-top:16px">닫기</button>
@@ -2992,19 +3009,21 @@ PANELS.forEach(id => $(id).addEventListener('toggle', () => {
   store.write('frame.panels', Object.fromEntries(PANELS.map(p => [p, $(p).open])));
 }));
 
-/* 개인 설정 — 화면 표시(패널 폭·UI 배율)만 바꾼다. frame.ui에 별도 저장 */
+/* 개인 설정 — 화면 표시(패널 폭·UI 배율·테마)만 바꾼다. frame.ui에 별도 저장 */
 function applyUi(){
   const w = Math.min(600, Math.max(300, Number($('uiWidth').value) || 350));
   const s = Math.min(130, Math.max(90, Number($('uiScale').value) || 100));
   document.documentElement.style.setProperty('--railw', w + 'px');
+  document.documentElement.dataset.theme = $('uiTheme').value === 'dark' ? 'dark' : 'light';
   const rail = document.querySelector('.rail');
   rail.style.zoom = s / 100;
   // 글자 배율은 유지하되 버튼의 실제 클릭 영역은 48px보다 작아지지 않는다.
   rail.style.setProperty('--touch', Math.max(48, 4800 / s) + 'px');
 }
-['uiWidth','uiScale'].forEach(id => $(id).addEventListener('input', () => {
+['uiWidth','uiScale','uiTheme'].forEach(id => $(id).addEventListener('input', () => {
   applyUi();
-  store.write('frame.ui', { ...store.read('frame.ui', {}), width: $('uiWidth').value, scale: $('uiScale').value });
+  store.write('frame.ui', { ...store.read('frame.ui', {}), width: $('uiWidth').value,
+    scale: $('uiScale').value, theme: $('uiTheme').value });
 }));
 document.addEventListener('click', e => {
   if (!$('advPanel').hidden && !e.target.closest('#advPanel') && !e.target.closest('#gearBtn')){
@@ -3649,13 +3668,15 @@ const A11Y_LABELS = {
   bandScale:'하단 공간 비율', borderScale:'인스탁스 테두리 여백 비율', fontEn:'영문 글꼴',
   fontKo:'한글 글꼴', sideText:'가로 인스탁스 글씨 방향', logoScale:'로고 크기 비율',
   ratio:'내보내기 비율', ratioBg:'비율 여백 색', size:'내보내기 긴 변 크기', fmt:'내보내기 형식',
-  quality:'JPEG 품질', title:'파일 제목', uiWidth:'설정 패널 폭', uiScale:'UI 배율',
+  quality:'JPEG 품질', title:'파일 제목', uiWidth:'설정 패널 폭', uiScale:'UI 배율', uiTheme:'화면 테마',
 };
 function applyA11y(){
   Object.entries(A11Y_LABELS).forEach(([id, label]) => $(id).setAttribute('aria-label', label));
 }
 
 function selfCheck(){
+  console.assert(document.documentElement.dataset.theme === $('uiTheme').value &&
+    ['light', 'dark'].includes($('uiTheme').value), 'PhotoFrame 화면 테마 검사 실패');
   const base = { ...gInfo, show:{ ...gShow } };
   const merged = withShot(base, { exif:{ body:'EXIF' }, own:{ body:null, lens:'장별', show:{ film:false } } });
   console.assert(merged.body === gInfo.body && merged.lens === '장별' && merged.show.film === false,
@@ -3681,6 +3702,7 @@ const savedUi = store.read('frame.ui', null);
 if (savedUi){
   if (savedUi.width) $('uiWidth').value = savedUi.width;
   if (savedUi.scale) $('uiScale').value = savedUi.scale;
+  $('uiTheme').value = savedUi.theme === 'dark' ? 'dark' : 'light';
   if (savedUi.boxes != null){
     state.showBoxes = savedUi.boxes;
     $('zBox').setAttribute('aria-pressed', state.showBoxes);

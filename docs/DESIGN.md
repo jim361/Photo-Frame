@@ -4,7 +4,7 @@
 
 PhotoFrame의 UI는 **Structural Modernism**을 따른다. 따뜻한 미색 canvas 위에 흰색 작업 surface를 놓고, 카드나 그림자 대신 그리드·정렬·노출된 구분선으로 구조를 보여준다. 부르탈리즘의 큰 면과 굵은 선은 빈 상태, 선택 상태, 주요 동작처럼 화면에서 가장 중요한 한 곳에만 쓴다.
 
-- 기본 화면은 밝은 테마다. 별도 대비 검증 전에는 다크 테마를 만들지 않는다.
+- 기본 화면은 화이트 테마다. 개인 설정의 화면 테마에서 블랙으로 바꿀 수 있으며, 무채색 배경·본문·구분선만 바꾸고 코발트 및 상태 색은 유지한다.
 - cobalt는 주요 동작, focus, 선택, 진행 상태에만 쓴다. 장식용 강조색으로 반복하지 않는다.
 - 큰 panel은 직각, 버튼은 거의 직각, 입력은 작은 반경만 사용한다.
 - gradient, glass, 장식용 blur·shadow·illustration은 사용하지 않는다.
@@ -31,6 +31,10 @@ PhotoFrame의 UI는 **Structural Modernism**을 따른다. 따뜻한 미색 canv
 | `--error` | `#b42318` | 오류와 삭제 동작 |
 
 기존 코드에서 사용하는 `--base`, `--panel`, `--panel-hi`, `--rebate`, `--bone`, `--edge`는 각각 위 토큰의 alias다. 새 CSS에는 의미 기반 토큰을 우선 사용한다.
+
+블랙 테마는 `html[data-theme="dark"]`에서 `--canvas #171717`, `--surface #000000`, `--ink #ffffff`, `--muted-ink #adada8`, `--line #484844`, `--neutral-soft #262622`만 교체한다. 기본 버튼·레이아웃 CSS를 공유하며, 기존의 밝은 코발트 hover·선택 면에서는 어두운 글자를 유지한다. 빈 화면 안내의 hover는 어두운 `neutral-soft`를 사용한다. 브라우저 기본 입력·스크롤바에는 `color-scheme: dark`를 적용한다.
+
+테마는 `frame.ui.theme`에 패널 폭·배율·경계 표시 설정과 병합 저장한다. 설정이 없거나 올바르지 않으면 화이트를 사용한다. 프로젝트 파일·사진·로고·Canvas 결과에는 테마를 적용하지 않으며 CSS `filter: invert()`도 사용하지 않는다.
 
 ### 간격, 선, 모서리
 
