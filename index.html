@@ -162,6 +162,8 @@
   }
   .zoombar button.pct{cursor:pointer}
   .zoombar button.pct:hover{color:var(--primary-pressed)}
+  .moveButtons{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-2)}
+  .moveButtons button{min-width:0;min-height:var(--touch);padding:4px}
 
   /* ----- filmstrip of loaded frames ----- */
   .stripArea{border-top:3px solid var(--ink);background:var(--surface);flex:0 0 auto}
@@ -254,7 +256,11 @@
   .seg button:last-child{border-right:0}
   .seg button:hover{background:var(--primary-soft);color:var(--primary-pressed)}
   .seg button[aria-pressed="true"]{background:var(--primary-pressed);color:#fff;font-weight:700}
-  #styleSeg button{display:grid;grid-template-columns:30px minmax(0,1fr);align-items:center;text-align:left;gap:5px}
+  #styleSeg button{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 4px}
+  #styleSeg canvas{width:100%;height:62px;object-fit:contain}
+  .colorTools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .colorTools input[type=color]{width:56px;height:48px;padding:3px;border:1px solid var(--line);background:var(--surface)}
+  .colorTools input[type=text]{flex:1;min-width:100px}
   .frameMini{position:relative;width:28px;height:22px;border:2px solid currentColor;display:block}
   .frameMini::before{content:"";position:absolute;background:currentColor;opacity:.75}
   .frameMini.film::before{left:3px;right:3px;top:-2px;height:3px;box-shadow:0 19px 0 currentColor}
@@ -444,9 +450,11 @@
   }
   @media (max-width:719px){
     .table{height:auto;min-height:max(680px,100dvh)}
-    .masthead{padding:0 var(--space-3);gap:var(--space-2)}
-    .wordmark{font-size:20px}
-    .subtitle{font-size:10px}
+    .masthead{padding:8px var(--space-3);gap:var(--space-2);flex-wrap:wrap;min-width:0}
+    .wordmark{font-size:20px;flex:1}
+    .subtitle{display:none}
+    .masthead #addPhotos{order:3;flex:1 0 calc(100% - 80px);margin-left:0}
+    .masthead #toSettings{order:4}
     .headbtn{padding:6px 9px;font-size:11px}
     .gearbtn{margin-left:0}
     .viewport{min-height:max(528px,calc(100dvh - 212px))}
@@ -473,6 +481,17 @@
     .infoScope{grid-template-columns:1fr}
     .fonttools{flex-direction:column}
     .advpanel{width:calc(100vw - 32px)}
+  }
+  @media (max-width:1099px){
+    /* 사진이 있을 때만 미리보기를 고정한다. 안내·스트립·설정은 페이지에서 스크롤한다. */
+    .shell{grid-template-columns:minmax(0,1fr)}
+    body.has-photo .table{display:contents}
+    body.has-photo .viewport{
+      position:sticky;top:0;z-index:9;height:clamp(240px,48dvh,520px);min-height:0;
+      background:var(--canvas);border-bottom:3px solid var(--ink);
+    }
+    body.has-photo .rail{scroll-margin-top:clamp(240px,48dvh,520px)}
+    body.has-photo .railJump{position:static}
   }
 </style>
 </head>
@@ -544,13 +563,25 @@
         <button data-style="instax" aria-pressed="false"><i class="frameMini instax" aria-hidden="true"></i><span>인스탁스</span></button>
         <button data-style="bottom" aria-pressed="false"><i class="frameMini bottom" aria-hidden="true"></i><span>하단 여백</span></button>
         <button data-style="top" aria-pressed="false"><i class="frameMini top" aria-hidden="true"></i><span>상단 여백</span></button>
+        <button data-style="matte" aria-pressed="false"><span>균등 매트</span></button>
+        <button data-style="gallery" aria-pressed="false"><span>갤러리</span></button>
+        <button data-style="keyline" aria-pressed="false"><span>키라인</span></button>
+        <button data-style="minimal" aria-pressed="false"><span>미니멀 EXIF</span></button>
       </div>
       <div class="field" id="toneField" style="margin-top:9px;display:none">
         <span>여백 색</span>
-        <select id="tone">
+        <select id="tone" hidden>
           <option value="light">밝게 (아이보리)</option>
           <option value="dark">어둡게 (필름 베이스)</option>
         </select>
+        <div class="colorTools" id="frameSwatches">
+          <button type="button" class="gearadd" data-color="#ffffff">흰색</button>
+          <button type="button" class="gearadd" data-color="#000000">검정</button>
+          <button type="button" class="gearadd" data-color="#f6f3ec">아이보리</button>
+          <input type="color" id="frameColor" value="#ffffff" aria-label="프레임 색 고르기">
+          <input type="text" id="frameHex" value="#FFFFFF" maxlength="7" spellcheck="false" aria-label="프레임 HEX 색" placeholder="#FFFFFF">
+        </div>
+        <p class="note">현재 스타일의 여백 색 · 글자는 배경에 맞춰 밝게 또는 어둡게 표시합니다.</p>
       </div>
     </div>
 
@@ -567,6 +598,10 @@
         <button type="button" class="gearadd" id="batchAll" disabled>전체 선택</button>
       </div>
       <p class="note" id="scopeNote" role="status" aria-live="polite">전체 사진의 기본 촬영 정보를 편집합니다.</p>
+      <div id="exifReview" hidden>
+        <p class="note" id="exifReviewNote" role="status"></p>
+        <button type="button" class="gearadd" id="adoptExif">감지한 EXIF 채택</button>
+      </div>
       <div class="row">
         <div class="field">
           <span><b class="lbl">카메라 <button type="button" class="exifbadge" data-k="body" title="선택 사진의 EXIF 원본으로 되돌리기" hidden>EXIF</button><button type="button" class="basebadge" data-k="body" title="선택 사진에서 전역값 사용" hidden>전역</button></b><button type="button" class="eye" data-for="showBody" title="결과물에 표시/숨김"></button></span>
@@ -600,6 +635,26 @@
         <input type="checkbox" id="showSet" checked hidden>
       </div>
       <div class="field">
+        <span>설정 항목 표시 · 전체 사진 공통</span>
+        <div class="seg" id="metadataVisibility" aria-label="촬영 설정 개별 표시">
+          <button type="button" data-meta="aperture" aria-pressed="true">조리개</button>
+          <button type="button" data-meta="shutter" aria-pressed="true">셔터</button>
+          <button type="button" data-meta="iso" aria-pressed="true">ISO</button>
+          <button type="button" data-meta="focal" aria-pressed="true">초점거리</button>
+        </div>
+        <p class="note">EXIF와 ·로 구분한 표준 설정값에 적용합니다. 원래 입력은 유지됩니다.</p>
+      </div>
+      <label class="field" style="display:block">
+        <span>날짜 형식 · 전체 사진 공통</span>
+        <select id="dateFormat" aria-label="날짜 표시 형식">
+          <option value="original">입력 그대로</option>
+          <option value="dots">2026.07.19</option>
+          <option value="hyphen">2026-07-19</option>
+          <option value="korean">2026년 7월 19일</option>
+          <option value="month">2026.07</option>
+        </select>
+      </label>
+      <div class="field">
         <span><b class="lbl">메모 — 짧은 글 <button type="button" class="basebadge" data-k="caption" title="선택 사진에서 전역값 사용" hidden>전역</button></b><button type="button" class="eye" data-for="showCaption" title="결과물에 표시/숨김"></button></span>
         <textarea id="caption" rows="1" placeholder="사진 아래에 들어갈 짧은 글. 줄바꿈 가능 (최대 4줄 표시)"></textarea>
         <input type="checkbox" id="showCaption" checked hidden>
@@ -625,6 +680,13 @@
           </div>
         </div>
       </details>
+      <details class="disp" id="appearancePanel">
+        <summary>디자인 프리셋 · 선택 사항</summary>
+        <div class="inner">
+          <div class="gearcol" id="appearanceRow"></div>
+          <p class="note">배치·글꼴·서명·로고 선택·색·표시·출력 설정을 재사용합니다. 사진별 값과 촬영 정보, 파일 제목, 장비 팔레트는 포함하지 않습니다. 로컬 글꼴과 로고 파일은 이 브라우저에 있어야 합니다.</p>
+        </div>
+      </details>
       <details class="disp" id="dispPanel">
         <summary>표시 · 레이아웃 설정</summary>
         <div class="inner">
@@ -633,6 +695,21 @@
             <button type="button" data-t="land" aria-pressed="false">가로 사진</button>
           </div>
           <p class="note" id="layoutScope" style="margin:0 0 10px"></p>
+          <div class="row">
+            <label class="field"><span>정밀 이동 요소</span><select id="moveElement" aria-describedby="moveNote">
+              <option value="body">카메라</option><option value="lens">렌즈</option><option value="film">필름 · 기타</option>
+              <option value="set">설정</option><option value="date">날짜</option><option value="cap">메모</option><option value="logo">로고 · 서명</option>
+            </select></label>
+            <label class="field"><span>한 번 이동 거리</span><select id="moveStep"><option value="0.001">사진 폭의 0.1%</option><option value="0.005">사진 폭의 0.5%</option><option value="0.01">사진 폭의 1%</option></select></label>
+          </div>
+          <div class="moveButtons" id="moveButtons">
+            <button type="button" class="btn" data-dx="-1" data-dy="0" aria-label="요소 왼쪽으로 이동">←</button>
+            <button type="button" class="btn" data-dx="0" data-dy="-1" aria-label="요소 위로 이동">↑</button>
+            <button type="button" class="btn" data-dx="0" data-dy="1" aria-label="요소 아래로 이동">↓</button>
+            <button type="button" class="btn" data-dx="1" data-dy="0" aria-label="요소 오른쪽으로 이동">→</button>
+          </div>
+          <button type="button" class="btn" id="moveReset" style="margin-top:8px">선택 요소 위치 초기화</button>
+          <p class="note" id="moveNote">현재 미리보기 사진의 배치를 조절합니다. 이동은 배치 되돌리기로 취소할 수 있습니다.</p>
           <div class="field" id="linesField">
             <span>정보 줄 배치</span>
             <select id="lines">
@@ -741,10 +818,13 @@
         <div class="field">
           <span>비율 여백 색</span>
           <select id="ratioBg">
+            <option value="frame">프레임 색 따름</option>
             <option value="#ffffff">흰색</option>
             <option value="#f6f3ec">아이보리</option>
             <option value="#0d0c0a">검정</option>
+            <option value="custom">직접 선택</option>
           </select>
+          <input type="color" id="ratioCustom" value="#ffffff" aria-label="직접 지정한 비율 여백 색" hidden>
         </div>
         <div class="field">
           <span>긴 변 크기</span>
@@ -777,6 +857,16 @@
         <button class="btn" id="pickDir">저장 폴더</button>
         <button class="btn solid" id="exportAll" disabled>전체 내보내기</button>
         <button class="btn" id="exportOne" disabled>현재 장만</button>
+      </div>
+      <div class="row3" style="margin-top:8px">
+        <button class="btn" id="exportSelected" disabled>선택 0장 내보내기</button>
+        <button class="btn" id="exportRetry" disabled>실패 사진 재시도</button>
+        <button class="btn" id="exportCancel" hidden>다음 사진부터 취소</button>
+      </div>
+      <div id="exportReview" hidden>
+        <p class="note" id="exportSummary" role="status"></p>
+        <details><summary>대상별 예상 크기·넘침 확인</summary><ul class="note" id="exportItems"></ul></details>
+        <button class="btn solid" id="exportStart" style="margin-top:8px">내보내기 시작</button>
       </div>
       <progress id="exportProgress" max="1" value="0" hidden></progress>
       <p class="note" id="exportStatus" role="status" aria-live="polite" aria-atomic="true"></p>
@@ -943,6 +1033,25 @@ const C = {
   bandDarkText:'#cfc9bd',
 };
 
+const MATTE_STYLES = ['matte','gallery','keyline'];
+function hexColor(value, fallback = '#ffffff'){
+  const text = String(value || '').trim();
+  if (/^#[\da-f]{6}$/i.test(text)) return text.toLowerCase();
+  if (/^#[\da-f]{3}$/i.test(text)) return '#' + [...text.slice(1)].map(c => c+c).join('').toLowerCase();
+  return fallback;
+}
+function frameColor(o){
+  if (o.style === 'film') return C.base;
+  if (o.style === 'instax') return C.paper;
+  return hexColor(o.frameColor, o.tone === 'dark' ? C.bandDark : '#f2efe8');
+}
+function readableText(background){
+  const rgb = hexColor(background).slice(1).match(/../g).map(x => parseInt(x,16)/255)
+    .map(v => v <= 0.04045 ? v/12.92 : ((v+0.055)/1.055)**2.4);
+  const lum = rgb[0]*0.2126 + rgb[1]*0.7152 + rgb[2]*0.0722;
+  return (lum+0.05)/0.05 >= 1.05/(lum+0.05) ? '#000000' : '#ffffff';
+}
+
 /* ============================================================
    저장소 (iframe에서 localStorage가 막혀도 죽지 않게)
    ============================================================ */
@@ -968,10 +1077,15 @@ const state = {
   infoScope: 'global',
   style: 'film',
   tone: 'light',
+  frameColors: {},
+  legacyBandTones: {},
   dirHandle: null,
   showBoxes: true,    // 경계 표시 — 기본 켜짐, 줌바 토글로 끌 수 있고 frame.ui에 기억
   fontBusy: 0,
   exportBusy: false,
+  exportCancel: false,
+  exportPlan: null,
+  exportRetry: null,
   projectDirty: false,
   projectMessage: '',
   projectTone: '',
@@ -1018,8 +1132,9 @@ function updateProjectStatus(){
   let text = state.projectMessage, tone = state.projectTone;
   if (pendingProject){
     const matched = pendingProject.photos.filter(p => p.matched).length;
-    text = `원본 연결 필요 · ${matched}/${pendingProject.photos.length}장${pendingProject.changed ? ' · 파일 정보가 다른 원본 연결됨 (다시 저장 필요)' : ''}`;
-    tone = pendingProject.changed ? 'dirty' : 'pending';
+    const dirty = state.projectDirty || pendingProject.changed;
+    text = `원본 연결 필요 · ${matched}/${pendingProject.photos.length}장${dirty ? ' · 저장 필요' : ''}`;
+    tone = dirty ? 'dirty' : 'pending';
   } else if (state.projectDirty){
     text = state.projectMessage || '저장 필요 · 프로젝트에 반영되지 않은 변경이 있습니다.';
     tone = 'dirty';
@@ -1031,6 +1146,8 @@ function updateProjectStatus(){
   el.className = `projectState${tone ? ` ${tone}` : ''}`;
 }
 function markProjectDirty(message = ''){
+  state.projectRevision = (state.projectRevision || 0) + 1;
+  if (!state.exportBusy){ state.exportPlan = null; $('exportReview').hidden = true; }
   if (!state.shots.length && !pendingProject && !deletedPhoto) return;
   state.projectDirty = true;
   state.projectMessage = message || '저장 필요 · 프로젝트에 반영되지 않은 변경이 있습니다.';
@@ -1038,6 +1155,7 @@ function markProjectDirty(message = ''){
   updateProjectStatus();
 }
 function markProjectClean(message){
+  if (pendingProject) pendingProject.changed = false;
   state.projectDirty = false;
   state.projectMessage = message;
   state.projectTone = 'saved';
@@ -1054,7 +1172,14 @@ function syncActionButtons(){
   const has = state.current >= 0;
   $('exportAll').disabled = busy || !state.shots.length;
   $('exportOne').disabled = busy || !has;
-  $('projectSave').disabled = busy || !state.shots.length;
+  $('exportSelected').disabled = busy || !state.batch.size;
+  $('exportSelected').textContent = `선택 ${state.batch.size}장 내보내기`;
+  const retryCount = state.exportRetry?.jobs.filter(job => state.shots.includes(job.shot)).length || 0;
+  $('exportRetry').disabled = busy || !retryCount;
+  $('exportRetry').textContent = retryCount ? `실패 ${retryCount}장 재시도` : '실패 사진 재시도';
+  $('exportStart').disabled = busy || !state.exportPlan;
+  $('exportCancel').hidden = !state.exportBusy;
+  $('projectSave').disabled = busy || (!state.shots.length && !pendingProject?.photos.length);
   $('projectOpen').disabled = busy;
   $('pickDir').disabled = busy || typeof window.showDirectoryPicker !== 'function';
   $('presetExport').disabled = busy;
@@ -1294,7 +1419,7 @@ function infoRows(o){
   // 표시 토글을 거친 촬영 정보 항목 — 한 줄이면 전부 한 행, 두 줄이면 장비/기술로 나눈다
   // (날짜·메모·로고는 독립 요소라 여기 포함 안 됨)
   const eq   = ['body','lens'].filter(k => o.show[k] && o[k]);
-  const tech = ['film','set'].filter(k => o.show[k] && o[k]);
+  const tech = ['film','set'].filter(k => o.show[k] && (k === 'set' ? exposureText(o) : o[k]));
   if (o.lines === 2 && eq.length && tech.length) return [eq, tech];
   const all = [...eq, ...tech];
   return all.length ? [all] : [];
@@ -1319,8 +1444,48 @@ function rowLayout(ctx, items, gap, maxW, anchorX, align){
 }
 
 function dateText(o){
-  return (o.show.date && o.date) ? o.date : '';
+  if (!o.show.date || !o.date) return '';
+  if (!o.dateFormat || o.dateFormat === 'original') return o.date;
+  const m = o.date.trim().match(/^(\d{4})[.\/-](\d{1,2})[.\/-](\d{1,2})$/);
+  if (!m) return o.date;
+  const [, year, month, day] = m;
+  const days = new Date(Date.UTC(Number(year), Number(month), 0)).getUTCDate();
+  if (+month < 1 || +month > 12 || +day < 1 || +day > days) return o.date;
+  const mm = month.padStart(2, '0'), dd = day.padStart(2, '0');
+  if (o.dateFormat === 'dots') return `${year}.${mm}.${dd}`;
+  if (o.dateFormat === 'hyphen') return `${year}-${mm}-${dd}`;
+  if (o.dateFormat === 'korean') return `${year}년 ${+month}월 ${+day}일`;
+  if (o.dateFormat === 'month') return `${year}.${mm}`;
+  return o.date;
 }
+
+const META_KEYS = ['aperture','shutter','iso','focal'];
+const DATE_FORMATS = ['original','dots','hyphen','korean','month'];
+const metadataShow = Object.fromEntries(META_KEYS.map(k => [k, true]));
+function metadataOptions(){
+  return { metadataShow:{ ...metadataShow }, dateFormat:$('dateFormat').value };
+}
+function loadMetadataSettings(s){
+  for (const key of META_KEYS) metadataShow[key] = s.metadataShow?.[key] !== false;
+  $('dateFormat').value = DATE_FORMATS.includes(s.dateFormat) ? s.dateFormat : 'original';
+  syncMetadataVisibility();
+}
+function syncMetadataVisibility(){
+  for (const button of $('metadataVisibility').children)
+    button.setAttribute('aria-pressed', String(metadataShow[button.dataset.meta]));
+}
+function exposureText(o){
+  const value = o.set || '';
+  if (!o.metadataShow || META_KEYS.every(k => o.metadataShow[k] !== false)) return value;
+  // 수동 문장은 해석하지 않는다. EXIF와 같은 형태의 완전한 · 구분 항목만 숨긴다.
+  const patterns = { aperture:/^f\/?\s*\d+(?:\.\d+)?$/i,
+    shutter:/^(?:1\/)?\d+(?:\.\d+)?\s*s$/i,
+    iso:/^ISO\s*\d+$/i, focal:/^\d+(?:\.\d+)?\s*mm$/i };
+  const parts = value.split('·');
+  const kept = parts.filter(part => !META_KEYS.some(k => o.metadataShow[k] === false && patterns[k].test(part.trim())));
+  return kept.length === parts.length ? value : kept.map(part => part.trim()).join(' · ');
+}
+function displayMetadata(o){ return { ...o, set:exposureText(o) }; }
 
 /* 입력 필드는 전역/장별 상태를 보여주는 뷰일 뿐이다. DOM을 전역 저장소로 쓰면
    장별 값을 표시하는 순간 전역값이 오염되므로 값과 표시 여부를 따로 보관한다. */
@@ -1414,6 +1579,25 @@ function syncInfoBadges(){
       (hasOwn(s.own, key) && s.own[key] !== null) || !!s.exif?.[key] || hasOwn(s.own?.show, key));
     b.setAttribute('aria-pressed', String(!!scoped && targets.every(s => hasOwn(s.own, key) && s.own[key] === null)));
   });
+  syncExifReview();
+}
+
+function syncExifReview(){
+  const targets = photoTargets().filter(s => s.detectedExif && s.exifReview);
+  $('exifReview').hidden = !targets.length;
+  if (!targets.length) return;
+  const scanner = targets.some(s => s.exifReview === 'scanner');
+  const details = targets.slice(0, 2).map(s => `${s.name}: ${EXIF_KEYS.map(k => s.detectedExif[k]).filter(Boolean).join(' · ')}`).join(' / ');
+  $('exifReviewNote').textContent = `${targets.length}장의 ${scanner ? '스캐너로 추정되는 정보' : '카메라·날짜만 있는 부분 EXIF'}를 감지했습니다. 자동 적용하지 않았습니다. ${details}${targets.length > 2 ? ' …' : ''} · 채택해도 수동 입력은 유지됩니다.`;
+  $('adoptExif').textContent = `감지한 EXIF ${targets.length}장 채택`;
+}
+
+function adoptDetectedExif(shot){
+  if (!shot.detectedExif || !shot.exifReview) return false;
+  shot.exif = { ...shot.exif, ...shot.detectedExif };
+  delete shot.detectedExif;
+  delete shot.exifReview;
+  return true;
 }
 
 function syncFields(){
@@ -1513,6 +1697,12 @@ function frameDims(W, H, o){
       return { w: W + H * (0.055*bs + 0.27 * o.bandScale), h: H * (1 + 0.11*bs) };
     return { w: W * (1 + 0.11*bs), h: H + W * 0.055*bs + W * 0.27 * o.bandScale };
   }
+  if (MATTE_STYLES.includes(o.style)){
+    const margin = W * (o.style === 'matte' ? 0.08 : 0.06) * o.borderScale;
+    const bottom = o.style === 'gallery' ? W*0.16*o.bandScale : margin;
+    return { w:W+2*margin, h:H+margin+bottom };
+  }
+  if (o.style === 'minimal') return { w:W, h:H+W*0.048*o.bandScale };
   return { w: W, h: H + W * (two ? 0.112 : 0.078) * o.bandScale };
 }
 
@@ -1550,7 +1740,8 @@ function padToRatio(cv, o){
   const out = document.createElement('canvas');
   out.width = Math.round(w); out.height = Math.round(h);
   const g = out.getContext('2d');
-  g.fillStyle = o.ratioBg; g.fillRect(0, 0, out.width, out.height);
+  g.fillStyle = o.ratioBg === 'frame' ? frameColor(o) : hexColor(o.ratioBg);
+  g.fillRect(0, 0, out.width, out.height);
   g.drawImage(cv, Math.round((out.width - cv.width) / 2), Math.round((out.height - cv.height) / 2));
   return out;
 }
@@ -1561,6 +1752,7 @@ function safeScale(W, H, o){
 }
 
 function render(img, o, info){
+  o = displayMetadata(o);
   const cv = document.createElement('canvas');
   const ctx = cv.getContext('2d');
   installLanguageText(ctx);
@@ -1934,43 +2126,60 @@ function render(img, o, info){
     drawLogo(ctx, o, side + p2 + OFF.logo.x, cx + OFF.logo.x, side + W - p2 + OFF.logo.x, H + top + bot - bot*0.14 + OFF.logo.y, bot*0.14, 'left', '#5f584d', bot*0.24, maxW);
   }
 
-  else { // bottom / top
+  else { // 여백 띠·매트 변형은 동일한 정보 배치 경로를 공유한다
     const rows = infoRows(o);
     const caps = captionLines(o);
-    const fcap = W*0.0234*o.fontScale*0.95, capLH = fcap*1.8;
-    const band = W * (rows.length > 1 ? 0.112 : 0.078) * o.bandScale;
-    cv.width = W; cv.height = H + band;
+    const matte = MATTE_STYLES.includes(o.style), gallery = o.style === 'gallery';
+    const side = matte ? W*(o.style === 'matte' ? 0.08 : 0.06)*o.borderScale : 0;
+    const bandUnit = gallery ? W*0.16 : o.style === 'minimal' ? W*0.048
+      : W*(rows.length > 1 ? 0.112 : 0.078);
+    const band = matte && !gallery ? side : bandUnit*o.bandScale;
+    const photoY = o.style === 'top' ? band : side;
+    const bandTop = o.style === 'top' ? 0 : H + side;
+    const fs = W * (o.style === 'minimal' ? 0.016 : gallery ? 0.026 : 0.0234) * o.fontScale;
+    const fcap = fs*0.95, capLH = fcap*1.8;
+    cv.width = W+2*side; cv.height = H + side + band;
     if (collect){   // 텍스트 영역(띠)
-      info.area = { x: 0, y: o.style === 'top' ? 0 : H, w: W, h: band };
+      info.area = { x: side, y: bandTop, w: W, h: band };
       info.areaSide = o.style === 'top' ? 'top' : 'bottom';
-      info.units = { bandScale: W * (rows.length > 1 ? 0.112 : 0.078) };
+      info.units = matte && !gallery ? {} : { bandScale:bandUnit };
+      if (matte){
+        info.units.borderScale = W*(o.style === 'matte' ? 0.08 : 0.06);
+        info.photo = { x:side, y:photoY, w:W, h:H };
+      }
     }
-    const dark = o.tone === 'dark';
-    ctx.fillStyle = dark ? C.bandDark : '#f2efe8';
+    const legacyTone = o.legacyTone || (!o.frameColor ? o.tone : null);
+    const dark = legacyTone === 'dark';
+    const ink = legacyTone ? (dark ? C.bandDarkText : '#4a453d') : readableText(frameColor(o));
+    const family = gallery ? FSANS : FMONO;
+    ctx.fillStyle = frameColor(o);
     ctx.fillRect(0,0,cv.width,cv.height);
-    ctx.drawImage(img, 0, o.style === 'top' ? band : 0, W, H);
+    ctx.drawImage(img, side, photoY, W, H);
+    if (o.style === 'keyline'){
+      const inset = Math.min(side*0.35, W*0.014);
+      ctx.strokeStyle = ink; ctx.lineWidth = Math.max(1, W*0.001);
+      ctx.strokeRect(side-inset, side-inset, W+2*inset, H+2*inset);
+    }
 
-    const bandTop = o.style === 'top' ? 0 : H;
     ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
-    const fs = W * 0.0234 * o.fontScale;   // 기본 한 줄 띠(0.078W)의 30% — 띠 높이와 독립
-    const pad = W*0.018;
+    const pad = W*0.018, left = side+pad, right = side+W-pad;
     const gap = fs*1.5;
     const dt = dateText(o);
 
     // 날짜가 반대쪽에 있으므로 같은 줄의 정보는 남는 폭에 맞춰 자동 축소
     let dateW = 0;
     if (dt){
-      ctx.font = `600 ${fs}px ${FMONO}`;
+      ctx.font = `600 ${fs}px ${family}`;
       dateW = ctx.measureText(dt).width;
     }
     const maxRow = dt ? W - 2*pad - dateW - W*0.03 : W - 2*pad;
 
     const bandItems = keys => keys.map(k => ({
-      k, t: String(o[k]).toUpperCase(), size: fs, wt: 500, fam: FMONO,
-      col: dark ? C.bandDarkText : '#4a453d', track: fs*0.15,
+      k, t: gallery ? String(o[k]) : String(o[k]).toUpperCase(), size: fs, wt: 500, fam: family,
+      col: ink, track: gallery ? 0 : fs*0.15,
     }));
     const drawRow = (keys, y, maxW) => {
-      for (const it of rowLayout(ctx, bandItems(keys), gap, maxW, pad, 'left')){
+      for (const it of rowLayout(ctx, bandItems(keys), gap, maxW, gallery ? left+maxW/2 : left, gallery ? 'center' : 'left')){
         const off = OFF[it.k];
         ctx.font = `${it.wt} ${it.size}px ${it.fam}`;
         ctx.fillStyle = it.col;
@@ -1984,22 +2193,22 @@ function render(img, o, info){
 
     // 메모 — 정보 아래에 줄 단위로 이어 쌓는다
     caps.forEach((t, i) => {
-      const sc = fitSize(ctx, t, fcap, 400, FMONO, W - 2*pad);
+      const sc = fitSize(ctx, t, fcap, 400, family, W - 2*pad);
       const w = ctx.measureText(t).width;
-      const x = pad + OFF.cap.x, y = bandTop + infoY + capLH*(i + 1) + OFF.cap.y;
-      ctx.fillStyle = dark ? '#8a8378' : '#7d766a';
+      const x = (gallery ? side+(W-w)/2 : left) + OFF.cap.x, y = bandTop + infoY + capLH*(i + 1) + OFF.cap.y;
+      ctx.fillStyle = legacyTone ? (dark ? '#8a8378' : '#7d766a') : ink;
       ctx.fillText(t, x, y);
       box('cap', x, y - sc*0.65, w, sc*1.3);
     });
     // 날짜 — 데이트 스탬프처럼 주황, 기본 오른쪽 (정보와 독립 배치)
     if (dt){
-      ctx.font = `600 ${fs}px ${FMONO}`;
-      ctx.fillStyle = C.edge;
-      const x = W - pad - dateW + OFF.date.x, y = bandTop + infoY + OFF.date.y;
+      ctx.font = `600 ${fs}px ${family}`;
+      ctx.fillStyle = legacyTone ? C.edge : ink;
+      const x = right - dateW + OFF.date.x, y = bandTop + infoY + OFF.date.y;
       ctx.fillText(dt, x, y);
       box('date', x, y - fs*0.65, dateW, fs*1.3);
     }
-    drawLogo(ctx, o, pad + OFF.logo.x, W/2 + OFF.logo.x, W - pad + OFF.logo.x, bandTop + infoY + OFF.logo.y, fs*1.9, 'center', dark ? C.bandDarkText : '#4a453d', band*0.86, W - 2*pad);
+    drawLogo(ctx, o, left + OFF.logo.x, side+W/2 + OFF.logo.x, right + OFF.logo.x, bandTop + infoY + OFF.logo.y, fs*1.9, 'center', ink, band*0.86, W - 2*pad);
   }
   return cv;
 }
@@ -2029,8 +2238,9 @@ const PROFILE_KEYS = [...ADV_KEYS, ...OFF_KEYS];
 const DEF_ADV = { lines:'1', fontScale:'100', bandScale:'100', borderScale:'100',
                   sideText:'stack', logoScale:'100',
                   ...Object.fromEntries(OFF_KEYS.map(k => [k, '0'])) };
-const STYLE_KEYS = ['film','instax','bottom','top'];
-const STYLE_LABELS = { film:'필름 스트립', instax:'인스탁스', bottom:'하단 여백', top:'상단 여백' };
+const STYLE_KEYS = ['film','instax','bottom','top','matte','gallery','keyline','minimal'];
+const STYLE_LABELS = { film:'필름 스트립', instax:'인스탁스', bottom:'하단 여백', top:'상단 여백',
+  matte:'균등 매트', gallery:'갤러리', keyline:'키라인', minimal:'미니멀 EXIF' };
 const freshAdv = () => Object.fromEntries(STYLE_KEYS.map(style =>
   [style, { port:{ ...DEF_ADV }, land:{ ...DEF_ADV } }]));
 const adv = freshAdv();
@@ -2119,13 +2329,16 @@ function opts(){
   return {
     style: state.style,
     tone:  state.tone,
+    frameColor: state.frameColors[state.style] || '#ffffff',
+    legacyTone: state.legacyBandTones[state.style] || null,
+    ...metadataOptions(),
     ...Object.fromEntries(INFO_KEYS.map(k => [k, k === 'caption'
       ? gInfo[k].replace(/\s+$/,'') : gInfo[k].trim()])),
     show:  { ...gShow },
     fontEn: $('fontEn').value,
     fontKo: $('fontKo').value,
     ratio: $('ratio').value,
-    ratioBg: $('ratioBg').value,
+    ratioBg: $('ratioBg').value === 'custom' ? $('ratioCustom').value : $('ratioBg').value,
     logoImg: logoState.img,
     sigText: $('sigText').value.trim(),
   };
@@ -2315,6 +2528,7 @@ function edgeHandles(){
     : state.style === 'top' ? '상단 정보 띠' : '하단 정보 띠';
   if (P.units.borderScale && P.photo)
     hs.push({ key:'borderScale', type:'corner', x: P.photo.x + P.photo.w, y: P.photo.y, label:'사진 둘레 여백' });
+  if (!P.units.bandScale) return hs;
   if (P.areaSide === 'right')       hs.push({ key:'bandScale', type:'edge', axis:'x', pos: R.width,  dir: 1, label:areaLabel });
   else if (P.areaSide === 'bottom') hs.push({ key:'bandScale', type:'edge', axis:'y', pos: R.height, dir: 1, label:areaLabel });
   else                              hs.push({ key:'bandScale', type:'edge', axis:'y', pos: 0,        dir:-1, label:areaLabel });
@@ -2413,6 +2627,7 @@ function hitBox(e){
 function startBoxDrag(e){
   const hit = hitBox(e);
   if (!hit) return false;
+  $('moveElement').value = hit.b.key;
   boxDrag = { key: hit.b.key, sx: hit.pt.x, sy: hit.pt.y, ddx: 0, ddy: 0,
               gx: null, gy: null, before:layoutSnapshot() };
   return true;
@@ -2470,6 +2685,39 @@ function endBoxDrag(){
   refresh(true);
 }
 
+function syncMoveControls(){
+  const keys = new Set((state._pv?.boxes || []).map(b => b.key));
+  const select = $('moveElement');
+  for (const option of select.options) option.disabled = pv.hidden || !keys.has(option.value);
+  if (!keys.has(select.value)) select.value = [...select.options].find(o => !o.disabled)?.value || '';
+  const enabled = !pv.hidden && keys.has(select.value);
+  select.disabled = !enabled;
+  $('moveStep').disabled = !enabled;
+  $('moveReset').disabled = !enabled;
+  $('moveButtons').querySelectorAll('button').forEach(b => { b.disabled = !enabled; });
+}
+
+function nudgeElement(dx, dy, reset = false){
+  const P = state._pv, shot = state.shots[state.current], key = $('moveElement').value;
+  const boxes = P?.boxes.filter(b => b.key === key);
+  if (!shot || !boxes?.length || boxDrag || edgeDrag) return;
+  const p = profileFor(state.style, photoDir(shot.img));
+  const before = layoutSnapshot();
+  const step = Number($('moveStep').value) || 0.001;
+  const r4 = v => String(Math.round(v * 10000) / 10000);
+  p[key + 'DX'] = reset ? '0' : r4((Number(p[key + 'DX']) || 0) + dx * step);
+  p[key + 'DY'] = reset ? '0' : r4((Number(p[key + 'DY']) || 0) + dy * step);
+  if (sameStyleLayout(before, layoutSnapshot())) return;
+  setLayoutUndo(`${LABEL[key]} ${reset ? '위치 초기화' : '정밀 이동'}`, before);
+  saveSettings(); refresh(true);
+}
+$('moveButtons').onclick = e => {
+  const b = e.target.closest('button[data-dx]');
+  if (b) nudgeElement(Number(b.dataset.dx), Number(b.dataset.dy));
+};
+$('moveElement').onchange = syncMoveControls;
+$('moveReset').onclick = () => nudgeElement(0, 0, true);
+
 /* 더블클릭 = 해당 요소 위치 초기화 */
 vp.addEventListener('dblclick', e => {
   if (pv.hidden || !state.showBoxes) return;
@@ -2492,10 +2740,42 @@ vp.addEventListener('wheel', e => {
   zoomTo(zoom.scale * factor, e.clientX - r.left, e.clientY - r.top);
 }, { passive:false });
 
-// 드래그 팬
-let panning = null;
+// 두 손가락은 줌·팬, 한 손가락은 기존 경계 조정·팬을 쓴다.
+let panning = null, pinch = null, activePointer = null;
+const pointers = new Map();
+function pinchPoints(){
+  const [a, b] = [...pointers.values()], r = vp.getBoundingClientRect();
+  return { x:(a.x + b.x) / 2 - r.left, y:(a.y + b.y) / 2 - r.top,
+    distance:Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)) };
+}
+function movePinch(){
+  if (!pinch || pointers.size !== 2) return;
+  const mid = pinchPoints();
+  zoom.scale = Math.min(4, Math.max(0.03, pinch.scale * pinch.width / pv.width * mid.distance / pinch.distance));
+  zoom.x = mid.x - pinch.cx * pv.width * zoom.scale;
+  zoom.y = mid.y - pinch.cy * pv.height * zoom.scale;
+  zoom.mode = 'free';
+  applyZoom();
+}
 vp.addEventListener('pointerdown', e => {
-  if (pv.hidden || e.target.closest('.zoombar') || e.target.closest('.dropzone')) return;
+  if (pv.hidden || e.button !== 0 || e.target.closest('.zoombar') || e.target.closest('.dropzone') || pointers.size >= 2) return;
+  pointers.set(e.pointerId, { x:e.clientX, y:e.clientY });
+  vp.setPointerCapture(e.pointerId);
+  if (pointers.size === 2){
+    // 두 번째 손가락이 닿으면 아직 끝내지 않은 요소·경계 조정을 취소한다.
+    boxDrag = null;
+    if (edgeDrag){
+      edgeDrag.prof[edgeDrag.h.key] = String(edgeDrag.base);
+      edgeDrag = null; state._dragImg = null; syncAdv(); refresh(true);
+    }
+    panning = null; activePointer = null;
+    const mid = pinchPoints();
+    pinch = { ...mid, scale:zoom.scale, width:pv.width,
+      cx:(mid.x - zoom.x) / (zoom.scale * pv.width), cy:(mid.y - zoom.y) / (zoom.scale * pv.height) };
+    zoom.mode = 'free'; paintOverlay(null);
+    return;
+  }
+  activePointer = e.pointerId;
   // 경계 표시 중이면 프레임 경계 드래그 > 요소 드래그 > 팬 (호버 강조와 같은 순서)
   if (state.showBoxes && (startEdgeDrag(e) || startBoxDrag(e))){
     vp.classList.add('grabbing');
@@ -2507,6 +2787,9 @@ vp.addEventListener('pointerdown', e => {
   vp.setPointerCapture(e.pointerId);
 });
 vp.addEventListener('pointermove', e => {
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x:e.clientX, y:e.clientY });
+  if (pinch){ movePinch(); return; }
+  if (pointers.size && e.pointerId !== activePointer) return;
   if (boxDrag){ moveBoxDrag(e); return; }
   if (edgeDrag){ moveEdgeDrag(e); return; }
   if (panning){
@@ -2536,10 +2819,16 @@ vp.addEventListener('pointermove', e => {
     paintOverlay(null);
   }
 });
-['pointerup','pointercancel'].forEach(t => vp.addEventListener(t, () => {
+['pointerup','pointercancel','lostpointercapture'].forEach(t => vp.addEventListener(t, e => {
+  if (!pointers.delete(e.pointerId)) return;
+  if (pinch){ pinch = null; panning = null; activePointer = null; }
+  if (e.pointerId !== activePointer){
+    if (!pointers.size) vp.classList.remove('grabbing');
+    return;
+  }
   if (boxDrag) endBoxDrag();
   if (edgeDrag) endEdgeDrag();
-  panning = null; vp.classList.remove('grabbing');
+  activePointer = null; panning = null; vp.classList.remove('grabbing');
 }));
 
 // 키보드
@@ -2565,9 +2854,12 @@ function refresh(keepZoom = false){
     const has = state.current >= 0;
     $('drop').hidden = has;
     pv.hidden = !has;
+    document.body.classList.toggle('has-photo', has);
     $('zoombar').hidden = !has;
+    if (!has) syncMoveControls();
     syncActionButtons();
-    $('toneField').style.display = (state.style==='bottom'||state.style==='top') ? '' : 'none';
+    syncColorUi();
+    drawStyleThumbnails();
     if (!has) return;
     const shot = state.shots[state.current];
     const info = { collect: true };   // 경계가 꺼져 있어도 넘침은 감지해야 한다
@@ -2595,8 +2887,10 @@ function refresh(keepZoom = false){
     // 넘친 요소가 있으면 경계 버튼을 빨갛게 — 경계를 꺼 둔 상태에서도 알 수 있게
     $('zBox').classList.toggle('warn', state._pv.boxes.some(b => boxOver(b, state._pv)));
     paintOverlay(null);
+    syncMoveControls();
     if (keepZoom && zoom.mode === 'free') applyZoom();
     else zoomFit();
+    if (pinch) movePinch();
     document.documentElement.dataset.previewMetrics = JSON.stringify({
       totalMs:Math.round(performance.now() - requestedAt), width:cv.width, height:cv.height,
     });
@@ -2818,7 +3112,7 @@ async function readExif(file){
     const brand = (make.split(' ')[0] || '').toLowerCase();
     const camera = model
       ? (!brand || model.toLowerCase().includes(brand) ? model : `${make.split(' ')[0]} ${model}`)
-      : '';
+      : make;
     const m = (exif[0x9003] || '').match(/^(\d{4}):(\d{2}):(\d{2})/);      // DateTimeOriginal
     // 촬영 설정값: 조리개 / 셔터 / ISO / 초점거리
     const parts = [];
@@ -2831,8 +3125,27 @@ async function readExif(file){
     if (exif[0x920A]) parts.push(Math.round(exif[0x920A]) + 'mm');                     // FocalLength
     const out = { camera, lens: exif[0xA434] || '', date: m ? `${m[1]}.${m[2]}.${m[3]}` : '',
       set: parts.join(' · ') };
-    return Object.values(out).some(Boolean) ? out : null;
+    if (!Object.values(out).some(Boolean)) return null;
+    // ponytail: 알려진 스캐너 이름만 가드한다. 새 사례가 확인되면 이 목록을 보완한다.
+    out.scanner = /scanner|scanjet|perfection|coolscan|plustek|reflecta|silverfast|vuescan|noritsu|frontier|epson/i
+      .test(`${make} ${model} ${ifd0[0x0131] || ''}`);
+    return out;
   } catch { return null; }
+}
+
+function applyDetectedExif(shot, x){
+  if (!x) return false;
+  const detected = Object.fromEntries([
+    ['body', x.camera], ['lens', x.lens], ['date', x.date], ['set', x.set],
+  ].filter(([, value]) => value));
+  if (!Object.keys(detected).length) return false;
+  if (x.scanner || !(x.lens || x.set)){
+    shot.detectedExif = detected;
+    shot.exifReview = x.scanner ? 'scanner' : 'partial';
+    return false;
+  }
+  shot.exif = detected;
+  return true;
 }
 
 async function loadImage(file){
@@ -2859,6 +3172,7 @@ function thumbnailData(img){
 }
 
 async function addFiles(files){
+  syncPendingPhotoOrder();
   const imgs = [...files].filter(f => f.type.startsWith('image/'));
   const wasCurrent = state.shots[state.current];
   const started = performance.now();
@@ -2872,21 +3186,19 @@ async function addFiles(files){
       const shot = { img, thumb:thumbnailData(img), name: f.name, example:!!f._photoFrameExample,
         file: { name:f.name, size:f.size, lastModified:f.lastModified, type:f.type } };
       const x = await readExif(f);
-      // ponytail: 렌즈 또는 노출값을 실제 촬영 신호로 본다. 노출값까지 쓰는
-      // 스캐너 사례가 확인되면 장비명 가드를 추가한다.
-      if (x && (x.lens || x.set)){
-        shot.exif = Object.fromEntries([
-          ['body', x.camera], ['lens', x.lens], ['date', x.date], ['set', x.set],
-        ].filter(([, value]) => value));
-        exifCount++;
-      }
+      if (applyDetectedExif(shot, x)) exifCount++;
       if (saved){
         saved.matched = true;
         if (saved._mismatchAccepted){
           pendingProject.changed = true;
           delete saved._mismatchAccepted;
         }
-        if (saved.exif) shot.exif = { ...saved.exif };
+        if (saved.exif){
+          shot.exif = { ...saved.exif };
+          delete shot.detectedExif; delete shot.exifReview;
+        }
+        if (saved.detectedExif) shot.detectedExif = { ...saved.detectedExif };
+        if (saved.exifReview) shot.exifReview = saved.exifReview;
         if (saved.own) shot.own = { ...saved.own, show:saved.own.show ? { ...saved.own.show } : undefined };
         shot._projectOrder = saved.order;
         projectCount++;
@@ -2908,9 +3220,9 @@ async function addFiles(files){
       ? `프로젝트 복원 완료 · 원본 ${total}장 연결됨`
       : `프로젝트 원본 연결 중 · ${matched}/${total}장 · 나머지 사진을 더 불러오세요`;
     if (matched === total){
-      const changed = pendingProject.changed;
+      const changed = pendingProject.changed || state.projectDirty;
       pendingProject = null;
-      if (changed) markProjectDirty('저장 필요 · 파일 정보가 다른 원본을 확인 후 연결했습니다.');
+      if (changed) markProjectDirty(state.projectMessage || '저장 필요 · 복원 중 변경한 내용이 있습니다.');
       else markProjectClean(`프로젝트 복원 완료 · 원본 ${total}장 연결됨`);
       toast(`프로젝트 ${total}장을 복원했습니다`);
     }
@@ -2936,7 +3248,7 @@ drop.onkeydown = e => {
 $('picker').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
 $('addPhotos').onclick = () => $('picker').click();
 $('toSettings').onclick = () => $('settingsRail').scrollIntoView({ behavior:'smooth', block:'start' });
-$('toPreview').onclick = () => document.querySelector('.table').scrollIntoView({ behavior:'smooth', block:'start' });
+$('toPreview').onclick = () => vp.scrollIntoView({ behavior:'smooth', block:'start' });
 $('loadExample').onclick = async e => {
   e.stopPropagation();
   const make = async (w, h, name) => {
@@ -2978,10 +3290,88 @@ function setStyle(style){
   updateLayoutUndo();
 }
 
+function loadFrameColors(s){
+  state.frameColors = {}; state.legacyBandTones = {};
+  if (s.frameColors && typeof s.frameColors === 'object'){
+    for (const style of STYLE_KEYS){
+      if (s.frameColors[style]) state.frameColors[style] = hexColor(s.frameColors[style]);
+      if (['bottom','top'].includes(style) && ['light','dark'].includes(s.legacyBandTones?.[style]))
+        state.legacyBandTones[style] = s.legacyBandTones[style];
+    }
+  } else { // 구버전 밝음/어두움의 배경·글자·날짜 색을 그대로 보존한다
+    for (const style of ['bottom','top']){
+      const tone = s.tone === 'dark' ? 'dark' : 'light';
+      state.frameColors[style] = tone === 'dark' ? C.bandDark : '#f2efe8';
+      state.legacyBandTones[style] = tone;
+    }
+  }
+}
+function syncColorUi(){
+  $('toneField').style.display = ['film','instax'].includes(state.style) ? 'none' : '';
+  const color = state.frameColors[state.style] || '#ffffff';
+  $('frameColor').value = color;
+  if (document.activeElement !== $('frameHex')) $('frameHex').value = color.toUpperCase();
+  $('ratioCustom').hidden = $('ratioBg').value !== 'custom';
+}
+function setFrameColor(value){
+  const color = hexColor(value, null);
+  $('frameHex').setCustomValidity(color ? '' : '#FFFFFF처럼 HEX 색을 입력하세요.');
+  $('frameHex').setAttribute('aria-invalid', String(!color));
+  if (!color) return;
+  state.frameColors[state.style] = color;
+  delete state.legacyBandTones[state.style];
+  syncColorUi(); saveSettings(); refresh(true);
+}
+$('frameColor').oninput = e => { $('frameHex').value = e.target.value.toUpperCase(); setFrameColor(e.target.value); };
+$('frameHex').oninput = e => setFrameColor(e.target.value);
+$('frameHex').onblur = () => {
+  $('frameHex').value = (state.frameColors[state.style] || '#ffffff').toUpperCase();
+  $('frameHex').setCustomValidity(''); $('frameHex').removeAttribute('aria-invalid');
+};
+$('frameSwatches').onclick = e => {
+  const button = e.target.closest('button[data-color]');
+  if (button){ $('frameHex').value = button.dataset.color.toUpperCase(); setFrameColor(button.dataset.color); }
+};
+$('ratioCustom').oninput = () => { saveSettings(); refresh(true); updateExportNote(); };
+
+let styleThumbShot = null, styleThumbKey = '';
+function drawStyleThumbnails(){
+  const shot = state.shots[state.current];
+  const base = opts();
+  const key = JSON.stringify({ options:{ ...base, logoImg:logoState.name }, adv,
+    logoReady:!!logoState.img, fontsReady:[base.fontEn,base.fontKo].map(v => !!FONT_ENTRIES.get(v)?.loaded),
+    colors:state.frameColors, legacy:state.legacyBandTones, own:shot?.own, exif:shot?.exif });
+  if (styleThumbShot === shot && styleThumbKey === key) return;
+  styleThumbShot = shot; styleThumbKey = key;
+  let src;
+  if (shot){
+    src = document.createElement('canvas');
+    const w = shot.img.naturalWidth || shot.img.width, h = shot.img.naturalHeight || shot.img.height;
+    src.width = Math.max(1, Math.round(w*240/Math.max(w,h)));
+    src.height = Math.max(1, Math.round(h*240/Math.max(w,h)));
+    src.getContext('2d').drawImage(shot.img,0,0,src.width,src.height);
+  }
+  for (const button of $('styleSeg').children){
+    let thumb = button.querySelector('canvas');
+    if (!thumb){
+      thumb = document.createElement('canvas'); thumb.setAttribute('aria-hidden','true');
+      button.querySelector('i')?.remove(); button.prepend(thumb);
+    }
+    thumb.hidden = !shot;
+    if (!shot){ thumb.width = thumb.height = 1; continue; }
+    const style = button.dataset.style;
+    const o = { ...base, style, ratio:'none', frameColor:state.frameColors[style] || '#ffffff',
+      legacyTone:state.legacyBandTones[style] || null };
+    const cv = render(src, withShot(withProfile(o, shot), shot));
+    thumb.width = cv.width; thumb.height = cv.height;
+    thumb.getContext('2d').drawImage(cv,0,0);
+  }
+}
+
 /* 촬영 정보·표시 설정·내보내기 설정을 localStorage에 자동 저장
    (시작 프레임은 롤마다 달라 저장하지 않는다) */
-function saveSettings(){
-  store.write('frame.settings', {
+function settingsSnapshot(){
+  return {
     ...gInfo,
     show: { ...gShow },
     advByStyle: Object.fromEntries(STYLE_KEYS.map(style => [style, {
@@ -2989,11 +3379,17 @@ function saveSettings(){
     }])),
     logo: logoState.name, sigText: $('sigText').value,
     fontEn: $('fontEn').value, fontKo: $('fontKo').value,
+    ...metadataOptions(),
+    frameColors:{ ...state.frameColors }, legacyBandTones:{ ...state.legacyBandTones },
     ratio: $('ratio').value, ratioBg: $('ratioBg').value,
+    ratioCustom: $('ratioCustom').value,
     title: $('title').value,
     style: state.style, tone: state.tone,
     size: $('size').value, fmt: $('fmt').value, quality: $('quality').value,
-  });
+  };
+}
+function saveSettings(){
+  store.write('frame.settings', settingsSnapshot());
   markProjectDirty();
 }
 
@@ -3002,6 +3398,8 @@ function loadSettings(){
   if (!s){
     return;   // 첫 실행 — 입력은 비운 채로 시작한다
   }
+  loadMetadataSettings(s);
+  loadFrameColors(s);
   INFO_KEYS.forEach(k => { gInfo[k] = s[k] ?? ''; });
   if (s.show){
     INFO_KEYS.forEach(k => { gShow[k] = s.show[k] ?? true; });
@@ -3035,6 +3433,7 @@ function loadSettings(){
   }
   if (s.ratio) $('ratio').value = s.ratio;
   if (s.ratioBg) $('ratioBg').value = s.ratioBg;
+  $('ratioCustom').value = hexColor(s.ratioCustom);
   if (s.title) $('title').value = s.title;
   if (s.logo) logoState.name = s.logo;
   if (s.sigText) $('sigText').value = s.sigText;
@@ -3071,6 +3470,20 @@ INFO_KEYS.forEach(key => {
   });
 });
 $('sigText').addEventListener('input', () => { saveSettings(); refresh(true); });
+$('metadataVisibility').onclick = e => {
+  const button = e.target.closest('button[data-meta]');
+  if (!button) return;
+  const key = button.dataset.meta;
+  metadataShow[key] = !metadataShow[key];
+  syncMetadataVisibility(); saveSettings(); refresh(true);
+};
+$('dateFormat').onchange = () => { saveSettings(); refresh(true); };
+$('adoptExif').onclick = () => {
+  const count = photoTargets().filter(adoptDetectedExif).length;
+  if (!count) return;
+  markProjectDirty(); drawStrip(); syncFields(); refresh(true);
+  toast(`${count}장의 EXIF를 채택했습니다. 수동 입력은 유지됩니다`);
+};
 
 $('infoScope').onclick = e => {
   const b = e.target.closest('button[data-scope]');
@@ -3093,7 +3506,8 @@ function syncAdv(){
   [...$('advTab').children].forEach(b => b.setAttribute('aria-pressed', b.dataset.t === advTab));
   const instax = state.style === 'instax';
   $('linesField').hidden = instax;
-  $('borderScaleField').hidden = !instax;
+  $('borderScaleField').hidden = !instax && !MATTE_STYLES.includes(state.style);
+  $('bandScale').closest('.field').hidden = ['matte','keyline'].includes(state.style);
   $('sideTextField').hidden = !(instax && advTab === 'land');
   $('bandScaleLabel').textContent = state.style === 'film' ? '필름 정보 영역 크기 %'
     : state.style === 'instax' ? (advTab === 'land' ? '오른쪽 정보 여백 크기 %' : '하단 정보 여백 크기 %')
@@ -3146,6 +3560,54 @@ $('advTab').onclick = e => {
    마음에 들면 이름 붙여 저장해 둔다 (현재 스타일의 세로·가로 프로파일 한 쌍)
    ============================================================ */
 let layouts = store.read('frame.layouts', []);
+let appearances = store.read('frame.appearances', []);
+if (!Array.isArray(appearances)) appearances = [];
+const APPEARANCE_KEYS = ['show','advByStyle','logo','sigText','fontEn','fontKo',
+  'metadataShow','dateFormat','frameColors','legacyBandTones','ratio','ratioBg','ratioCustom',
+  'style','tone','size','fmt','quality'];
+function captureAppearance(){
+  const current = settingsSnapshot();
+  return Object.fromEntries(APPEARANCE_KEYS.map(k => [k, current[k]]));
+}
+function applyAppearance(entry){
+  const cleaned = cleanProjectSettings(entry.settings);
+  const next = settingsSnapshot();
+  for (const k of APPEARANCE_KEYS) if (hasOwn(cleaned,k)) next[k] = cleaned[k];
+  for (const style of STYLE_KEYS){
+    const before = layoutSnapshot(style), after = next.advByStyle?.[style];
+    if (after && !sameStyleLayout(before,{ ...after, style })) setLayoutUndo('디자인 프리셋 적용', before);
+  }
+  store.write('frame.settings', next);
+  loadSettings();
+  logoState.name = next.logo || ''; $('sigText').value = next.sigText || '';
+  applyLogoImage(); drawLogos(); syncFields(); syncAdv(); drawLayouts();
+  updateEyes(); updateExportNote(); saveSettings(); refresh();
+  const missing = [next.fontEn,next.fontKo].some(v => /^(file|pc):/.test(v || '') && !FONT_ENTRIES.get(v)?.loaded);
+  toast(`디자인 적용됨${missing ? ' · 사용할 수 없는 글꼴은 다시 불러와 주세요' : ''}${next.logo && !logoState.name ? ' · 로고를 다시 선택해 주세요' : ''}`);
+}
+function drawAppearances(){
+  const row = $('appearanceRow'); row.replaceChildren();
+  appearances.forEach((entry,i) => {
+    if (!entry || typeof entry.name !== 'string' || !entry.settings) return;
+    row.append(paletteItem(document.createTextNode(entry.name),entry.name,() => applyAppearance(entry),() => {
+      appearances.splice(i,1); store.write('frame.appearances',appearances); drawAppearances();
+    }));
+  });
+  const add = document.createElement('button'); add.type = 'button'; add.className = 'gearadd';
+  add.textContent = '＋ 현재 디자인 저장';
+  add.onclick = () => {
+    const name = prompt('디자인 이름',`디자인 ${appearances.length+1}`)?.trim();
+    if (!name) return;
+    const entry = { name:name.slice(0,100), settings:captureAppearance() };
+    const index = appearances.findIndex(a => a.name === entry.name);
+    if (index >= 0){
+      if (!confirm(`“${entry.name}” 디자인을 현재 설정으로 바꿀까요?`)) return;
+      appearances[index] = entry;
+    } else appearances.push(entry);
+    store.write('frame.appearances',appearances); drawAppearances(); toast('디자인 저장됨');
+  };
+  row.append(add);
+}
 
 // 적용과 삭제는 형제 버튼으로 나눠 둘 다 키보드와 터치로 실행할 수 있게 한다.
 function paletteItem(content, name, apply, remove, selected = null){
@@ -3515,7 +3977,7 @@ function applyLogoImage(){
   logoState.img = null;
   if (!entry){ logoState.name = ''; return; }
   const im = new Image();
-  im.onload = () => { logoState.img = im; refresh(true); };
+  im.onload = () => { if (logoState.name === entry.name){ logoState.img = im; refresh(true); } };
   im.src = entry.data;
 }
 
@@ -3604,10 +4066,22 @@ function cleanProjectSettings(v){
   if (!v || typeof v !== 'object') throw new Error('settings');
   const out = {};
   const scalar = ['body','lens','film','date','set','caption','logo','sigText','fontEn','fontKo',
-                  'ratio','ratioBg','title','style','tone','size','fmt','quality'];
+                  'ratio','ratioBg','ratioCustom','title','style','tone','size','fmt','quality','dateFormat'];
   for (const k of scalar){
     if (typeof v[k] === 'string' || typeof v[k] === 'number') out[k] = String(v[k]);
   }
+  out.dateFormat = DATE_FORMATS.includes(out.dateFormat) ? out.dateFormat : 'original';
+  if (v.metadataShow && typeof v.metadataShow === 'object')
+    out.metadataShow = Object.fromEntries(META_KEYS.map(k => [k,v.metadataShow[k] !== false]));
+  if (v.frameColors && typeof v.frameColors === 'object'){
+    out.frameColors = {}; out.legacyBandTones = {};
+    for (const style of STYLE_KEYS){
+      if (hasOwn(v.frameColors,style)) out.frameColors[style] = hexColor(v.frameColors[style]);
+      if (['bottom','top'].includes(style) && ['light','dark'].includes(v.legacyBandTones?.[style]))
+        out.legacyBandTones[style] = v.legacyBandTones[style];
+    }
+  }
+  if (hasOwn(out,'ratioCustom')) out.ratioCustom = hexColor(out.ratioCustom);
   if (v.show && typeof v.show === 'object'){
     out.show = {};
     for (const k of INFO_KEYS) out.show[k] = v.show[k] !== false;
@@ -3695,7 +4169,41 @@ function matchProjectPhoto(file){
   return saved || null;
 }
 
+// 연결되지 않은 자리는 보관하고, 연결된 자리에는 현재 스트립 순서의 사진을 넣는다.
+// 삭제한 사진은 다시 살리지 않고, 미연결 원본의 정보·순서는 그대로 저장한다.
+function projectPhotoEntries(){
+  if (!pendingProject) return [...state.shots];
+  const connected = [...state.shots], entries = [];
+  const retained = new Set(connected.map(shot => shot._projectOrder));
+  for (const saved of pendingProject.photos){
+    if (!saved.matched) entries.push(saved);
+    else if (retained.has(saved.order) && connected.length) entries.push(connected.shift());
+  }
+  return entries.concat(connected);
+}
+
+function syncPendingPhotoOrder(){
+  if (!pendingProject) return;
+  const matched = pendingProject.photos.filter(p => p.matched);
+  if (matched.length === state.shots.length && matched.every((p, i) => p.order === state.shots[i]._projectOrder)) return;
+  const current = state.shots[state.current];
+  pendingProject.photos = projectPhotoEntries().map((entry, order) => {
+    if (!entry.img){ entry.order = order; return entry; }
+    entry._projectOrder = order;
+    return { file:entry.file, order, matched:true };
+  });
+  if (current) pendingProject.current = current._projectOrder;
+}
+
+function projectPhotoData(entry){
+  return { file:{ ...(entry.file || { name:entry.name }) },
+    exif:cleanExif(entry.exif), own:cleanOwn(entry.own),
+    detectedExif:cleanExif(entry.detectedExif),
+    exifReview:['partial','scanner'].includes(entry.exifReview) ? entry.exifReview : undefined };
+}
+
 function clearShots(){
+  state.projectRevision = (state.projectRevision || 0) + 1;
   for (const s of state.shots) releaseShot(s);
   discardDeleted();
   state.shots = [];
@@ -3703,6 +4211,10 @@ function clearShots(){
   state.batch.clear();
   state.infoScope = 'global';
   state._pv = null;
+  pendingProject = null;
+  state.exportPlan = null;
+  state.exportRetry = null;
+  $('exportReview').hidden = true;
   state.projectDirty = false;
   state.projectMessage = '';
   state.projectTone = '';
@@ -3729,7 +4241,7 @@ function mergeProjectLogo(entry, settings){
 }
 
 $('projectSave').onclick = async () => {
-  if (!state.shots.length) return;
+  if (!state.shots.length && !pendingProject?.photos.length) return;
   saveSettings();
   const settings = cleanProjectSettings(store.read('frame.settings', {}));
   const projectFonts = projectFontFiles(settings);
@@ -3746,6 +4258,9 @@ $('projectSave').onclick = async () => {
     return;
   }
   const activeLogo = logos.find(l => l.name === logoState.name);
+  const entries = projectPhotoEntries();
+  const current = entries.indexOf(state.shots[state.current]);
+  const pendingCount = pendingProject?.photos.filter(p => !p.matched).length || 0;
   const project = {
     kind: PROJECT_KIND,
     version: PROJECT_VERSION,
@@ -3753,15 +4268,12 @@ $('projectSave').onclick = async () => {
     settings,
     fonts: fontFiles,
     activeLogo: activeLogo ? { name:activeLogo.name, data:activeLogo.data } : null,
-    current: state.current,
-    photos: state.shots.map(s => ({
-      file: { ...(s.file || { name:s.name }) },
-      exif: cleanExif(s.exif),
-      own: cleanOwn(s.own),
-    })),
+    current: current >= 0 ? current : pendingProject?.current || 0,
+    photos: entries.map(projectPhotoData),
   };
   const title = $('title').value.trim().replace(/[\\/:*?"<>|]/g, '');
   const base = title || `PhotoFrame-${new Date().toISOString().slice(0, 10)}`;
+  const savedRevision = state.projectRevision || 0;
   try {
     const blob = new Blob([JSON.stringify(project, null, 2)], { type:'application/json' });
     if (blob.size > MAX_PROJECT_BYTES){
@@ -3770,10 +4282,15 @@ $('projectSave').onclick = async () => {
       return;
     }
     const result = await save(blob, `${base}.photoframe.json`);
-    $('projectNote').textContent = `${result.confirmed ? '프로젝트 저장 완료' : '프로젝트 다운로드 요청'} · ${project.photos.length}장 · 파일 글꼴 ${project.fonts.length}개 · 사진 원본은 미포함`;
+    $('projectNote').textContent = `${result.confirmed ? '프로젝트 저장 완료' : '프로젝트 다운로드 요청'} · ${project.photos.length}장${pendingCount ? ` (미연결 ${pendingCount}장 정보 포함)` : ''} · 파일 글꼴 ${project.fonts.length}개 · 사진 원본은 미포함`;
     if (result.confirmed){
-      markProjectClean(`저장됨 · ${new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })} · ${result.name}`);
-      toast('프로젝트 파일 저장을 확인했습니다');
+      if (savedRevision === (state.projectRevision || 0)){
+        markProjectClean(`저장됨 · ${new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })} · ${result.name}`);
+        toast('프로젝트 파일 저장을 확인했습니다');
+      } else {
+        markProjectDirty('저장 필요 · 파일을 저장하는 동안 바뀐 내용은 다시 저장해 주세요.');
+        toast('저장은 완료했지만 이후 변경 내용이 있습니다');
+      }
     } else {
       markProjectDirty('저장 확인 필요 · 브라우저에 프로젝트 다운로드를 요청했습니다. 다운로드 목록을 확인하세요.');
       toast('프로젝트 다운로드를 요청했습니다');
@@ -3799,9 +4316,11 @@ $('projectPicker').onchange = async e => {
         file: { name:p.file.name, size:Number(p.file.size) || 0,
                 lastModified:Number(p.file.lastModified) || 0, type:String(p.file.type || '') },
         exif: cleanExif(p.exif), own: cleanOwn(p.own), matched:false,
+        detectedExif:cleanExif(p.detectedExif),
+        exifReview:['partial','scanner'].includes(p.exifReview) ? p.exifReview : undefined,
       };
     });
-    if (state.shots.length && !confirm('현재 불러온 사진을 비우고 프로젝트를 여시겠습니까?')) return;
+    if ((state.shots.length || pendingProject) && !confirm('현재 작업을 비우고 프로젝트를 여시겠습니까?')) return;
     let restoredFonts = 0, failedFonts = 0;
     setFontBusy(true);
     try {
@@ -3899,60 +4418,156 @@ async function save(blob, name){
   return { name, confirmed:false };
 }
 
-async function exportShots(list){
-  if (state.exportBusy || !list.length) return;
+function makeExportPlan(list){
   const config = { long:Number($('size').value), opts:opts(), fmt:$('fmt').value,
     quality:$('quality').value, title:$('title').value };
-  const jobs = list.map(shot => ({
+  const wanted = new Set(list);
+  const jobs = state.shots.filter(shot => wanted.has(shot)).map(shot => ({
     shot,
     options:withShot(withProfile(config.opts, shot), shot),
     name:filename(shot, state.shots.indexOf(shot) + 1, config.fmt, config.title),
   }));
+  return { config, jobs };
+}
+
+function exportDimensions(shot, options, longEdge){
+  let w = shot.img.naturalWidth || shot.img.width, h = shot.img.naturalHeight || shot.img.height;
+  const scale = safeScale(w, h, options);
+  if (scale < 1){ w = Math.floor(w * scale); h = Math.floor(h * scale); }
+  const frame = frameDims(w, h, options);
+  const padded = ratioDims({ w:Math.floor(frame.w), h:Math.floor(frame.h) }, options.ratio);
+  w = Math.round(padded.w); h = Math.round(padded.h);
+  const down = longEdge ? Math.min(1, longEdge / Math.max(w, h)) : 1;
+  return { w:Math.round(w * down), h:Math.round(h * down), shrunk:scale < 1 };
+}
+
+async function prepareExport(list, retryPlan = null){
+  if (state.exportBusy) return;
+  const plan = retryPlan
+    ? { config:retryPlan.config, jobs:retryPlan.jobs.filter(job => state.shots.includes(job.shot)) }
+    : makeExportPlan(list);
+  if (!plan.jobs.length) return;
+  const revision = state.projectRevision || 0;
+  state.exportBusy = true; state.exportCancel = false; state.exportPlan = null;
+  $('exportReview').hidden = true;
+  const status = $('exportStatus'), items = $('exportItems');
+  items.replaceChildren(); syncActionButtons();
+  let overflow = 0, checkFailed = 0, shrunk = 0;
+  try {
+    for (let i = 0; i < plan.jobs.length; i++){
+      await new Promise(requestAnimationFrame);
+      if (state.exportCancel){ status.textContent = '내보내기 사전 확인을 취소했습니다.'; return; }
+      const job = plan.jobs[i], dim = exportDimensions(job.shot, job.options, plan.config.long);
+      status.textContent = `내보내기 사전 확인 ${i + 1}/${plan.jobs.length} · ${job.shot.name}`;
+      let warning = '';
+      if (dim.shrunk) shrunk++;
+      try {
+        // ponytail: 사전 검사는 1400px 공통 렌더로 메모리를 제한한다. 경계 1px 부근은 원본에서 재확인한다.
+        const src = downscale(job.shot.img, 1400), info = { collect:true };
+        const raw = render(src, { ...job.options }, info);
+        if (info.boxes?.some(box => boxOver(box, { raw, area:info.area }))){
+          overflow++; warning = ' · 요소 넘침 — 배치를 확인하세요';
+        }
+        raw.width = raw.height = 1;
+        if (src !== job.shot.img) src.width = src.height = 1;
+      } catch { checkFailed++; warning = ' · 넘침 사전 확인 실패'; }
+      const item = document.createElement('li');
+      item.textContent = `${job.name} · 약 ${dim.w} × ${dim.h}px · ${niceRatio(dim.w, dim.h)}${dim.shrunk ? ' · 캔버스 한계로 축소' : ''}${warning}`;
+      items.appendChild(item);
+    }
+    if (revision !== (state.projectRevision || 0)){
+      status.textContent = '사전 확인 중 설정이 바뀌었습니다. 내보낼 범위를 다시 선택하세요.';
+      return;
+    }
+    state.exportPlan = plan;
+    $('exportSummary').textContent = `${plan.jobs.length}장 · ${plan.config.fmt.toUpperCase()} · 비율 ${plan.config.opts.ratio === 'none' ? '원본 유지' : plan.config.opts.ratio === 'auto' ? 'Instagram 자동' : plan.config.opts.ratio}${overflow ? ` · ${overflow}장 요소 넘침` : ' · 요소 넘침 없음'}${checkFailed ? ` · ${checkFailed}장 확인 실패` : ''}${shrunk ? ` · ${shrunk}장 캔버스 한계 축소` : ''}. 예상 크기는 아래 목록에서 확인하세요. 배치는 자동 변경하지 않습니다.`;
+    $('exportStart').textContent = `${plan.jobs.length}장 내보내기 시작`;
+    $('exportReview').hidden = false;
+    status.textContent = '대상·크기·비율·넘침을 확인한 뒤 내보내기를 시작하세요.';
+  } finally {
+    state.exportBusy = false; syncActionButtons();
+  }
+}
+
+async function exportShots(list, prepared = null){
+  if (state.exportBusy) return;
+  const plan = prepared || makeExportPlan(list);
+  const { config, jobs } = plan;
+  if (!jobs.length) return;
   const progress = $('exportProgress'), status = $('exportStatus');
-  let saved = 0, requested = 0, shrunk = 0, renamed = 0, permissionLost = false;
-  const failed = [];
-  state.exportBusy = true;
+  let saved = 0, requested = 0, shrunk = 0, renamed = 0, permissionLost = false, cancelled = 0, overflow = 0;
+  const failed = [], metrics = [], started = performance.now();
+  state.exportBusy = true; state.exportCancel = false; state.exportRetry = null; state.exportPlan = null;
+  $('exportReview').hidden = true;
   syncActionButtons();
   progress.hidden = false; progress.max = jobs.length; progress.value = 0;
   try {
     for (let i = 0; i < jobs.length; i++){
+      if (state.exportCancel){ cancelled = jobs.length - i; break; }
       const job = jobs[i];
       status.textContent = `${i + 1}/${jobs.length} · ${job.name}`;
       await new Promise(requestAnimationFrame);
+      if (state.exportCancel){ cancelled = jobs.length - i; break; }
+      let raw, padded, cv;
+      const itemStarted = performance.now();
       try {
-        const info = {};
-        const cv = downscale(padToRatio(render(job.shot.img, job.options, info), config.opts), config.long);
-        const result = await save(await toBlob(cv, config.fmt, config.quality), job.name);
+        const info = { collect:true };
+        raw = render(job.shot.img, job.options, info);
+        if (info.boxes?.some(box => boxOver(box, { raw, area:info.area }))) overflow++;
+        padded = padToRatio(raw, job.options);
+        cv = downscale(padded, config.long);
+        const renderedAt = performance.now();
+        const blob = await toBlob(cv, config.fmt, config.quality), encodedAt = performance.now();
+        const result = await save(blob, job.name);
+        metrics.push({ name:job.name, width:cv.width, height:cv.height, bytes:blob.size,
+          renderMs:Math.round(renderedAt - itemStarted), encodeMs:Math.round(encodedAt - renderedAt),
+          saveMs:Math.round(performance.now() - encodedAt) });
         if (result.name !== job.name) renamed++;
         if (info.shrunk) shrunk++;
         if (result.confirmed) saved++; else requested++;
       } catch (err) {
-        failed.push(job.shot.name);
+        failed.push(job);
         if (['NotAllowedError','SecurityError','InvalidStateError'].includes(err?.name)){
           permissionLost = true;
-          failed.push(...jobs.slice(i + 1).map(x => x.shot.name));
-          progress.value = jobs.length;
+          failed.push(...jobs.slice(i + 1));
+          progress.value = i + 1;
           break;
         }
+      } finally {
+        // 완료한 캔버스의 픽셀 버퍼를 풀어 다음 장과 동시에 붙잡지 않는다.
+        for (const canvas of new Set([raw, padded, cv])) if (canvas) canvas.width = canvas.height = 1;
       }
       progress.value = i + 1;
       if (!state.dirHandle) await new Promise(r => setTimeout(r, 350)); // 다운로드 연타 방지
     }
-    const details = [shrunk ? `${shrunk}장 자동 축소` : '', renamed ? `${renamed}개 이름 변경` : ''].filter(Boolean);
-    status.textContent = permissionLost
-      ? `${saved}장 저장 · 폴더 권한이 끊겼습니다. 저장 폴더를 다시 선택하세요.`
-      : requested
-        ? `${requested}장 다운로드 요청 · 브라우저 다운로드 목록에서 완료 여부를 확인하세요${failed.length ? ` · ${failed.length}장 요청 실패` : ''}${details.length ? ` · ${details.join(' · ')}` : ''}`
-        : `${saved}장 저장 확인${failed.length ? ` · ${failed.length}장 실패: ${failed.slice(0, 3).join(', ')}${failed.length > 3 ? '…' : ''}` : ''}${details.length ? ` · ${details.join(' · ')}` : ''}`;
-    toast(requested ? `${requested}장 다운로드 요청됨` : failed.length ? `${saved}장 저장 · ${failed.length}장 실패` : `${saved}장 저장됨`);
+    state.exportRetry = failed.length ? { config, jobs:failed } : null;
+    const details = [saved ? `${saved}장 저장 확인` : '', requested ? `${requested}장 다운로드 요청` : '',
+      failed.length ? `${failed.length}장 실패: ${failed.slice(0, 3).map(job => job.shot.name).join(', ')}${failed.length > 3 ? '…' : ''}` : '',
+      cancelled ? `${cancelled}장 취소됨 (미처리)` : '', shrunk ? `${shrunk}장 자동 축소` : '',
+      renamed ? `${renamed}개 이름 변경` : '', overflow ? `${overflow}장 요소 넘침 (배치 유지)` : ''].filter(Boolean);
+    status.textContent = details.join(' · ') || '내보낸 사진이 없습니다.';
+    if (permissionLost) status.textContent += ' · 폴더 권한이 끊겼습니다. 저장 폴더를 다시 선택한 뒤 실패 사진을 재시도하세요.';
+    if (requested) status.textContent += ' · 브라우저 다운로드 목록에서 완료 여부를 확인하세요.';
+    state.lastExportMetrics = { count:jobs.length, completed:metrics.length, failed:failed.length, cancelled,
+      totalMs:Math.round(performance.now() - started), photos:metrics };
+    document.documentElement.dataset.exportMetrics = JSON.stringify(state.lastExportMetrics);
+    console.info('[PhotoFrame] 내보내기 측정', state.lastExportMetrics);
+    toast(cancelled ? `내보내기 취소 · ${saved + requested}장 처리됨` : requested ? `${requested}장 다운로드 요청됨` : `${saved}장 저장 · ${failed.length}장 실패`);
   } finally {
     state.exportBusy = false;
     syncActionButtons();
   }
 }
 
-$('exportOne').onclick = () => exportShots([state.shots[state.current]]);
-$('exportAll').onclick = () => exportShots([...state.shots]);
+$('exportOne').onclick = () => prepareExport([state.shots[state.current]]);
+$('exportAll').onclick = () => prepareExport([...state.shots]);
+$('exportSelected').onclick = () => prepareExport([...state.batch]);
+$('exportRetry').onclick = () => prepareExport([], state.exportRetry);
+$('exportStart').onclick = () => { if (state.exportPlan) exportShots([], state.exportPlan); };
+$('exportCancel').onclick = () => {
+  state.exportCancel = true;
+  $('exportStatus').textContent = '현재 처리 중인 사진을 마친 뒤 취소합니다.';
+};
 
 /* ============================================================
    토스트
@@ -3995,7 +4610,7 @@ function selfCheck(){
     lens:LEGACY_GEAR_SEED.lens.slice(0, 2), film:[...LEGACY_GEAR_SEED.film] });
   console.assert(JSON.stringify(cleanedGear) === JSON.stringify({ body:['내 카메라'], lens:[], film:[] }),
     'PhotoFrame 예전 장비 시드 정리 검사 실패');
-  console.assert($('borderScaleField').hidden === (state.style !== 'instax') &&
+  console.assert($('borderScaleField').hidden === (state.style !== 'instax' && !MATTE_STYLES.includes(state.style)) &&
     $('sideTextField').hidden === !(state.style === 'instax' && advTab === 'land'),
     'PhotoFrame 스타일별 설정 노출 검사 실패');
   console.assert([...document.querySelectorAll('input:not([hidden]),select,textarea')]
@@ -4028,6 +4643,7 @@ updateExportNote();
 fillDatalists();
 drawGear();
 drawLayouts();
+drawAppearances();
 applyLogoImage();
 drawLogos();
 refresh();

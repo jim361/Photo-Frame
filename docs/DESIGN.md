@@ -78,18 +78,19 @@ PhotoFrame의 UI는 **Structural Modernism**을 따른다. 따뜻한 미색 canv
 ### Medium · `720px` 이상 `1100px` 미만
 
 - 필수 기능을 줄이지 않고 한 열로 전환한다.
-- 미리보기 workspace를 한 화면 높이로 먼저 보여주고 설정 rail을 그 아래 배치한다.
+- 빈 상태는 미리보기 workspace를 한 화면 높이로 먼저 보여주고 설정 rail을 그 아래 배치한다. 사진을 불러오면 `.table`을 `display:contents`로 두어 미리보기만 `sticky; top:0`으로 고정한다. 높이는 `clamp(240px,48dvh,520px)`이며 헤더·사진 스트립·설정은 페이지에서 스크롤된다.
 - rail의 좌측선은 상단 `3px` 구조선으로 바뀐다.
 - 별도 navigation destination이 없으므로 navigation rail이나 하단 navigation을 만들지 않는다.
 
 ### Compact · `720px` 미만
 
 - 좌우 gutter는 `16px`이다.
+- 헤더는 제목·개인 설정과 사진 추가·설정 이동의 두 행으로 배치하고 소개 문구를 숨겨 360px에서도 조작 버튼이 가로로 넘치지 않게 한다.
 - 2열·3열 form row는 한 열로 쌓고 범위 선택, 글꼴 도구도 세로로 배치한다.
 - 빈 상태는 viewport 안에서 스크롤할 수 있고 headline을 `28px`로 낮춘다.
 - 줌바는 너비 안에서 **4열 × 2행** grid가 되어 모든 기능을 유지한다.
 - strip과 rail 하단에는 `env(safe-area-inset-bottom)`을 반영한다.
-- 헤더의 `설정 ↓`과 레일의 sticky `↑ 미리보기로`를 보여 긴 한 열 화면을 왕복한다. desktop 기능을 숨기지 않는다.
+- 헤더의 `설정 ↓`과 레일의 `↑ 미리보기로`를 유지한다. 사진이 있을 때는 미리보기가 고정되므로 설정을 스크롤하면서 결과를 확인하고, 레일의 이동 버튼은 일반 흐름에 두어 미리보기를 덮지 않는다. desktop 기능을 숨기지 않는다.
 
 ## 5. 화면 구조와 컴포넌트
 
@@ -115,6 +116,7 @@ PhotoFrame의 UI는 **Structural Modernism**을 따른다. 따뜻한 미색 canv
 - 화면 맞춤은 실제 도구막대 높이를 제외한 공간에 사진을 배치해 2행 도구막대와 겹치지 않는다.
 - 활성 토글은 cobalt 면 + 흰 글자, hover는 primary-soft, 비활성은 neutral-soft로 표현한다.
 - 경계 넘침은 `--error`와 점 표식을 함께 써 색만으로 알리지 않는다.
+- 두 손가락 줌·팬은 기존 canvas transform만 바꾼다. 표시·레이아웃 설정에는 요소와 이동 간격 선택, 48px 방향 버튼, 선택 요소 위치 초기화를 제공하고 기존 배치 되돌리기와 연결한다.
 
 ### 사진 strip
 

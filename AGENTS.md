@@ -29,22 +29,24 @@
 
 모든 수치는 **사진 폭 W의 비율**로 저장 — 해상도 무관 동일 배치.
 
-- `render(src, opts, info)` — 원본 해상도로 합성 후 축소. `info.collect`가 참이면 요소 박스를 `info.boxes`로 수집(미리보기 오버레이용). 스타일: `film`(필름 스트립, 세로 사진은 좌우 퍼포레이션) / `instax`(세로=하단 여백 카드, 가로=우측 여백) / `bottom`/`top`(여백 띠)
+- `render(src, opts, info)` — 원본 해상도로 합성 후 축소. `info.collect`가 참이면 요소 박스를 `info.boxes`로 수집. 스타일: `film` / `instax` / `bottom`/`top` / `matte`/`gallery`/`keyline`/`minimal`(여백 분기 공유). 미리보기·현재 사진 썸네일·넘침 검사·내보내기가 같은 경로 사용
 - 요소 모델: `ELEM_KEYS = ['body','lens','film','set','date','cap','logo']` — 구분자 없이 `rowLayout()`이 간격 배치. 요소별 드래그 오프셋은 `OFF_KEYS`(각 키의 DX/DY, W 비율)
 - 스타일·방향별 프로파일: `adv[style].port` / `adv[style].land` — 프레임별 레이아웃·배율·오프셋을 분리하고 세로/가로 사진에 따라 자동 선택(`withProfile`)
 - 장별 EXIF 분리: `readExif()`(자체 JPEG APP1/TIFF 파서), `shot.exif`(자동) / `shot.own`(장별 수정) / `gInfo`(전역), 렌더는 `withShot()` 병합
 - 로컬 글꼴: 기본 시스템 스택 / `queryLocalFonts()` PC 글꼴(데스크톱 Chromium, 이름만 저장) / FontFace 파일 글꼴(TTF·OTF·WOFF·WOFF2, 선택된 파일만 프로젝트 JSON에 dataURL 포함)
 - 경계 오버레이·드래그: `state._pv`에 렌더 캐시 → `paintOverlay()`. 요소 박스 드래그(스냅 가이드, 더블클릭 리셋), 프레임 크기 핸들(하단 공간=경계선, 인스탁스 테두리 여백=사진 우상단 모서리 그립 — 왼쪽·아래로 끌면 커짐), 호버 강조 + 방향 커서. `layoutUndo`가 요소 이동·크기·수치·프리셋·초기화 직전 스타일 프로파일을 프레임 스타일별 최대 50단계 세션 스택으로 보관한다. 히트 우선순위: 그립 → 선 → 박스 → 팬. 드래그 중에는 1400px 축소본으로 렌더(fit 모드), 좌표는 renderW로 정규화
-- localStorage: `frame.settings`(전역 설정) / `frame.gear`(장비 프리셋) / `frame.logos` / `frame.layouts`(배치 프리셋) / `frame.ui`(패널 폭·배율·경계 표시 여부 — **병합 방식으로 써서 서로 덮어쓰지 않게 유지**) / `frame.panels`
+- localStorage: `frame.settings`(전역 설정·색상) / `frame.gear`(장비 프리셋) / `frame.logos` / `frame.layouts`(배치 프리셋) / `frame.appearances`(촬영 값 제외 디자인) / `frame.ui`(패널 폭·배율·경계 표시 여부 — **병합 방식으로 써서 서로 덮어쓰지 않게 유지**) / `frame.panels`
 - 내보내기: 인스타 비율 패딩(`padToRatio`), File System Access API 폴더 저장(Chromium) + 다운로드 폴백, 제목 순번 명명
 
-## 현재 상태 (2026-07-19)
+## 현재 상태 (2026-09-07)
 
 v1.0.0 태그까지 릴리즈됨 + 이후 Unreleased 변경분은 `CHANGELOG.md` 참조.
 최근 완료: 요소 개별 배치(구분자 제거·드래그), 스타일별 최대 50단계 레이아웃 돌아가기, 한/영 글꼴 분리와 로컬 PC·파일 글꼴, 프레임 크기 핸들(모서리 그립·호버 강조·경계 기본 표시), 스타일·방향별 레이아웃 프리셋, 가로 인스탁스 회전 요소 드래그, 넘침 빨간 경고, 사진 원본 없는 프로젝트 JSON 저장·복원, 첫 화면 안내문 줄바꿈 개선.
 
+추가 완료: 부분 프로젝트 저장·dirty 복구, 8종 프레임·색상·사진 썸네일, 부분 EXIF 채택·개별 노출 표시·날짜 형식, 선택 내보내기·사전 검사·취소·재시도, 로컬 디자인 프리셋, 좁은 화면 고정 미리보기·핀치·정밀 이동. `node tools/check.mjs`는 표준 라이브러리 동작 검사까지 실행한다. Chrome 브라우저 검사와 24MP 합성 JPEG 1/6/12장 측정은 README 참조.
+
 **남은 백로그** (우선순위 미정 — 착수 전 사용자와 상의):
-- README 데모 GIF/스크린샷
-- 핀치 줌(모바일), 프리셋 JSON 내보내기/가져오기, 장소 필드
+- 실제 카메라 JPEG·회전 EXIF, 모바일 실기기·가상 키보드·Safari, 36장 메모리·실제 폴더 성능 검증
+- README 데모 GIF, 장소 필드 (README 결과 예시·장비/레이아웃 프리셋 JSON은 완료)
 - 멀티 뷰 라이트테이블(보류 — 사용자가 먼저 언급할 때만)
 - 2단계 Vite+TS 마이그레이션(착수 전 사용자 확인 필수)

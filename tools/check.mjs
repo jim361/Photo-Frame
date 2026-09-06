@@ -33,3 +33,9 @@ if (legacyHash !== '45739c92d133e4749def777e725ab924ae45db1fc9a76903348dd8a78710
   throw new Error('수정 금지인 legacy/filmframe.html이 변경되었습니다.');
 
 console.log(`PhotoFrame 검사 통과 · DOM id ${ids.size}개 · 인라인 스크립트 ${script.length.toLocaleString()}자`);
+
+// 배포 전에도 실제 복구·내보내기·메타데이터·조작 분기를 실행한다. 모두 Node 표준 라이브러리만 사용한다.
+await import('./check-recovery-export.mjs');
+await import('./check-metadata.mjs');
+await import('./check-mobile.mjs');
+await import('./check-colors.mjs');
