@@ -70,7 +70,7 @@ PhotoFrame의 UI는 **Structural Modernism**을 따른다. 따뜻한 미색 canv
 ### Expanded · `1100px` 이상
 
 - `.shell`은 중앙 workspace와 우측 설정 rail의 2열이다.
-- workspace는 남은 너비를 사용하고 rail은 사용자 설정 `--railw`를 사용한다(초기값 `350px`, CSS fallback `376px`).
+- workspace는 남은 너비를 사용하고 rail은 사용자 설정 `--railw`를 사용한다(초기값과 CSS fallback `500px`). 기존 사용자가 직접 저장한 너비는 유지한다.
 - 높이는 `100dvh`이며 미리보기 workspace와 설정 rail은 각자 필요한 overflow를 처리한다.
 - masthead는 높이 `64px`, 좌우 gutter `24px`, 하단 `3px` ink 구조선이다.
 - rail은 흰 surface, 좌측 `3px` ink 구조선, 내부 gutter `24px`이다.
@@ -89,13 +89,13 @@ PhotoFrame의 UI는 **Structural Modernism**을 따른다. 따뜻한 미색 canv
 - 빈 상태는 viewport 안에서 스크롤할 수 있고 headline을 `28px`로 낮춘다.
 - 줌바는 너비 안에서 **4열 × 2행** grid가 되어 모든 기능을 유지한다.
 - strip과 rail 하단에는 `env(safe-area-inset-bottom)`을 반영한다.
-- 모바일에만 기능을 새로 추가하거나 desktop 기능을 숨기지 않는다.
+- 헤더의 `설정 ↓`과 레일의 sticky `↑ 미리보기로`를 보여 긴 한 열 화면을 왕복한다. desktop 기능을 숨기지 않는다.
 
 ## 5. 화면 구조와 컴포넌트
 
 ### Masthead
 
-- `<header>` 안의 `<h1>` wordmark, 한 줄 ellipsis 설명, 48×48px 개인 설정 버튼으로 구성한다.
+- `<header>` 안의 `<h1>` wordmark, 한 줄 ellipsis 설명, 작업 중에도 보이는 `＋ 사진 추가`, 모바일 `설정 ↓`, 48×48px 개인 설정 버튼으로 구성한다.
 - 그림자 없이 3px 하단선으로 workspace 시작점을 구분한다.
 
 ### 빈 상태와 사진 입력
@@ -105,6 +105,7 @@ PhotoFrame의 UI는 **Structural Modernism**을 따른다. 따뜻한 미색 canv
 - `01 / INPUT`, headline, 파일 안내, 3단계 사용법, 로컬 처리 안내 순으로 읽힌다.
 - hover는 `--primary-soft`, keyboard focus는 3px cobalt outline을 사용한다.
 - 사진은 브라우저 밖으로 전송하지 않는다는 문구를 항상 노출한다.
+- `내장 예제로 체험`은 HTML 안에서 Canvas로 만드는 도형 사진 두 장만 사용한다. 실제 사용자 사진이 아님과 로컬 생성임을 버튼 주변과 예제 이미지 자체에 표시한다.
 
 ### 미리보기와 줌바
 
@@ -122,19 +123,22 @@ PhotoFrame의 UI는 **Structural Modernism**을 따른다. 따뜻한 미색 canv
 - 장별 정보와 EXIF 상태는 문자 marker를 함께 표시한다.
 - 삭제는 항상 노출하고 `--error`를 사용한다. 필수 action을 hover에만 의존하지 않는다.
 - 사진 표시 영역 아래에 선택 레이블과 삭제 버튼을 각각 48×48px로 분리한다. 현재 사진 테두리와 배치 선택 외곽선은 함께 보이며, 목록 갱신 후에도 키보드 초점을 유지한다.
+- 스트립 위 상태 줄은 현재 사진·선택 장수·촬영 정보 범위를 표시하고, 앞/뒤 이동과 삭제 취소를 48px 버튼으로 제공한다.
 
 ### 설정 rail
 
 - section은 둥근 card 대신 heading, 여백, 1px divider로 구분한다.
 - section heading에는 화면 순서에 따른 `01 /`, `02 /` marker를 붙인다.
 - 접이식 panel은 반경 0, 1px line frame이며 열림 상태를 `＋/−`와 구조선으로 표시한다.
+- 프레임 선택 버튼에는 선과 면만으로 만든 작은 스타일 예시를 넣고 텍스트 이름을 함께 유지한다.
+- 촬영 정보 적용 범위와 스타일·방향 공통 배치를 다른 안내 문장으로 구분하며, 현재 프레임에서 의미 없는 설정 행은 숨긴다.
 
 ### 버튼과 입력
 
 - Primary button: cobalt 배경, 흰 글자, 2px cobalt border.
 - Secondary button: 흰 배경, 2px ink border.
 - Segmented control: 2px ink 외곽선과 1px 내부선, 활성 cell 전체를 pressed cobalt로 채운다.
-- 입력: 흰 배경, 1px line, 반경 4px, 최소 높이 48px, 좌우 padding 16px.
+- 입력: 흰 배경, 1px line, 반경 4px, 최소 높이 48px, 좌우 padding 16px. 일반 텍스트 라벨은 32px 안에서 정렬해 행 사이의 과도한 빈 공간을 줄인다.
 - focus는 2px cobalt outline과 2px offset으로 항상 보이게 한다.
 - disabled는 neutral-soft 배경과 muted ink를 함께 사용한다.
 - 파괴적 action은 `--error`, 경고 panel은 `--warning`으로 primary와 구분한다.
@@ -146,6 +150,7 @@ PhotoFrame의 UI는 **Structural Modernism**을 따른다. 따뜻한 미색 canv
 ### 진행과 피드백
 
 - 내보내기 progress는 cobalt를 사용하고 현재 파일·전체 수를 인접한 live text로 제공한다.
+- 프로젝트 상태는 `저장 필요`·`마지막 저장`·`저장 확인 필요`를 문구와 상태색으로 구분한다. 다운로드 요청을 실제 저장 완료처럼 초록색 완료로 표현하지 않는다.
 - 토스트는 하단 중앙에 나타나되 미리보기 주요 내용을 가리지 않는다.
 - reduced motion 환경에서는 transition을 제거한다.
 

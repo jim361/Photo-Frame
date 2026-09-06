@@ -52,7 +52,7 @@
     overflow:hidden;
   }
 
-  .shell{display:grid;grid-template-columns:minmax(0,1fr) var(--railw, 376px);height:100dvh}
+  .shell{display:grid;grid-template-columns:minmax(0,1fr) var(--railw, 500px);height:100dvh}
 
   /* ---------- left: light table ---------- */
   .table{
@@ -75,6 +75,15 @@
     font-family:var(--mono);font-size:11px;font-weight:700;
     color:var(--muted-ink);letter-spacing:.06em;
   }
+  .headbtn{
+    min-height:var(--touch);padding:8px 14px;border:2px solid var(--ink);
+    background:var(--surface);color:var(--ink);font-family:var(--mono);font-size:12px;font-weight:700;
+    cursor:pointer;white-space:nowrap;
+  }
+  .headbtn:hover{background:var(--primary-soft);color:var(--primary-pressed);border-color:var(--primary)}
+  #addPhotos{margin-left:auto}
+  .masthead .gearbtn{margin-left:0}
+  .mobileJump{display:none}
 
   /* ----- zoomable viewport ----- */
   .viewport{
@@ -121,6 +130,9 @@
     word-break:keep-all;text-wrap:pretty;max-width:560px;
   }
   .dropzone .guide-note b{color:var(--ink);font-weight:700}
+  .demoAction{display:flex;align-items:center;gap:var(--space-2);margin-top:var(--space-3);flex-wrap:wrap}
+  .demoAction .btn{width:auto}
+  .demoAction small{font-family:var(--mono);font-size:10px;color:var(--muted-ink)}
 
   /* ----- zoom toolbar ----- */
   .zoombar{
@@ -152,10 +164,19 @@
   .zoombar button.pct:hover{color:var(--primary-pressed)}
 
   /* ----- filmstrip of loaded frames ----- */
+  .stripArea{border-top:3px solid var(--ink);background:var(--surface);flex:0 0 auto}
+  .stripBar{
+    min-height:48px;padding:6px var(--space-3);display:flex;align-items:center;gap:var(--space-2);
+    border-bottom:1px solid var(--line);
+  }
+  .stripStatus{min-width:0;flex:1;font-family:var(--mono);font-size:11px;color:var(--muted-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stripBar button{min-width:var(--touch);min-height:var(--touch);padding:7px 10px;border:1px solid var(--ink);background:var(--surface);color:var(--ink);font-family:var(--mono);font-size:11px;cursor:pointer}
+  .stripBar button:hover{background:var(--primary-soft);color:var(--primary-pressed)}
+  .stripBar button:disabled{border-color:var(--line);background:var(--neutral-soft);color:var(--muted-ink);cursor:not-allowed}
+  .stripBar #undoDelete{color:var(--error)}
   .strip{
     display:flex;gap:var(--space-2);align-items:center;
     padding:var(--space-2) var(--space-3);min-height:104px;
-    border-top:3px solid var(--ink);
     background:var(--surface);overflow-x:auto;flex:0 0 auto;
   }
   .strip:empty::before{
@@ -233,12 +254,28 @@
   .seg button:last-child{border-right:0}
   .seg button:hover{background:var(--primary-soft);color:var(--primary-pressed)}
   .seg button[aria-pressed="true"]{background:var(--primary-pressed);color:#fff;font-weight:700}
+  #styleSeg button{display:grid;grid-template-columns:30px minmax(0,1fr);align-items:center;text-align:left;gap:5px}
+  .frameMini{position:relative;width:28px;height:22px;border:2px solid currentColor;display:block}
+  .frameMini::before{content:"";position:absolute;background:currentColor;opacity:.75}
+  .frameMini.film::before{left:3px;right:3px;top:-2px;height:3px;box-shadow:0 19px 0 currentColor}
+  .frameMini.instax::before{left:3px;right:3px;top:3px;height:11px;background:var(--neutral-soft);opacity:1}
+  .frameMini.bottom::before{left:0;right:0;bottom:0;height:6px}
+  .frameMini.top::before{left:0;right:0;top:0;height:6px}
 
   .field{min-width:0;margin-bottom:var(--space-2)}
   .field span{
     display:flex;align-items:center;gap:var(--space-2);
     min-height:var(--touch);font-size:12px;color:var(--muted-ink);margin-bottom:var(--space-1);
   }
+  .field > span:not(:has(.eye)){min-height:32px}
+  .workStatus{
+    display:grid;gap:4px;margin-bottom:var(--space-3);padding:10px 12px;
+    border-left:4px solid var(--primary);background:var(--neutral-soft);
+    font-family:var(--mono);font-size:11px;color:var(--ink);
+  }
+  .workStatus span{color:var(--muted-ink)}
+  .workStatus b{color:var(--ink)}
+  .scopeTag{color:var(--primary-pressed);font-weight:700}
   input[type=text],input[type=number],select,textarea{
     width:100%;min-height:var(--touch);background:var(--surface);color:var(--ink);
     border:1px solid var(--line);border-radius:var(--radius-control);
@@ -368,6 +405,10 @@
 
   .note{font-size:12px;color:var(--muted-ink);margin-top:var(--space-2);line-height:1.5}
   .note b{color:var(--ink);font-weight:700}
+  .projectState{padding:9px 11px;border:1px solid var(--line);font-family:var(--mono);font-size:11px;color:var(--muted-ink)}
+  .projectState.dirty{border-left:4px solid var(--warning);color:var(--ink)}
+  .projectState.saved{border-left:4px solid var(--success);color:var(--ink)}
+  .projectState.pending{border-left:4px solid var(--primary);color:var(--ink)}
   progress{width:100%;height:8px;margin-top:var(--space-2);display:block;accent-color:var(--primary)}
   #fsWarn{
     border-left:3px solid var(--warning);padding:8px 12px;margin-top:var(--space-2);
@@ -398,12 +439,16 @@
     .shell{grid-template-columns:1fr;height:auto}
     .table{height:100dvh;min-height:640px}
     .rail{border-left:0;border-top:3px solid var(--ink);padding:var(--space-4)}
+    .mobileJump{display:block}
+    .railJump{position:sticky;top:0;z-index:8;margin:-24px -24px 16px;padding:8px 24px;background:var(--surface);border-bottom:1px solid var(--line)}
   }
   @media (max-width:719px){
     .table{height:auto;min-height:max(680px,100dvh)}
     .masthead{padding:0 var(--space-3);gap:var(--space-2)}
     .wordmark{font-size:20px}
     .subtitle{font-size:10px}
+    .headbtn{padding:6px 9px;font-size:11px}
+    .gearbtn{margin-left:0}
     .viewport{min-height:max(528px,calc(100dvh - 212px))}
     .dropzone{
       inset:var(--space-3);width:auto;max-height:calc(100% - 32px);
@@ -419,8 +464,11 @@
     .zoombar button,.zoombar .pct{width:100%;min-width:0;padding:0 4px;white-space:normal}
     .zoombar > :nth-child(4n){border-right:0}
     .zoombar > :nth-child(n+5){border-top:1px solid var(--line)}
+    .stripBar{align-items:stretch;flex-wrap:wrap}
+    .stripStatus{flex-basis:100%}
     .strip{padding-bottom:max(var(--space-2), env(safe-area-inset-bottom))}
     .rail{padding:var(--space-3);padding-bottom:max(var(--space-4), env(safe-area-inset-bottom))}
+    .railJump{margin:-16px -16px 16px;padding:8px 16px}
     .row,.row3{grid-template-columns:1fr}
     .infoScope{grid-template-columns:1fr}
     .fonttools{flex-direction:column}
@@ -436,6 +484,8 @@
     <header class="masthead">
       <h1 class="wordmark">PhotoFrame</h1>
       <span class="subtitle">사진에 프레임과 촬영 정보를 얹습니다</span>
+      <button type="button" class="headbtn" id="addPhotos">＋ 사진 추가</button>
+      <button type="button" class="headbtn mobileJump" id="toSettings">설정 ↓</button>
       <button type="button" class="gearbtn" id="gearBtn" title="개인 설정 (화면 표시)" aria-haspopup="dialog" aria-controls="advPanel" aria-expanded="false">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </button>
@@ -452,6 +502,10 @@
         </ol>
         <p class="guide-note">자주 쓰는 장비는 <b>프리셋</b>에 ＋로 저장해 두면 다음부터 클릭 한 번입니다 ·
           미리보기의 <b>경계</b>를 켜면 글씨 위치를 마우스로 옮길 수 있습니다</p>
+        <div class="demoAction">
+          <button type="button" class="btn" id="loadExample">내장 예제로 체험</button>
+          <small>도형으로 만든 로컬 예제 · 실제 사용자 사진이 아닙니다</small>
+        </div>
         <p class="guide-note" id="dropPrivacy">사진은 <b>이 브라우저 밖으로 나가지 않습니다</b> — 업로드도, 서버도, 계정도 없습니다</p>
       </div>
       <canvas id="preview" role="img" aria-label="프레임 합성 미리보기" hidden></canvas>
@@ -463,24 +517,33 @@
         <button id="zFit" title="화면에 맞추기 (0)">맞춤</button>
         <button id="z100" title="원본 크기 (1)">1:1</button>
         <button id="zBox" title="요소 경계 표시 — 결과물에는 포함되지 않습니다" aria-pressed="true">경계</button>
-        <button id="zUndo" title="현재 프레임 스타일의 이전 레이아웃 조작을 취소합니다" disabled>↶ 돌아가기</button>
+        <button id="zUndo" title="현재 프레임 스타일의 이전 배치 조작을 취소합니다" disabled>↶ 배치 되돌리기</button>
         <div class="pct" id="zRatio" title="원본 비율 → 결과물 비율"></div>
       </div>
     </div>
 
-    <div class="strip" id="strip" role="list" aria-label="불러온 사진"></div>
+    <div class="stripArea">
+      <div class="stripBar">
+        <p class="stripStatus" id="stripStatus" role="status" aria-live="polite">불러온 사진 없음</p>
+        <button type="button" id="movePrev" disabled>← 앞으로</button>
+        <button type="button" id="moveNext" disabled>뒤로 →</button>
+        <button type="button" id="undoDelete" disabled>삭제 취소</button>
+      </div>
+      <div class="strip" id="strip" role="list" aria-label="불러온 사진"></div>
+    </div>
   </main>
 
   <!-- ================= REBATE RAIL ================= -->
-  <aside class="rail" aria-label="프레임 설정">
+  <aside class="rail" id="settingsRail" aria-label="프레임 설정">
+    <button type="button" class="headbtn mobileJump railJump" id="toPreview">↑ 미리보기로</button>
 
     <div class="group">
       <span class="glabel">프레임 스타일</span>
       <div class="seg" id="styleSeg">
-        <button data-style="film"   aria-pressed="true">필름 스트립</button>
-        <button data-style="instax" aria-pressed="false">인스탁스</button>
-        <button data-style="bottom" aria-pressed="false">하단 여백</button>
-        <button data-style="top"    aria-pressed="false">상단 여백</button>
+        <button data-style="film" aria-pressed="true"><i class="frameMini film" aria-hidden="true"></i><span>필름 스트립</span></button>
+        <button data-style="instax" aria-pressed="false"><i class="frameMini instax" aria-hidden="true"></i><span>인스탁스</span></button>
+        <button data-style="bottom" aria-pressed="false"><i class="frameMini bottom" aria-hidden="true"></i><span>하단 여백</span></button>
+        <button data-style="top" aria-pressed="false"><i class="frameMini top" aria-hidden="true"></i><span>상단 여백</span></button>
       </div>
       <div class="field" id="toneField" style="margin-top:9px;display:none">
         <span>여백 색</span>
@@ -495,6 +558,7 @@
 
     <div class="group">
       <span class="glabel">촬영 정보</span>
+      <div class="workStatus" id="workStatus" role="status" aria-live="polite"></div>
       <div class="infoScope">
         <div class="seg seg2" id="infoScope">
           <button type="button" data-scope="global" aria-pressed="true">전체 기본값</button>
@@ -506,13 +570,13 @@
       <div class="row">
         <div class="field">
           <span><b class="lbl">카메라 <button type="button" class="exifbadge" data-k="body" title="선택 사진의 EXIF 원본으로 되돌리기" hidden>EXIF</button><button type="button" class="basebadge" data-k="body" title="선택 사진에서 전역값 사용" hidden>전역</button></b><button type="button" class="eye" data-for="showBody" title="결과물에 표시/숨김"></button></span>
-          <input type="text" id="body" list="bodies" placeholder="Nikon F5">
+          <input type="text" id="body" list="bodies" placeholder="예: 카메라 모델">
           <datalist id="bodies"></datalist>
           <input type="checkbox" id="showBody" checked hidden>
         </div>
         <div class="field">
           <span><b class="lbl">렌즈 <button type="button" class="exifbadge" data-k="lens" title="선택 사진의 EXIF 원본으로 되돌리기" hidden>EXIF</button><button type="button" class="basebadge" data-k="lens" title="선택 사진에서 전역값 사용" hidden>전역</button></b><button type="button" class="eye" data-for="showLens" title="결과물에 표시/숨김"></button></span>
-          <input type="text" id="lens" list="lenses" placeholder="50mm f/1.8G">
+          <input type="text" id="lens" list="lenses" placeholder="예: 50mm f/1.8">
           <datalist id="lenses"></datalist>
           <input type="checkbox" id="showLens" checked hidden>
         </div>
@@ -520,7 +584,7 @@
       <div class="row">
         <div class="field">
           <span><b class="lbl">필름 · 기타 <button type="button" class="basebadge" data-k="film" title="선택 사진에서 전역값 사용" hidden>전역</button></b><button type="button" class="eye" data-for="showFilm" title="결과물에 표시/숨김"></button></span>
-          <input type="text" id="film" list="films" placeholder="Portra 400 / ISO 100 / 제주 …">
+          <input type="text" id="film" list="films" placeholder="예: 필름·기기·장소 등">
           <datalist id="films"></datalist>
           <input type="checkbox" id="showFilm" checked hidden>
         </div>
@@ -568,8 +632,9 @@
             <button type="button" data-t="port" aria-pressed="true">세로 사진</button>
             <button type="button" data-t="land" aria-pressed="false">가로 사진</button>
           </div>
-          <div class="field">
-            <span>레이아웃 (필름 스트립·여백 띠)</span>
+          <p class="note" id="layoutScope" style="margin:0 0 10px"></p>
+          <div class="field" id="linesField">
+            <span>정보 줄 배치</span>
             <select id="lines">
               <option value="1">한 줄</option>
               <option value="2">두 줄 — 윗줄 장비 / 아랫줄 필름·메모</option>
@@ -577,10 +642,10 @@
           </div>
           <div class="row">
             <div class="field"><span>글자 크기 %</span><input type="number" id="fontScale" min="50" max="200" value="100"></div>
-            <div class="field"><span>하단 공간 %</span><input type="number" id="bandScale" min="50" max="500" value="100"></div>
+            <div class="field"><span id="bandScaleLabel">정보 영역 크기 %</span><input type="number" id="bandScale" min="50" max="500" value="100"></div>
           </div>
-          <div class="field">
-            <span>테두리 여백 % (인스탁스)</span>
+          <div class="field" id="borderScaleField">
+            <span>사진 둘레 여백 %</span>
             <input type="number" id="borderScale" min="0" max="300" value="100">
           </div>
           <div class="row">
@@ -618,7 +683,7 @@
             <button type="button" class="gearadd" id="fontFileAdd">폰트 파일 추가</button>
           </div>
           <p class="note" id="fontNote">기본 글꼴은 PC의 시스템 글꼴을 사용합니다. PC·파일 글꼴의 사용 권한은 사용자가 확인해야 합니다.</p>
-          <div class="row">
+          <div class="row" id="sideTextField">
             <div class="field">
               <span>가로 인스탁스 글씨</span>
               <select id="sideText">
@@ -635,7 +700,7 @@
             </div>
             <div class="field"></div>
           </div>
-          <p class="note" style="margin-top:2px">위치는 미리보기에서 <b>경계</b>를 켜고 요소를 끌어 정합니다 · 인스탁스 우상단 그립은 왼쪽·아래로 끌면 여백이 커집니다 · 이전 조작은 줌바의 <b>돌아가기</b>로 여러 단계 복원합니다</p>
+          <p class="note" style="margin-top:2px">위치는 미리보기에서 <b>경계</b>를 켜고 요소를 끌어 정합니다 · 인스탁스 우상단 그립은 왼쪽·아래로 끌면 여백이 커집니다 · 이전 조작은 줌바의 <b>배치 되돌리기</b>로 여러 단계 복원합니다</p>
           <div class="field" style="margin:10px 0 0">
             <span>레이아웃 프리셋 <button type="button" id="layoutReset" title="이 방향의 배치를 처음 상태로">초기화</button></span>
             <div class="gearcol" id="layoutRow"></div>
@@ -652,6 +717,7 @@
         <button class="btn solid" id="projectSave" disabled>프로젝트 저장</button>
         <button class="btn" id="projectOpen">프로젝트 열기</button>
       </div>
+      <p class="projectState" id="projectStatus" role="status" aria-live="polite">사진을 불러오면 저장 상태가 표시됩니다.</p>
       <p class="note" id="projectNote">사진 원본은 넣지 않고, 현재 설정과 사용 중인 파일 글꼴은 함께 저장합니다.</p>
     </div>
 
@@ -663,8 +729,9 @@
         <div class="field">
           <span>비율 맞춤</span>
           <select id="ratio">
-            <option value="auto">인스타 자동</option>
+            <option value="auto">Instagram 피드 자동</option>
             <option value="none">원본 비율</option>
+            <option value="3:4">3:4 세로</option>
             <option value="4:5">4:5 세로</option>
             <option value="1:1">1:1 정방형</option>
             <option value="1.91:1">1.91:1 가로</option>
@@ -732,7 +799,7 @@
 <div class="advpanel" id="advPanel" role="dialog" aria-label="개인 설정" hidden>
   <h3>개인 설정</h3>
   <div class="row">
-    <div class="field"><span>설정 패널 폭 px</span><input type="number" id="uiWidth" min="300" max="600" step="10" value="350"></div>
+    <div class="field"><span>설정 패널 폭 px</span><input type="number" id="uiWidth" min="300" max="600" step="10" value="500"></div>
     <div class="field"><span>UI 배율 %</span><input type="number" id="uiScale" min="90" max="130" step="5" value="100"></div>
   </div>
   <div class="field">
@@ -905,22 +972,82 @@ const state = {
   showBoxes: true,    // 경계 표시 — 기본 켜짐, 줌바 토글로 끌 수 있고 frame.ui에 기억
   fontBusy: 0,
   exportBusy: false,
+  projectDirty: false,
+  projectMessage: '',
+  projectTone: '',
 };
 let pendingProject = null;   // 프로젝트를 연 뒤 원본 파일과 연결할 manifest
+let deletedPhoto = null;     // 사진 삭제는 배치 되돌리기와 분리해 한 건만 복구한다
+/* 예전 배포본이 자동 저장한 시드만 제거한다. 다른 값은 사용자가 만든 프리셋으로 보존한다. */
+const LEGACY_GEAR_SEED = {
+  body:['Nikon F5'],
+  lens:['AF-S 50mm f/1.8G','AF-D 24-85mm f/2.8-4','50mm f/1.8G','24-85mm f/2.8-4D'],
+  film:['Portra 400','Fuji Superia 400','Cinestill 800T','Kodak Gold 200','Ultramax 400'],
+};
+const LEGACY_PRESET_NAMES = new Set(['F5 · 50mm · Portra','F5 · 24-85 · Superia','F5 · 50mm · 800T']);
+function withoutLegacyGearSeed(value, forced = false){
+  const clean = Object.fromEntries(['body','lens','film'].map(k => [k, Array.isArray(value?.[k]) ? [...value[k]] : []]));
+  const seeded = forced || LEGACY_GEAR_SEED.body.every(v => clean.body.includes(v)) &&
+    LEGACY_GEAR_SEED.lens.slice(0, 2).every(v => clean.lens.includes(v)) &&
+    LEGACY_GEAR_SEED.film.every(v => clean.film.includes(v));
+  return seeded ? Object.fromEntries(Object.entries(clean).map(([k, list]) =>
+    [k, list.filter(v => !LEGACY_GEAR_SEED[k].includes(v))])) : clean;
+}
+
 /* 프리셋: 카메라/렌즈/필름을 각각 독립 목록으로 저장 (frame.gear).
-   구버전 조합 프리셋(frame.presets)이 남아 있으면 값만 이전한다 */
+   구버전 조합 프리셋(frame.presets)은 번들 시드를 제외하고 사용자 값만 이전한다. */
+const oldPresets = store.read('frame.presets', []);
+const hadLegacyPresetSeed = [...LEGACY_PRESET_NAMES].every(name => oldPresets.some(p => p?.name === name));
+if (hadLegacyPresetSeed) store.write('frame.presets', oldPresets.filter(p => !LEGACY_PRESET_NAMES.has(p?.name)));
 let gear = store.read('frame.gear', null);
 if (!gear){
-  const old = store.read('frame.presets', []);
+  const old = oldPresets.filter(p => !LEGACY_PRESET_NAMES.has(p?.name));
   gear = {
     body: [...new Set(old.map(p => p.body))].filter(Boolean),
     lens: [...new Set(old.map(p => p.lens))].filter(Boolean),
     film: [...new Set(old.map(p => p.film))].filter(Boolean),
   };
-  store.write('frame.gear', gear);
 }
+gear = withoutLegacyGearSeed(gear, hadLegacyPresetSeed);
+store.write('frame.gear', gear);
 
 const $ = id => document.getElementById(id);
+
+function updateProjectStatus(){
+  const el = $('projectStatus'); if (!el) return;
+  let text = state.projectMessage, tone = state.projectTone;
+  if (pendingProject){
+    const matched = pendingProject.photos.filter(p => p.matched).length;
+    text = `원본 연결 필요 · ${matched}/${pendingProject.photos.length}장${pendingProject.changed ? ' · 파일 정보가 다른 원본 연결됨 (다시 저장 필요)' : ''}`;
+    tone = pendingProject.changed ? 'dirty' : 'pending';
+  } else if (state.projectDirty){
+    text = state.projectMessage || '저장 필요 · 프로젝트에 반영되지 않은 변경이 있습니다.';
+    tone = 'dirty';
+  } else if (!text){
+    text = state.shots.length ? '현재 작업은 저장된 상태입니다.' : '사진을 불러오면 저장 상태가 표시됩니다.';
+    tone = state.shots.length ? 'saved' : '';
+  }
+  el.textContent = text;
+  el.className = `projectState${tone ? ` ${tone}` : ''}`;
+}
+function markProjectDirty(message = ''){
+  if (!state.shots.length && !pendingProject && !deletedPhoto) return;
+  state.projectDirty = true;
+  state.projectMessage = message || '저장 필요 · 프로젝트에 반영되지 않은 변경이 있습니다.';
+  state.projectTone = 'dirty';
+  updateProjectStatus();
+}
+function markProjectClean(message){
+  state.projectDirty = false;
+  state.projectMessage = message;
+  state.projectTone = 'saved';
+  updateProjectStatus();
+}
+window.addEventListener('beforeunload', e => {
+  if (!state.projectDirty && !pendingProject?.changed) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
 
 function syncActionButtons(){
   const busy = state.fontBusy > 0 || state.exportBusy;
@@ -1263,6 +1390,16 @@ function syncScopeUi(){
     : count
       ? `선택한 ${count}장에 입력값과 표시 변경을 함께 적용합니다.`
       : '현재 사진만 수정합니다. 전역 버튼으로 항목별 기본값을 다시 사용할 수 있습니다.';
+  const current = state.shots[state.current];
+  const pos = current ? `${state.current + 1}/${state.shots.length} · ${current.name}` : '사진 없음';
+  const edit = scope === 'global' ? '전체 기본값' : count ? `선택 ${count}장` : '현재 사진 1장';
+  const heading = document.createElement('b');
+  heading.textContent = `현재 ${pos}${current?.example ? ' · 내장 예제' : ''}`;
+  const detail = document.createElement('span');
+  detail.append('촬영 정보 적용: ');
+  const tag = document.createElement('strong'); tag.className = 'scopeTag'; tag.textContent = edit;
+  detail.append(tag, ' · 배치는 아래의 스타일·방향 공통 설정');
+  $('workStatus').replaceChildren(heading, detail);
 }
 
 function syncInfoBadges(){
@@ -1379,9 +1516,11 @@ function frameDims(W, H, o){
   return { w: W, h: H + W * (two ? 0.112 : 0.078) * o.bandScale };
 }
 
-/* 인스타 피드 허용 비율(4:5 ~ 1.91:1)에 맞춘 패딩 — 업로드 시 강제 크롭 방지 */
+/* Instagram 앱의 사진 피드 비율(3:4 ~ 1.91:1)에 맞춘 패딩.
+   게시 경로별 정책은 달라질 수 있어 사용자가 고르는 고정 비율도 함께 둔다. */
 function targetRatio(r, mode){
-  if (mode === 'auto') return r < 0.8 ? 0.8 : r > 1.91 ? 1.91 : null;
+  if (mode === 'auto') return r < 0.75 ? 0.75 : r > 1.91 ? 1.91 : null;
+  if (mode === '3:4')    return 0.75;
   if (mode === '4:5')    return 0.8;
   if (mode === '1:1')    return 1;
   if (mode === '1.91:1') return 1.91;
@@ -1919,7 +2058,7 @@ function updateLayoutUndo(){
   const prev = stack[stack.length - 1];
   const count = stack.length;
   $('zUndo').disabled = !prev;
-  $('zUndo').textContent = count ? `↶ 돌아가기 (${count})` : '↶ 돌아가기';
+  $('zUndo').textContent = count ? `↶ 배치 되돌리기 (${count})` : '↶ 배치 되돌리기';
   $('zUndo').title = prev
     ? `${STYLE_LABELS[state.style]} · ${prev.label} 전 상태로 돌아갑니다 (${count}단계 남음)`
     : `현재 ${STYLE_LABELS[state.style]}에서 되돌릴 레이아웃 조작이 없습니다`;
@@ -2146,7 +2285,7 @@ function paintOverlay(drag){
     pctx.lineWidth = hov ? lw * 2 : lw;
     pctx.strokeStyle = col;
     pctx.strokeRect(bx - g, by - g, b.w + g * 2, b.h + g * 2);
-    const label = over ? ` ${b.label} — 넘침: 하단 공간을 늘리거나 크기를 줄이세요 ` : ` ${b.label} `;
+    const label = over ? ` ${b.label} — 넘침: 정보 영역을 늘리거나 크기를 줄이세요 ` : ` ${b.label} `;
     const tw = pctx.measureText(label).width;
     pctx.fillStyle = col;
     pctx.fillRect(bx - g, by - g - fsL * 1.25, tw, fsL * 1.25);
@@ -2167,15 +2306,18 @@ function canvasPoint(e){
    프레임 경계 드래그 — 하단 공간 / 테두리 여백을 끌어서 조절
    ============================================================ */
 function edgeHandles(){
-  // 결과물(raw) 좌표 기준 — 텍스트 영역의 바깥 모서리 = 하단 공간(선),
+  // 결과물(raw) 좌표 기준 — 텍스트 영역의 바깥 모서리 = 정보 영역(선),
   // 사진 우상단 모서리 = 테두리 여백(그립, 인스탁스 전용)
   const P = state._pv; if (!P || !P.area || !P.units) return [];
   const R = P.raw, hs = [];
+  const areaLabel = state.style === 'film' ? '필름 정보 영역'
+    : state.style === 'instax' ? '정보 여백'
+    : state.style === 'top' ? '상단 정보 띠' : '하단 정보 띠';
   if (P.units.borderScale && P.photo)
-    hs.push({ key:'borderScale', type:'corner', x: P.photo.x + P.photo.w, y: P.photo.y, label:'테두리 여백' });
-  if (P.areaSide === 'right')       hs.push({ key:'bandScale', type:'edge', axis:'x', pos: R.width,  dir: 1, label:'하단 공간' });
-  else if (P.areaSide === 'bottom') hs.push({ key:'bandScale', type:'edge', axis:'y', pos: R.height, dir: 1, label:'하단 공간' });
-  else                              hs.push({ key:'bandScale', type:'edge', axis:'y', pos: 0,        dir:-1, label:'하단 공간' });
+    hs.push({ key:'borderScale', type:'corner', x: P.photo.x + P.photo.w, y: P.photo.y, label:'사진 둘레 여백' });
+  if (P.areaSide === 'right')       hs.push({ key:'bandScale', type:'edge', axis:'x', pos: R.width,  dir: 1, label:areaLabel });
+  else if (P.areaSide === 'bottom') hs.push({ key:'bandScale', type:'edge', axis:'y', pos: R.height, dir: 1, label:areaLabel });
+  else                              hs.push({ key:'bandScale', type:'edge', axis:'y', pos: 0,        dir:-1, label:areaLabel });
   return hs;
 }
 
@@ -2418,6 +2560,7 @@ new ResizeObserver(() => { if (!pv.hidden && zoom.mode === 'fit') zoomFit(); }).
 let raf = 0;
 function refresh(keepZoom = false){
   cancelAnimationFrame(raf);
+  const requestedAt = performance.now();
   raf = requestAnimationFrame(() => {
     const has = state.current >= 0;
     $('drop').hidden = has;
@@ -2454,12 +2597,67 @@ function refresh(keepZoom = false){
     paintOverlay(null);
     if (keepZoom && zoom.mode === 'free') applyZoom();
     else zoomFit();
+    document.documentElement.dataset.previewMetrics = JSON.stringify({
+      totalMs:Math.round(performance.now() - requestedAt), width:cv.width, height:cv.height,
+    });
   });
 }
 
 /* ============================================================
    필름 스트립: 선택 / 삭제 / 드래그 정렬
    ============================================================ */
+function releaseShot(shot){
+  if (shot?.url) URL.revokeObjectURL(shot.url);
+  shot?.img?.close?.();
+}
+function discardDeleted(){
+  if (!deletedPhoto) return;
+  releaseShot(deletedPhoto.shot);
+  deletedPhoto = null;
+}
+function syncStripControls(){
+  const shot = state.shots[state.current];
+  const picked = state.batch.size;
+  $('stripStatus').textContent = shot
+    ? `현재 ${state.current + 1}/${state.shots.length} · ${shot.name}${shot.example ? ' · 내장 예제' : ''} · 선택 ${picked}장`
+    : '불러온 사진 없음';
+  $('movePrev').disabled = state.current <= 0;
+  $('moveNext').disabled = state.current < 0 || state.current >= state.shots.length - 1;
+  $('undoDelete').disabled = !deletedPhoto;
+  $('undoDelete').textContent = deletedPhoto ? `삭제 취소 · ${deletedPhoto.shot.name}` : '삭제 취소';
+  updateProjectStatus();
+}
+function deleteShot(shot, index){
+  discardDeleted();
+  const current = state.shots[state.current];
+  deletedPhoto = { shot, index, selected:state.batch.has(shot), wasCurrent:current === shot };
+  state.batch.delete(shot);
+  state.shots.splice(index, 1);
+  state.current = state.shots.indexOf(current);
+  if (state.current < 0) state.current = Math.min(index, state.shots.length - 1);
+  markProjectDirty(`저장 필요 · “${shot.name}” 삭제됨 (삭제 취소 가능)`);
+  drawStrip(); syncFields(); refresh();
+}
+function undoDelete(){
+  if (!deletedPhoto) return;
+  const d = deletedPhoto; deletedPhoto = null;
+  const index = Math.min(d.index, state.shots.length);
+  state.shots.splice(index, 0, d.shot);
+  if (d.selected) state.batch.add(d.shot);
+  if (d.wasCurrent || state.current < 0) state.current = index;
+  else if (state.current >= index) state.current++;
+  markProjectDirty(`저장 필요 · “${d.shot.name}” 삭제를 취소했습니다.`);
+  drawStrip(); syncFields(); refresh(true); toast('사진 삭제를 취소했습니다');
+}
+function moveCurrent(delta){
+  const from = state.current, to = from + delta;
+  if (from < 0 || to < 0 || to >= state.shots.length) return;
+  const [shot] = state.shots.splice(from, 1);
+  state.shots.splice(to, 0, shot); state.current = to;
+  markProjectDirty('저장 필요 · 사진 순서가 변경되었습니다.');
+  drawStrip(); syncFields(); refresh(true);
+  $('strip').children[to]?.focus({ preventScroll:true });
+}
 function drawStrip(){
   const el = $('strip');
   const focused = el.contains(document.activeElement) ? document.activeElement : null;
@@ -2477,7 +2675,7 @@ function drawStrip(){
     if (i === state.current) d.setAttribute('aria-current', 'true');
     d.setAttribute('aria-label', `${i + 1}번 ${s.name}${i === state.current ? ' · 현재 사진' : ''}`);
     const im = document.createElement('img');
-    im.src = s.url; im.alt = '';
+    im.src = s.thumb || s.url; im.alt = '';
     const pickBox = document.createElement('input');
     pickBox.type = 'checkbox'; pickBox.className = 'pick'; pickBox.checked = state.batch.has(s);
     pickBox.setAttribute('aria-label', `${s.name} 배치 선택`);
@@ -2498,14 +2696,7 @@ function drawStrip(){
 
     d.onclick = e => {
       if (e.target === del){
-        const wasCurrent = state.shots[state.current];
-        URL.revokeObjectURL(s.url);
-        s.img.close?.();
-        state.batch.delete(s);
-        state.shots.splice(i,1);
-        state.current = state.shots.indexOf(wasCurrent);
-        if (state.current < 0) state.current = Math.min(i, state.shots.length - 1);
-        drawStrip(); syncFields(); refresh(); return;
+        deleteShot(s, i); return;
       }
       if (e.target === pickBox) return;
       state.current = i; drawStrip(); syncFields(); refresh(true);
@@ -2519,6 +2710,9 @@ function drawStrip(){
     };
     d.onkeydown = e => {
       if (e.target === pickBox || e.target === del) return;
+      if (e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')){
+        e.preventDefault(); state.current = i; moveCurrent(e.key === 'ArrowLeft' ? -1 : 1); return;
+      }
       if (e.key !== 'Enter' && e.key !== ' ') return;
       e.preventDefault();
       state.current = i; drawStrip(); syncFields(); refresh(true);
@@ -2555,6 +2749,7 @@ function drawStrip(){
       const [moved] = state.shots.splice(from, 1);
       state.shots.splice(to, 0, moved);
       state.current = state.shots.indexOf(wasCurrent);
+      markProjectDirty('저장 필요 · 사진 순서가 변경되었습니다.');
       drawStrip(); syncFields(); refresh(true);
     });
 
@@ -2565,7 +2760,11 @@ function drawStrip(){
     const chip = el.children[i];
     (focusControl ? chip.querySelector(focusControl) : chip).focus({ preventScroll:true });
   }
+  syncStripControls();
 }
+$('movePrev').onclick = () => moveCurrent(-1);
+$('moveNext').onclick = () => moveCurrent(1);
+$('undoDelete').onclick = undoDelete;
 
 /* ============================================================
    EXIF (JPEG) — 디지털 사진의 카메라/렌즈/촬영일 자동 입력.
@@ -2650,14 +2849,27 @@ async function loadImage(file){
   } finally { URL.revokeObjectURL(url); }
 }
 
+function thumbnailData(img){
+  const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+  const k = Math.min(1, 180 / Math.max(w, h));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.78);
+}
+
 async function addFiles(files){
   const imgs = [...files].filter(f => f.type.startsWith('image/'));
   const wasCurrent = state.shots[state.current];
-  let failed = 0, exifCount = 0, projectCount = 0;
+  const started = performance.now();
+  let failed = 0, skipped = 0, exifCount = 0, projectCount = 0, added = 0, longest = 0;
   for (const f of imgs){
+    const itemStarted = performance.now();
     try {
+      const saved = pendingProject ? matchProjectPhoto(f) : null;
+      if (pendingProject && !saved){ skipped++; continue; }
       const img = await loadImage(f);
-      const shot = { img, url: URL.createObjectURL(f), name: f.name,
+      const shot = { img, thumb:thumbnailData(img), name: f.name, example:!!f._photoFrameExample,
         file: { name:f.name, size:f.size, lastModified:f.lastModified, type:f.type } };
       const x = await readExif(f);
       // ponytail: 렌즈 또는 노출값을 실제 촬영 신호로 본다. 노출값까지 쓰는
@@ -2668,15 +2880,22 @@ async function addFiles(files){
         ].filter(([, value]) => value));
         exifCount++;
       }
-      const saved = matchProjectPhoto(f);
       if (saved){
+        saved.matched = true;
+        if (saved._mismatchAccepted){
+          pendingProject.changed = true;
+          delete saved._mismatchAccepted;
+        }
         if (saved.exif) shot.exif = { ...saved.exif };
         if (saved.own) shot.own = { ...saved.own, show:saved.own.show ? { ...saved.own.show } : undefined };
         shot._projectOrder = saved.order;
         projectCount++;
       }
       state.shots.push(shot);
+      added++;
     } catch { failed++; }
+    longest = Math.max(longest, performance.now() - itemStarted);
+    if ((added + failed + skipped) % 4 === 0) await new Promise(requestAnimationFrame);
   }
   if (pendingProject && projectCount){
     state.shots.sort((a, b) => (a._projectOrder ?? Infinity) - (b._projectOrder ?? Infinity));
@@ -2688,11 +2907,23 @@ async function addFiles(files){
     $('projectNote').textContent = matched === total
       ? `프로젝트 복원 완료 · 원본 ${total}장 연결됨`
       : `프로젝트 원본 연결 중 · ${matched}/${total}장 · 나머지 사진을 더 불러오세요`;
-    if (matched === total){ pendingProject = null; toast(`프로젝트 ${total}장을 복원했습니다`); }
+    if (matched === total){
+      const changed = pendingProject.changed;
+      pendingProject = null;
+      if (changed) markProjectDirty('저장 필요 · 파일 정보가 다른 원본을 확인 후 연결했습니다.');
+      else markProjectClean(`프로젝트 복원 완료 · 원본 ${total}장 연결됨`);
+      toast(`프로젝트 ${total}장을 복원했습니다`);
+    }
     else toast(`프로젝트 사진 ${matched}/${total}장 연결됨`);
   } else if (exifCount) toast(`${exifCount}장은 EXIF 촬영 정보를 사용합니다`);
+  if (!pendingProject && added && !projectCount) markProjectDirty('저장 필요 · 사진이 추가되었습니다.');
   if (failed) toast(`${failed}장을 읽지 못했습니다`);
+  if (skipped) toast(`${skipped}장은 프로젝트 원본과 연결하지 않았습니다`);
   if (state.current < 0 && state.shots.length) state.current = 0;
+  state.lastLoadMetrics = { count:added, totalMs:Math.round(performance.now() - started),
+    longestMs:Math.round(longest), thumbnail:'180px JPEG' };
+  document.documentElement.dataset.loadMetrics = JSON.stringify(state.lastLoadMetrics);
+  if (added) console.info('[PhotoFrame] 로딩 측정', state.lastLoadMetrics);
   drawStrip(); syncFields(); refresh();
 }
 
@@ -2703,6 +2934,31 @@ drop.onkeydown = e => {
   e.preventDefault(); $('picker').click();
 };
 $('picker').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
+$('addPhotos').onclick = () => $('picker').click();
+$('toSettings').onclick = () => $('settingsRail').scrollIntoView({ behavior:'smooth', block:'start' });
+$('toPreview').onclick = () => document.querySelector('.table').scrollIntoView({ behavior:'smooth', block:'start' });
+$('loadExample').onclick = async e => {
+  e.stopPropagation();
+  const make = async (w, h, name) => {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d'), y = h * 0.72;
+    g.fillStyle = '#dbe4df'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#8aa39b'; g.beginPath(); g.moveTo(0, y); g.lineTo(w*.33, h*.34); g.lineTo(w*.58, y); g.fill();
+    g.fillStyle = '#4f6864'; g.beginPath(); g.moveTo(w*.28, y); g.lineTo(w*.66, h*.25); g.lineTo(w, y); g.fill();
+    g.fillStyle = '#e8873a'; g.beginPath(); g.arc(w*.78, h*.2, Math.min(w,h)*.08, 0, Math.PI*2); g.fill();
+    g.fillStyle = '#1c2927'; g.fillRect(0, y, w, h-y);
+    g.fillStyle = '#f6f3ec'; g.font = `700 ${Math.max(20, Math.round(w*.028))}px system-ui`;
+    g.fillText('PHOTOFRAME · LOCAL EXAMPLE', w*.045, h*.92);
+    const blob = await new Promise(resolve => c.toBlob(resolve, 'image/png'));
+    const file = new File([blob], name, { type:'image/png', lastModified:0 });
+    file._photoFrameExample = true;
+    return file;
+  };
+  await addFiles(await Promise.all([
+    make(1200, 900, 'PhotoFrame-내장예제-가로.png'),
+    make(900, 1200, 'PhotoFrame-내장예제-세로.png'),
+  ]));
+};
 ['dragenter','dragover'].forEach(t => vp.addEventListener(t, e => {
   if (e.dataTransfer?.types.includes('Files')) { e.preventDefault(); drop.classList.add('hot'); }
 }));
@@ -2738,6 +2994,7 @@ function saveSettings(){
     style: state.style, tone: state.tone,
     size: $('size').value, fmt: $('fmt').value, quality: $('quality').value,
   });
+  markProjectDirty();
 }
 
 function loadSettings(){
@@ -2802,6 +3059,7 @@ INFO_KEYS.forEach(key => {
     const targets = photoTargets();
     if (state.infoScope === 'shot' && targets.length){
       targets.forEach(s => { (s.own ||= {})[key] = value; });
+      markProjectDirty();
       drawStrip();
     } else {
       gInfo[key] = value;
@@ -2833,6 +3091,14 @@ function syncAdv(){
   const p = profileFor();
   ADV_KEYS.forEach(k => $(k).value = p[k]);
   [...$('advTab').children].forEach(b => b.setAttribute('aria-pressed', b.dataset.t === advTab));
+  const instax = state.style === 'instax';
+  $('linesField').hidden = instax;
+  $('borderScaleField').hidden = !instax;
+  $('sideTextField').hidden = !(instax && advTab === 'land');
+  $('bandScaleLabel').textContent = state.style === 'film' ? '필름 정보 영역 크기 %'
+    : state.style === 'instax' ? (advTab === 'land' ? '오른쪽 정보 여백 크기 %' : '하단 정보 여백 크기 %')
+    : state.style === 'top' ? '상단 정보 띠 크기 %' : '하단 정보 띠 크기 %';
+  $('layoutScope').innerHTML = `<b>${STYLE_LABELS[state.style]} · ${advTab === 'land' ? '가로' : '세로'} 사진 공통 배치</b>를 편집합니다. 촬영 정보의 장별 범위와는 별개입니다.`;
 }
 ADV_KEYS.forEach(id => {
   const ev = id.endsWith('Scale') ? 'input' : 'change';
@@ -2949,6 +3215,7 @@ document.querySelectorAll('.exifbadge').forEach(b => b.onclick = () => {
     if (s.own) delete s.own[b.dataset.k];
     compactOwn(s); count++;
   });
+  if (count) markProjectDirty();
   drawStrip(); syncFields(); refresh(true);
   if (count) toast(`${count}장의 EXIF 원본으로 되돌렸습니다`);
 });
@@ -2963,6 +3230,7 @@ document.querySelectorAll('.basebadge').forEach(b => b.onclick = () => {
     if (s.own?.show) delete s.own.show[key];
     compactOwn(s);
   });
+  if (targets.length) markProjectDirty();
   drawStrip(); syncFields(); refresh(true);
   toast(`${targets.length}장이 전역 ${LABEL[key === 'caption' ? 'cap' : key] || '값'}을 사용합니다`);
 });
@@ -3011,7 +3279,7 @@ PANELS.forEach(id => $(id).addEventListener('toggle', () => {
 
 /* 개인 설정 — 화면 표시(패널 폭·UI 배율·테마)만 바꾼다. frame.ui에 별도 저장 */
 function applyUi(){
-  const w = Math.min(600, Math.max(300, Number($('uiWidth').value) || 350));
+  const w = Math.min(600, Math.max(300, Number($('uiWidth').value) || 500));
   const s = Math.min(130, Math.max(90, Number($('uiScale').value) || 100));
   document.documentElement.style.setProperty('--railw', w + 'px');
   document.documentElement.dataset.theme = $('uiTheme').value === 'dark' ? 'dark' : 'light';
@@ -3036,6 +3304,7 @@ Object.entries(EYE_INPUT).forEach(([id, key]) => {
     const targets = photoTargets();
     if (state.infoScope === 'shot' && targets.length){
       targets.forEach(s => { ((s.own ||= {}).show ||= {})[key] = $(id).checked; });
+      markProjectDirty();
       drawStrip();
     } else {
       gShow[key] = $(id).checked;
@@ -3071,8 +3340,8 @@ document.querySelectorAll('.eye[data-for]').forEach(b => b.onclick = () => {
 function updateExportNote(){
   const r = $('ratio').value;
   const ratioMsg =
-    r === 'auto' ? '인스타 자동: 피드 허용 비율(4:5~1.91:1)을 벗어날 때만 여백을 붙입니다' :
-    r === 'none' ? '원본 비율 그대로 저장합니다 — 인스타 허용 범위를 벗어나면 업로드 시 잘릴 수 있습니다' :
+    r === 'auto' ? 'Instagram 사진 피드 자동: 3:4~1.91:1 밖에서만 여백을 붙입니다 (게시 경로별 지원 차이 가능)' :
+    r === 'none' ? '원본 비율 그대로 저장합니다 — 게시 화면에서 최종 표시를 확인하세요' :
     `모든 결과물을 ${r} 비율로 맞춥니다`;
   const t = $('title').value.trim().replace(/[\\/:*?"<>|]/g, '');
   const titleMsg = t
@@ -3201,8 +3470,8 @@ $('presetExport').onclick = async () => {
       gear:cleanPresetGear(gear),
       layouts:cleanPresetLayouts(layouts.map(l => ({ ...l, style:l.style || state.style }))) };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
-    await save(blob, `PhotoFrame-presets-${new Date().toISOString().slice(0, 10)}.photoframe-presets.json`);
-    toast(`장비 ${Object.values(data.gear).flat().length}개 · 레이아웃 ${data.layouts.length}개 내보냄`);
+    const result = await save(blob, `PhotoFrame-presets-${new Date().toISOString().slice(0, 10)}.photoframe-presets.json`);
+    toast(`장비 ${Object.values(data.gear).flat().length}개 · 레이아웃 ${data.layouts.length}개 ${result.confirmed ? '저장됨' : '다운로드 요청됨'}`);
   } catch { toast('프리셋을 내보내지 못했습니다'); }
 };
 
@@ -3399,25 +3668,44 @@ function cleanProjectFonts(v){
   return out;
 }
 
+function projectMismatchReasons(saved, file){
+  const reasons = [];
+  if (saved.file.size && saved.file.size !== file.size)
+    reasons.push(`크기 ${saved.file.size.toLocaleString()} → ${file.size.toLocaleString()} bytes`);
+  if (saved.file.lastModified && saved.file.lastModified !== file.lastModified)
+    reasons.push(`수정 시각 ${new Date(saved.file.lastModified).toLocaleString()} → ${new Date(file.lastModified).toLocaleString()}`);
+  return reasons;
+}
+
 function matchProjectPhoto(file){
   if (!pendingProject) return null;
   const exact = p => !p.matched && p.file.name === file.name &&
     (!p.file.size || p.file.size === file.size) &&
     (!p.file.lastModified || p.file.lastModified === file.lastModified);
   let saved = pendingProject.photos.find(exact);
-  // ponytail: 이름만 같은 원본도 허용한다. 실제 충돌 사례가 생기면 manifest에 파일 해시를 추가한다.
-  if (!saved) saved = pendingProject.photos.find(p => !p.matched && p.file.name === file.name);
-  if (saved) saved.matched = true;
+  if (!saved){
+    saved = pendingProject.photos.find(p => !p.matched && p.file.name === file.name);
+    if (saved){
+      const reasons = projectMismatchReasons(saved, file);
+      const ok = confirm(`“${file.name}”은 파일명만 같습니다.\n${reasons.join('\n') || '저장된 파일 정보와 현재 파일 정보가 다릅니다.'}\n\n이 파일을 프로젝트 원본으로 연결할까요?`);
+      if (!ok) return null;
+      saved._mismatchAccepted = true;
+    }
+  }
   return saved || null;
 }
 
 function clearShots(){
-  for (const s of state.shots){ URL.revokeObjectURL(s.url); s.img.close?.(); }
+  for (const s of state.shots) releaseShot(s);
+  discardDeleted();
   state.shots = [];
   state.current = -1;
   state.batch.clear();
   state.infoScope = 'global';
   state._pv = null;
+  state.projectDirty = false;
+  state.projectMessage = '';
+  state.projectTone = '';
   drawStrip(); syncFields(); refresh();
 }
 
@@ -3481,9 +3769,15 @@ $('projectSave').onclick = async () => {
       toast('프로젝트 용량이 64MB를 넘습니다');
       return;
     }
-    await save(blob, `${base}.photoframe.json`);
-    $('projectNote').textContent = `프로젝트 저장됨 · ${project.photos.length}장 · 파일 글꼴 ${project.fonts.length}개 · 사진 원본은 미포함`;
-    toast('프로젝트를 저장했습니다');
+    const result = await save(blob, `${base}.photoframe.json`);
+    $('projectNote').textContent = `${result.confirmed ? '프로젝트 저장 완료' : '프로젝트 다운로드 요청'} · ${project.photos.length}장 · 파일 글꼴 ${project.fonts.length}개 · 사진 원본은 미포함`;
+    if (result.confirmed){
+      markProjectClean(`저장됨 · ${new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })} · ${result.name}`);
+      toast('프로젝트 파일 저장을 확인했습니다');
+    } else {
+      markProjectDirty('저장 확인 필요 · 브라우저에 프로젝트 다운로드를 요청했습니다. 다운로드 목록을 확인하세요.');
+      toast('프로젝트 다운로드를 요청했습니다');
+    }
   } catch { toast('프로젝트를 저장하지 못했습니다'); }
 };
 
@@ -3527,9 +3821,14 @@ $('projectPicker').onchange = async e => {
     store.write('frame.settings', settings);
     loadSettings();
     syncFields();
-    pendingProject = { photos, current:Math.min(Math.max(0, Number(data.current) || 0), Math.max(0, photos.length - 1)) };
+    pendingProject = { photos, changed:false,
+      current:Math.min(Math.max(0, Number(data.current) || 0), Math.max(0, photos.length - 1)) };
+    state.projectDirty = false;
+    state.projectMessage = '';
+    state.projectTone = 'pending';
     syncAdv(); updateEyes(); updateExportNote(); applyLogoImage(); drawLogos();
     $('projectNote').textContent = `프로젝트 설정·파일 글꼴 ${restoredFonts}개 복원됨${failedFonts ? ` (${failedFonts}개 실패)` : ''} · 원본 사진 ${photos.length}장을 선택하세요`;
+    updateProjectStatus();
     refresh();
     toast(failedFonts ? '일부 글꼴은 기본 글꼴로 대체했습니다' : '이제 프로젝트의 원본 사진을 불러오세요');
   } catch {
@@ -3592,12 +3891,12 @@ async function save(blob, name){
       try { await w?.abort(); } catch { /* 원래 저장 오류를 유지 */ }
       throw err;
     }
-    return actual;
+    return { name:actual, confirmed:true };
   }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = name;
   a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  return name;
+  return { name, confirmed:false };
 }
 
 async function exportShots(list){
@@ -3610,7 +3909,7 @@ async function exportShots(list){
     name:filename(shot, state.shots.indexOf(shot) + 1, config.fmt, config.title),
   }));
   const progress = $('exportProgress'), status = $('exportStatus');
-  let saved = 0, shrunk = 0, renamed = 0, permissionLost = false;
+  let saved = 0, requested = 0, shrunk = 0, renamed = 0, permissionLost = false;
   const failed = [];
   state.exportBusy = true;
   syncActionButtons();
@@ -3623,10 +3922,10 @@ async function exportShots(list){
       try {
         const info = {};
         const cv = downscale(padToRatio(render(job.shot.img, job.options, info), config.opts), config.long);
-        const actual = await save(await toBlob(cv, config.fmt, config.quality), job.name);
-        if (actual !== job.name) renamed++;
+        const result = await save(await toBlob(cv, config.fmt, config.quality), job.name);
+        if (result.name !== job.name) renamed++;
         if (info.shrunk) shrunk++;
-        saved++;
+        if (result.confirmed) saved++; else requested++;
       } catch (err) {
         failed.push(job.shot.name);
         if (['NotAllowedError','SecurityError','InvalidStateError'].includes(err?.name)){
@@ -3642,8 +3941,10 @@ async function exportShots(list){
     const details = [shrunk ? `${shrunk}장 자동 축소` : '', renamed ? `${renamed}개 이름 변경` : ''].filter(Boolean);
     status.textContent = permissionLost
       ? `${saved}장 저장 · 폴더 권한이 끊겼습니다. 저장 폴더를 다시 선택하세요.`
-      : `${saved}장 저장${failed.length ? ` · ${failed.length}장 실패: ${failed.slice(0, 3).join(', ')}${failed.length > 3 ? '…' : ''}` : ''}${details.length ? ` · ${details.join(' · ')}` : ''}`;
-    toast(failed.length ? `${saved}장 저장 · ${failed.length}장 실패` : `${saved}장 저장됨`);
+      : requested
+        ? `${requested}장 다운로드 요청 · 브라우저 다운로드 목록에서 완료 여부를 확인하세요${failed.length ? ` · ${failed.length}장 요청 실패` : ''}${details.length ? ` · ${details.join(' · ')}` : ''}`
+        : `${saved}장 저장 확인${failed.length ? ` · ${failed.length}장 실패: ${failed.slice(0, 3).join(', ')}${failed.length > 3 ? '…' : ''}` : ''}${details.length ? ` · ${details.join(' · ')}` : ''}`;
+    toast(requested ? `${requested}장 다운로드 요청됨` : failed.length ? `${saved}장 저장 · ${failed.length}장 실패` : `${saved}장 저장됨`);
   } finally {
     state.exportBusy = false;
     syncActionButtons();
@@ -3665,7 +3966,7 @@ function toast(msg){
 const A11Y_LABELS = {
   tone:'여백 색', body:'카메라', lens:'렌즈', film:'필름·기타', date:'날짜', set:'촬영 설정',
   caption:'메모', sigText:'텍스트 서명', lines:'레이아웃 줄 수', fontScale:'글자 크기 비율',
-  bandScale:'하단 공간 비율', borderScale:'인스탁스 테두리 여백 비율', fontEn:'영문 글꼴',
+  bandScale:'정보 영역 크기 비율', borderScale:'인스탁스 사진 둘레 여백 비율', fontEn:'영문 글꼴',
   fontKo:'한글 글꼴', sideText:'가로 인스탁스 글씨 방향', logoScale:'로고 크기 비율',
   ratio:'내보내기 비율', ratioBg:'비율 여백 색', size:'내보내기 긴 변 크기', fmt:'내보내기 형식',
   quality:'JPEG 품질', title:'파일 제목', uiWidth:'설정 패널 폭', uiScale:'UI 배율', uiTheme:'화면 테마',
@@ -3686,6 +3987,17 @@ function selfCheck(){
     'PhotoFrame 프로젝트 장별 상태 검사 실패');
   console.assert(filename({ name:'photo.raw' }, 2, 'jpeg', '강릉여행') === '강릉여행(2).jpg',
     'PhotoFrame 내보내기 순번 검사 실패');
+  console.assert(targetRatio(0.7, 'auto') === 0.75 && targetRatio(0.76, 'auto') === null &&
+    targetRatio(1, '3:4') === 0.75, 'PhotoFrame Instagram 3:4 비율 검사 실패');
+  console.assert(projectMismatchReasons({ file:{ size:10, lastModified:20 } }, { size:11, lastModified:21 }).length === 2,
+    'PhotoFrame 프로젝트 원본 불일치 검사 실패');
+  const cleanedGear = withoutLegacyGearSeed({ body:[...LEGACY_GEAR_SEED.body, '내 카메라'],
+    lens:LEGACY_GEAR_SEED.lens.slice(0, 2), film:[...LEGACY_GEAR_SEED.film] });
+  console.assert(JSON.stringify(cleanedGear) === JSON.stringify({ body:['내 카메라'], lens:[], film:[] }),
+    'PhotoFrame 예전 장비 시드 정리 검사 실패');
+  console.assert($('borderScaleField').hidden === (state.style !== 'instax') &&
+    $('sideTextField').hidden === !(state.style === 'instax' && advTab === 'land'),
+    'PhotoFrame 스타일별 설정 노출 검사 실패');
   console.assert([...document.querySelectorAll('input:not([hidden]),select,textarea')]
     .every(el => el.labels?.length || el.getAttribute('aria-label')), 'PhotoFrame 폼 레이블 검사 실패');
   const item = paletteItem(document.createTextNode('검사'), '검사', () => {}, () => {});

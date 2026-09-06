@@ -22,6 +22,9 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      # 빌드 의존성 없이 단일 HTML·외부 요청 금지·호환성 표식을 먼저 확인한다.
+      - name: PhotoFrame 회귀 검사
+        run: node tools/check.mjs
       # Pages가 꺼져 있으면 워크플로가 직접 활성화한다 (수동 설정 불필요)
       - uses: actions/configure-pages@v5
         with:

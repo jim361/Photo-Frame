@@ -1,64 +1,74 @@
-# PhotoFrame — 구조와 마이그레이션 계획
+# PhotoFrame — 현재 구조
 
-## 현재 구조 (v3, 단일 HTML)
+## 원칙과 파일 구성
 
-소스는 [index.html](../index.html) 하나다. 바닐라 JS + Canvas 2D, 의존성 0개. `legacy/filmframe.html`은 인수인계 시점의 v3 원본 보존본으로 수정하지 않는다.
+소스와 실행 산출물은 [index.html](../index.html) 하나다. 바닐라 JavaScript와 Canvas 2D만 사용하며 설치·빌드·런타임 의존성이 없다. `legacy/filmframe.html`은 v3 역사 보존본이라 수정하지 않는다.
 
 ```
 index.html
-├─ <style>            암실 라이트테이블 UI (docs/DESIGN.md)
-├─ <body>              좌: 뷰포트+필름스트립 / 우: 설정 레일
+├─ <style>              Structural Modernism UI와 화이트/블랙 화면 테마
+├─ <body>               미리보기·사진 스트립·설정 레일
 └─ <script>
-   ├─ 상수             C(캔버스 색), SEED(기본 장비/프리셋)
-   ├─ store            localStorage 래퍼 (실패 시 메모리 폴백)
-   ├─ state            shots[], current, style, tone, dirHandle
-   ├─ render(img,o)    프레임 합성 — 스타일별 분기 (핵심 로직)
-   ├─ downscale        긴 변 리사이즈
-   ├─ opts/filename    설정 읽기, 내보내기 파일명 규칙
-   ├─ 뷰포트           줌/팬 (transform 기반)
-   ├─ refresh          rAF 디바운스 미리보기
-   ├─ drawStrip        필름 스트립 (선택/삭제/DnD 정렬)
-   ├─ addFiles         파일 로드
-   ├─ 프리셋           저장/적용/삭제, datalist 채움
-   └─ 내보내기         File System Access API + 다운로드 폴백
+   ├─ store/state       localStorage 폴백과 현재 작업 상태
+   ├─ readExif          JPEG APP1/TIFF 일부 태그 파서
+   ├─ render            네 프레임의 유일한 합성 경로
+   ├─ viewport          미리보기, 줌·팬, 경계·드래그
+   ├─ shot info         전역·EXIF·장별 값 병합
+   ├─ strip             선택·정렬·삭제 취소·축소 썸네일
+   ├─ presets/fonts     장비·레이아웃과 로컬 글꼴
+   └─ project/export    프로젝트 복원과 이미지 저장
+tools/check.mjs         Node 표준 라이브러리만 쓰는 정적 회귀 검사
 ```
 
-### 데이터 흐름
+별도 소스 디렉터리나 프레임워크 전환 계획은 현재 범위에 없다. 단일 HTML을 깨는 마이그레이션은 사용자 합의 전에는 시작하지 않는다.
+
+## 데이터와 렌더 흐름
 
 ```
-파일 드롭 → addFiles → state.shots[{img,url,name}]
-              ├ readExif (JPEG) → 카메라/렌즈/날짜 자동 입력
-                          ↓
-입력 변경 → opts() ──→ render(img, opts) → 미리보기 캔버스
-                          ↓
-내보내기 → render → downscale → toBlob → dirHandle 저장 or 다운로드
+JPG/PNG 또는 내장 예제
+  → addFiles → 원본 디코드 img + 180px 로컬 thumb + 파일 식별 정보
+                 └ readExif → shot.exif
+
+gInfo/gShow ─┐
+shot.exif ───┼→ withShot → opts/withProfile → render(src, opts, info)
+shot.own ────┘                                  ├ 미리보기
+adv[style][port|land] ──────────────────────────└ 내보내기 → pad/downscale/toBlob
 ```
 
-미리보기와 내보내기가 **같은 `render()` 함수**를 쓴다 — 보이는 것과 저장되는 것이 항상 일치한다. 이 성질은 마이그레이션 후에도 유지한다.
+- `render()`가 필름 스트립·인스탁스·하단·상단 여백을 모두 그리는 유일한 합성 함수다. 미리보기와 내보내기는 이 경로를 공유하고, 요소 경계·스냅 가이드만 미리보기에 덧그린다.
+- 저장 파일은 같은 렌더 결과를 사용하지만 CSS 확대, 화면 보간, 브라우저·OS 색 관리 때문에 화면 표시와 파일 픽셀이 모든 환경에서 완전히 같다고 단정하지 않는다.
+- 배치 수치는 사진 폭 `W`의 비율이다. `adv[style].port/land`에 스타일·사진 방향별 배율과 요소 오프셋을 분리한다.
+- 촬영 정보는 `shot.own → shot.exif → gInfo` 순서로 병합한다. 촬영 정보의 전체/현재 장/선택 장수 범위와 스타일·방향 공통 배치는 서로 다른 상태다.
+- Instagram 비율 패딩과 긴 변 축소는 렌더 뒤에 적용하며 미리보기와 내보내기에서 같은 옵션을 쓴다.
 
-### 저장되는 것 / 되지 않는 것
+## 작업 수명과 복구
 
-- localStorage: 장비 팔레트(`frame.gear`)와 입력·표시·내보내기 설정(`frame.settings`). 접근 실패(iframe 등) 시 메모리 폴백.
-- 사진: 절대 어디에도 저장·전송하지 않는다. objectURL은 썸네일 표시용이고 삭제 시 revoke.
+- 원본 디코드 객체는 고품질 합성용으로 메모리에 유지한다. 스트립은 두 번째 원본 디코드 대신 180px data URL만 사용한다. 사진 삭제가 확정되거나 프로젝트를 교체하면 가능한 객체의 `close()`를 호출한다.
+- 사진 추가, 순서·정보·배치·출력 설정 변경은 프로젝트를 `저장 필요`로 만든다. 확인 가능한 폴더 저장만 `저장됨`으로 전환하며 브라우저 다운로드는 완료 확인이 불가능해 `다운로드 요청`으로 남긴다.
+- 레이아웃 변경은 스타일별 50단계 `layoutUndo`로 복구한다. 사진 삭제는 별도의 단일 `deletedPhoto` 슬롯으로 취소한다.
+- 프로젝트 v2는 사진 바이트 없이 파일명·크기·수정 시각과 작업 상태를 저장한다. v1도 읽는다. 세 식별자가 맞을 때만 자동 연결하고 파일명만 같으면 차이를 표시해 사용자가 선택한다.
 
-## 알려진 한계
+## 로컬 저장소
 
-- **색 프로파일**: Canvas는 임베디드 ICC 프로파일(Adobe RGB 등)을 무시한다. `createImageBitmap`+`colorSpaceConversion`으로도 완전 해결이 어려워 sRGB 스캔본 사용을 권장하는 한계로 명시.
-- **메모리**: 원본 디코드 이미지를 전부 유지한다. 롤 단위(36장) 고해상도 스캔에서는 부담 — 썸네일 축소본 분리가 개선 과제.
-- **모바일 터치**: 핀치 줌 미구현 (pointer 이벤트 기반이라 확장 가능).
-
-## 마이그레이션 계획 (2단계)
-
-1. **Vite + TypeScript** 전환. `vite-plugin-singlefile`로 빌드 산출물이 단일 HTML이 되게 유지 — "파일 하나 받아서 더블클릭으로 연다"는 사용 방식을 보존한다.
-2. **렌더링 엔진 분리** — `src/core/render.ts`: DOM 의존 없는 순수 함수 `render(source, options): Canvas`. 스타일별 렌더러 분리, 타입은 `src/core/types.ts`.
-3. **UI 레이어 분리** — viewport / filmstrip / settings-panel / export.
-4. **테스트** — Vitest. 순수 로직(레이아웃 수치, 메타 텍스트 조합)은 단위 테스트, 렌더 결과는 픽셀 해시 스냅샷.
-5. 완료 후 `legacy/`는 참조용으로만 유지.
-
-## 의존성 정책
-
-새 의존성은 최소화한다. 추가할 때마다 이 목록에 이유를 한 줄 남긴다.
-
-| 의존성 | 이유 |
+| 키 | 내용 |
 |---|---|
-| (없음) | — |
+| `frame.settings` | 전역 정보, 표시, 스타일·방향 레이아웃, 글꼴 선택, 내보내기 옵션 |
+| `frame.gear` | 장비 팔레트 |
+| `frame.logos` | 사용자가 고른 로컬 로고 data URL |
+| `frame.layouts` | 레이아웃 프리셋 |
+| `frame.ui` | 패널 폭·UI 배율·경계·테마. 항상 기존 값과 병합 |
+| `frame.panels` | 접이식 패널 상태 |
+
+사진 원본은 localStorage·프로젝트 JSON·네트워크에 넣지 않는다. PC 글꼴은 이름만, 사용 중인 파일 글꼴은 사용자가 저장한 프로젝트에만 제한적으로 포함한다.
+
+## 성능과 한계
+
+- 2026-09-05 로컬 HTTP의 Codex 인앱 Chromium에서 앱이 만든 953×1270, 64KB PNG를 1/12/36장 불러온 단일 측정은 13/119/287ms였다. 장당 최장 구간은 13/13/11ms였고 측정 범위는 디코드·180px 썸네일 생성까지이며 파일 선택 UI 시간은 제외한다. 도형 예제라 실제 카메라 파일을 대표하지 않는다.
+- 같은 환경의 내장 예제 가로 사진에서 카메라 입력을 5회 연속 변경한 요청부터 미리보기 갱신까지는 4~24ms, 중앙값 7ms였다. `refresh()`가 로컬 `data-preview-metrics`에 마지막 구간만 남기며 전송·수집하지 않는다.
+- 실제 카메라 고해상도 JPEG/PNG 36장, 메모리 최대치, 실제 모바일 기기는 이번 변경에서 측정하지 않았다. 원본 디코드를 출력까지 유지하므로 큰 파일 묶음의 메모리 부담은 남는다.
+- 브라우저와 OS가 이미지 디코딩·Canvas 색 관리를 담당한다. 임베디드 ICC가 항상 무시되거나 항상 보존된다고 단정할 수 없으므로 색이 중요한 파일은 sRGB 시험 내보내기를 권장한다.
+- 핀치 줌과 요소 배치의 키보드 조절은 미구현이다. 사진 순서는 터치 버튼과 `Shift+←/→`로도 바꿀 수 있다.
+
+## 검증
+
+`node tools/check.mjs`는 의존성 없이 인라인 스크립트 구문, 모든 `$()` DOM 참조, 공통 `render()` 호출, 외부 실행 리소스·네트워크 API 부재, 3:4 옵션, 프로젝트 v1/v2 호환 표식, 복구 UI와 `legacy/` 해시를 검사한다. GitHub Pages 워크플로는 배포 전에 이 검사를 실행한다. 실제 브라우저 검증은 localStorage가 없는 새 origin과 `?v=` 캐시 우회를 사용한다.
