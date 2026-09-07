@@ -198,6 +198,83 @@ try {
     } finally { save=originalSave; state.dirHandle=originalDir; }
   });
 
+  // Real mouse events: a fitted canvas must not feed its changing size back into a grip gesture.
+  const resizeContext=await browser.newContext({viewport:{width:1440,height:1000}});
+  const resizePage=await resizeContext.newPage();
+  resizePage.on('pageerror',error=>errors.push(error.message));
+  resizePage.on('console',message=>{if(['error','assert'].includes(message.type())) errors.push(message.text());});
+  resizePage.on('request',request=>{if(/^https?:/.test(request.url())) external.push(request.url());});
+  const resizeTick=()=>resizePage.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  try {
+    await resizePage.goto(pathToFileURL(join(root,'index.html')).href+'?v=resize-'+Date.now());
+    await resizePage.locator('#loadExample').click();
+    await resizePage.waitForFunction(()=>state.shots.length===2);await resizeTick();
+    for(const highRes of [false,true]){
+      if(highRes) await resizePage.evaluate(()=>{
+        for(const [index,width,height] of [[0,6000,4000],[1,4000,6000]]){
+          const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
+          const ctx=canvas.getContext('2d');ctx.fillStyle='#486a81';ctx.fillRect(0,0,width,height);
+          state.shots[index].img=canvas;
+        }
+      });
+      for(const style of ['matte','keyline']) for(const index of [0,1]) for(const mode of highRes?['fit']:['fit','free']){
+        await resizePage.evaluate(({style,index,mode})=>{
+          state.current=index;advTab=photoDir(state.shots[index].img);$('ratio').value=mode==='free'?'1:1':'none';
+          setStyle(style);profileFor().borderScale='100';clearLayoutUndo();syncAdv();refresh();
+        },{style,index,mode});await resizeTick();
+        if(mode==='free') await resizePage.evaluate(()=>zoomTo(zoom.scale));
+        const start=await resizePage.evaluate(()=>{
+          const P=state._pv,h=edgeHandles().find(h=>h.key==='borderScale'),r=pv.getBoundingClientRect();
+          return {x:r.left+(h.x+P.padX)*zoom.scale,y:r.top+(h.y+P.padY)*zoom.scale,unit:P.units.borderScale*zoom.scale};
+        });
+        await resizePage.mouse.move(start.x,start.y);await resizePage.mouse.down();
+        const values=[];
+        for(let step=1;step<=6;step++){
+          const d=start.unit*step/12;
+          await resizePage.mouse.move(start.x+d,start.y-d);await resizeTick();
+          values.push(await resizePage.evaluate(()=>edgeDrag?.pct));
+        }
+        assert.deepEqual(values,[92,83,75,67,58,50],`${style}/${index}/${mode}/${highRes}: linear grip response`);
+        for(let repeat=0;repeat<8;repeat++){
+          await resizePage.mouse.move(start.x+start.unit/2+(repeat%2)*0.02,start.y-start.unit/2);await resizeTick();
+          assert.equal(await resizePage.evaluate(()=>edgeDrag?.pct),50,`${style}: stationary grip does not oscillate`);
+        }
+        assert.equal(await resizePage.evaluate(()=>!!state._dragImg),highRes&&mode==='fit','only high-resolution fit gestures use reduced source');
+        await resizePage.mouse.up();await resizeTick();
+        assert.equal(await resizePage.evaluate(()=>layoutUndoStack().length),1,'one grip gesture is one undo step');
+        assert.equal(await resizePage.locator('#borderScaleRange').inputValue(),'50','grip synchronizes slider');
+      }
+    }
+    // A long held slider gesture must remain one undo action, including a pause over the numeric debounce.
+    await resizePage.evaluate(()=>{
+      state.current=0;advTab='land';setStyle('matte');profileFor().borderScale='100';clearLayoutUndo();syncAdv();
+      $('dispPanel').open=true;refresh();
+    });await resizeTick();
+    const slider=resizePage.locator('#borderScaleRange');await slider.scrollIntoViewIfNeeded();
+    // Native focus transfer blurs the paired number after the slider's pointerdown.
+    await resizePage.locator('#borderScale').focus();
+    const track=await slider.boundingBox(),y=track.y+track.height/2;
+    await resizePage.mouse.move(track.x+track.width*0.45,y);await resizePage.mouse.down();await resizeTick();
+    await resizePage.waitForTimeout(700);
+    await resizePage.mouse.move(track.x+track.width*0.7,y);await resizeTick();
+    await resizePage.mouse.up();await resizeTick();
+    const selected=await slider.inputValue();assert(Number(selected)>100,'native slider responds to click and drag');
+    assert.equal(await resizePage.locator('#borderScale').inputValue(),selected,'slider synchronizes numeric value');
+    assert.equal(await resizePage.evaluate(()=>layoutUndoStack().length),1,'number-to-slider focus transfer and held gesture keep one undo step');
+    assert.equal(await resizePage.evaluate(()=>store.read('frame.settings',{}).advByStyle.matte.land.borderScale),selected,'slider persists profile');
+    await resizePage.locator('#zUndo').click();await resizeTick();
+    assert.equal(await slider.inputValue(),'100','undo restores slider start value');
+    await resizePage.locator('#borderScale').fill('');await resizeTick();
+    assert.equal(await slider.inputValue(),'100','blank number uses render default, not native range midpoint');
+    await resizePage.evaluate(()=>syncAdv());
+    assert.equal(await slider.inputValue(),'100','profile synchronization preserves blank-number fallback');
+    assert.equal(await resizePage.locator('#borderScale').inputValue(),'','fallback does not rewrite the numeric value');
+    await resizePage.reload();await resizeTick();
+    await resizePage.evaluate(()=>{advTab='land';syncAdv();});
+    assert.equal(await resizePage.locator('#borderScale').inputValue(),'','blank legacy numeric value survives reload');
+    assert.equal(await slider.inputValue(),'100','reloaded blank profile shows effective default on slider');
+  } finally {await resizeContext.close();}
+
   for (const [width,height] of [[360,844],[390,844],[768,844],[390,480]]){
     await page.setViewportSize({width,height});
     await page.evaluate(() => { $('dispPanel').open=true; $('dateFormat').scrollIntoView({block:'center'}); });
@@ -230,5 +307,5 @@ try {
   assert.deepEqual(await page.evaluate(()=>({color:state.frameColors.matte,ratio:opts().ratioBg,...metadataOptions()})),persisted,'color and metadata settings survive fresh reload');
   assert.deepEqual(errors,[],'all browser interactions without console errors');
   assert.deepEqual(external,[],'no external HTTP requests');
-  console.log(`PhotoFrame 브라우저 검사 통과 · ${browser.version()} · 16 방향별 렌더 · 구버전 16 픽셀 비교 · 색/프리셋/부분 복원·저장/선택 내보내기/취소/재시도/넘침 · 360/390/768px`);
+  console.log(`PhotoFrame 브라우저 검사 통과 · ${browser.version()} · 16 방향별 렌더 · 구버전 16 픽셀 비교 · 색/프리셋/부분 복원·저장/선택 내보내기/취소/재시도/넘침 · 매트/키라인 실제 마우스·24MP·슬라이더 · 360/390/768px`);
 } finally { await browser.close(); }

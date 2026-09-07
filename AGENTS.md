@@ -34,7 +34,7 @@
 - 스타일·방향별 프로파일: `adv[style].port` / `adv[style].land` — 프레임별 레이아웃·배율·오프셋을 분리하고 세로/가로 사진에 따라 자동 선택(`withProfile`)
 - 장별 EXIF 분리: `readExif()`(자체 JPEG APP1/TIFF 파서), `shot.exif`(자동) / `shot.own`(장별 수정) / `gInfo`(전역), 렌더는 `withShot()` 병합
 - 로컬 글꼴: 기본 시스템 스택 / `queryLocalFonts()` PC 글꼴(데스크톱 Chromium, 이름만 저장) / FontFace 파일 글꼴(TTF·OTF·WOFF·WOFF2, 선택된 파일만 프로젝트 JSON에 dataURL 포함)
-- 경계 오버레이·드래그: `state._pv`에 렌더 캐시 → `paintOverlay()`. 요소 박스 드래그(스냅 가이드, 더블클릭 리셋), 프레임 크기 핸들(하단 공간=경계선, 인스탁스 테두리 여백=사진 우상단 모서리 그립 — 왼쪽·아래로 끌면 커짐), 호버 강조 + 방향 커서. `layoutUndo`가 요소 이동·크기·수치·프리셋·초기화 직전 스타일 프로파일을 프레임 스타일별 최대 50단계 세션 스택으로 보관한다. 히트 우선순위: 그립 → 선 → 박스 → 팬. 드래그 중에는 1400px 축소본으로 렌더(fit 모드), 좌표는 renderW로 정규화
+- 경계 오버레이·드래그: `state._pv`에 렌더 캐시 → `paintOverlay()`. 요소 박스 드래그(스냅 가이드, 더블클릭 리셋), 프레임 크기 핸들(하단 공간=경계선, 인스탁스·매트 계열 둘레 여백=사진 우상단 모서리 그립 — 왼쪽·아래로 끌면 커짐), 호버 강조 + 방향 커서. `layoutUndo`가 요소 이동·크기·수치·프리셋·초기화 직전 스타일 프로파일을 프레임 스타일별 최대 50단계 세션 스택으로 보관한다. 히트 우선순위: 그립 → 선 → 박스 → 팬. 프레임 크기 드래그 중에는 1400px 축소본으로 렌더(fit 모드)하며, 변화량은 시작 시 화면 좌표·배율 기준으로 계산해 화면 맞춤에 따른 진동을 막는다. 둘레 여백 슬라이더·숫자 입력도 같은 `borderScale` 프로파일을 사용한다.
 - localStorage: `frame.settings`(전역 설정·색상) / `frame.gear`(장비 프리셋) / `frame.logos` / `frame.layouts`(배치 프리셋) / `frame.appearances`(촬영 값 제외 디자인) / `frame.ui`(패널 폭·배율·경계 표시 여부 — **병합 방식으로 써서 서로 덮어쓰지 않게 유지**) / `frame.panels`
 - 내보내기: 인스타 비율 패딩(`padToRatio`), File System Access API 폴더 저장(Chromium) + 다운로드 폴백, 제목 순번 명명
 

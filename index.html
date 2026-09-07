@@ -266,6 +266,9 @@
   .frameMini.top::before{left:0;right:0;top:0;height:6px}
 
   .field{min-width:0;margin-bottom:var(--space-2)}
+  .sizeControl{display:flex;align-items:center;gap:12px}
+  .sizeControl input[type=range]{flex:1;min-width:0;min-height:48px;margin:0;accent-color:var(--primary);touch-action:pan-y}
+  .sizeControl input[type=number]{width:88px;flex:none}
   .field span{
     display:flex;align-items:center;gap:var(--space-2);
     min-height:var(--touch);font-size:12px;color:var(--muted-ink);margin-bottom:var(--space-1);
@@ -716,7 +719,11 @@
           </div>
           <div class="field" id="borderScaleField">
             <span>사진 둘레 여백 %</span>
-            <input type="number" id="borderScale" min="0" max="300" value="100">
+            <div class="sizeControl">
+              <input type="range" id="borderScaleRange" min="0" max="300" step="1" value="100" aria-label="사진 둘레 여백 비율" aria-describedby="borderScaleNote">
+              <input type="number" id="borderScale" min="0" max="300" value="100" aria-describedby="borderScaleNote">
+            </div>
+            <p class="note" id="borderScaleNote">여백을 늘리면 프레임 안의 사진이 작게 보입니다.</p>
           </div>
           <div class="row">
             <div class="field">
@@ -2551,12 +2558,10 @@ function startEdgeDrag(e){
   const s = state.shots[state.current]; if (!s) return false;
   const prof = profileFor(state.style, photoDir(s.img));
   const base = prof[hit.h.key] === '' ? 100 : Number(prof[hit.h.key]);
-  // 좌표를 renderW 비율로 정규화 — 드래그 중 축소본으로 바뀌어 캔버스 크기가
-  // 달라져도 이동량 계산이 흔들리지 않는다
-  const R = state._pv.renderW;
+  // 시작 시 화면 좌표·배율을 고정해 맞춤 재배치와 축소본 전환이 다음 입력에 섞이지 않게 한다.
   edgeDrag = { h: hit.h, prof, base, pct: base, before:layoutSnapshot(),
-               nStart: { x: hit.pt.x / R, y: hit.pt.y / R },
-               nUnit: state._pv.units[hit.h.key] / R };   // 100%에 해당하는 길이 (W 비율)
+               start: { x:e.clientX, y:e.clientY },
+               screenUnit: state._pv.units[hit.h.key] * zoom.scale }; // 시작 화면에서 100%에 해당하는 px
   // 드래그 중에는 축소본으로 렌더 — 고해상도 원본을 매 프레임 다시 그리면 버벅인다.
   // 화면 맞춤 모드일 때만: 자유 줌에서는 캔버스 크기가 바뀌면 화면이 튄다
   if (!state._dragImg && zoom.mode === 'fit'){
@@ -2577,16 +2582,14 @@ function cornerScaleDelta(n, start){
 }
 
 function moveEdgeDrag(e){
-  const pt = canvasPoint(e);
-  const R = state._pv.renderW;
-  const n = { x: pt.x / R, y: pt.y / R };
+  const pt = { x:e.clientX, y:e.clientY };
   // 모서리 그립(사진 우상단): 사진 크기 조절 감각에 맞춰 왼쪽·아래로 끌면
   // 여백이 커지고, 오른쪽·위로 끌면 여백이 작아진다
   const d = edgeDrag.h.type === 'corner'
-    ? cornerScaleDelta(n, edgeDrag.nStart)
-    : (edgeDrag.h.axis === 'y' ? n.y - edgeDrag.nStart.y : n.x - edgeDrag.nStart.x) * edgeDrag.h.dir;
+    ? cornerScaleDelta(pt, edgeDrag.start)
+    : (edgeDrag.h.axis === 'y' ? pt.y - edgeDrag.start.y : pt.x - edgeDrag.start.x) * edgeDrag.h.dir;
   const [lo, hi] = edgeDrag.h.key === 'bandScale' ? [50, 500] : [0, 300];
-  const pct = Math.round(Math.min(hi, Math.max(lo, edgeDrag.base + d / edgeDrag.nUnit * 100)));
+  const pct = Math.round(Math.min(hi, Math.max(lo, edgeDrag.base + d / edgeDrag.screenUnit * 100)));
   if (pct === edgeDrag.pct) return;   // 변화 없으면 재렌더 생략
   edgeDrag.pct = pct;
   edgeDrag.prof[edgeDrag.h.key] = String(pct);
@@ -3470,9 +3473,14 @@ $('batchAll').onclick = () => {
 };
 
 /* 고급 설정(스타일·방향 종속) 컨트롤 — 현재 스타일과 선택된 탭의 프로파일에 기록 */
+function syncBorderScaleRange(){
+  const v = profileFor().borderScale, n = v === '' ? 100 : Number(v);
+  $('borderScaleRange').value = Math.min(300, Math.max(0, isNaN(n) ? 100 : n));
+}
 function syncAdv(){
   const p = profileFor();
   ADV_KEYS.forEach(k => $(k).value = p[k]);
+  syncBorderScaleRange();
   [...$('advTab').children].forEach(b => b.setAttribute('aria-pressed', b.dataset.t === advTab));
   const instax = state.style === 'instax';
   $('linesField').hidden = instax;
@@ -3486,37 +3494,50 @@ function syncAdv(){
 }
 ADV_KEYS.forEach(id => {
   const ev = id.endsWith('Scale') ? 'input' : 'change';
-  const el = $(id);
-  let before = null, dirty = false, settle = null;
-  const begin = () => { before ||= layoutSnapshot(); };
-  const commit = () => {
-    clearTimeout(settle); settle = null;
-    if (dirty && before && !sameStyleLayout(before, layoutSnapshot(before.style)))
-      setLayoutUndo('레이아웃 설정 변경', before);
-    before = null; dirty = false;
-  };
-  el.addEventListener('focus', begin);
-  el.addEventListener('pointerdown', begin);
-  el.addEventListener('keydown', begin);
-  el.addEventListener('blur', commit);
-  if (ev === 'input'){
-    el.addEventListener('pointerup', commit);     // 스피너 한 번/길게 누르기 = 한 단계
-    el.addEventListener('change', commit);
-  }
-  el.addEventListener(ev, () => {
-    const p = profileFor(), next = el.value;
-    if (String(p[id]) === String(next)) return;
-    begin();
-    p[id] = next;
-    dirty = true;
-    saveSettings();
-    if (id === 'lines') refresh();   // 비율이 바뀌므로 맞춤 리셋
-    else refresh(true);
-    if (ev === 'change') commit();
-    else {
-      clearTimeout(settle);
-      settle = setTimeout(commit, 600);
+  const controls = [$(id), $(id + 'Range')].filter(Boolean);
+  controls.forEach(el => {
+    let before = null, dirty = false, settle = null, sliding = false;
+    const begin = () => { before ||= layoutSnapshot(); };
+    const commit = () => {
+      clearTimeout(settle); settle = null;
+      if (dirty && before && !sameStyleLayout(before, layoutSnapshot(before.style)))
+        setLayoutUndo('레이아웃 설정 변경', before);
+      before = null; dirty = false; sliding = false;
+    };
+    el.addEventListener('focus', begin);
+    el.addEventListener('pointerdown', e => {
+      begin();
+      if (el.type === 'range'){
+        sliding = true;
+        clearTimeout(settle);
+        el.setPointerCapture(e.pointerId);
+      }
+    });
+    el.addEventListener('keydown', begin);
+    el.addEventListener('blur', commit);
+    if (ev === 'input'){
+      el.addEventListener('pointerup', commit);     // 스피너·슬라이더 한 번/길게 누르기 = 한 단계
+      el.addEventListener('pointercancel', commit);
+      el.addEventListener('lostpointercapture', commit);
+      el.addEventListener('change', commit);
     }
+    el.addEventListener(ev, () => {
+      const p = profileFor(), next = el.value;
+      if (String(p[id]) === String(next)) return;
+      begin();
+      p[id] = next;
+      if (el !== $(id)) $(id).value = next;
+      if (id === 'borderScale') syncBorderScaleRange();
+      dirty = true;
+      saveSettings();
+      if (id === 'lines') refresh();   // 비율이 바뀌므로 맞춤 리셋
+      else refresh(true);
+      if (ev === 'change') commit();
+      else {
+        clearTimeout(settle);
+        if (!sliding) settle = setTimeout(commit, 600);
+      }
+    });
   });
 });
 $('advTab').onclick = e => {
@@ -4550,7 +4571,7 @@ function toast(msg){
 const A11Y_LABELS = {
   tone:'여백 색', body:'카메라', lens:'렌즈', film:'필름·기타', date:'날짜', set:'촬영 설정',
   caption:'메모', sigText:'텍스트 서명', lines:'레이아웃 줄 수', fontScale:'글자 크기 비율',
-  bandScale:'정보 영역 크기 비율', borderScale:'인스탁스 사진 둘레 여백 비율', fontEn:'영문 글꼴',
+  bandScale:'정보 영역 크기 비율', borderScale:'사진 둘레 여백 비율 직접 입력', fontEn:'영문 글꼴',
   fontKo:'한글 글꼴', sideText:'가로 인스탁스 글씨 방향', logoScale:'로고 크기 비율',
   ratio:'내보내기 비율', ratioBg:'비율 여백 색', size:'내보내기 긴 변 크기', fmt:'내보내기 형식',
   quality:'JPEG 품질', title:'파일 제목', uiWidth:'설정 패널 폭', uiScale:'UI 배율', uiTheme:'화면 테마',

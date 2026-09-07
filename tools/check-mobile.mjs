@@ -75,5 +75,51 @@ assert.deepEqual(handles().map(h => h.key), ['borderScale'], '균등 매트에�
 state._pv.units.bandScale = 160;
 state._pv.areaSide = 'bottom';
 assert.deepEqual(handles().map(h => h.key), ['borderScale','bandScale']);
+
+// 맞춤 배율·캔버스 크기가 렌더마다 달라져도 정지한 커서의 여백 값은 움직이지 않아야 한다.
+for (const h of [
+  { key:'borderScale', type:'corner' },
+  { key:'bandScale', type:'edge', axis:'y', dir:1 },
+  { key:'bandScale', type:'edge', axis:'y', dir:-1 },
+  { key:'bandScale', type:'edge', axis:'x', dir:1 },
+]){
+  const prof = { [h.key]:'100' };
+  let draws = 0, history = 0, writes = 0;
+  const dragZoom = { scale:0.5, mode:'fit' };
+  const dragState = { shots:[{ img:{ width:1000, height:500 } }], current:0,
+    _pv:{ renderW:1000, units:{ [h.key]:80 } } };
+  const dragEnv = { state:dragState, zoom:dragZoom, hitEdge:() => ({ h, pt:{ x:200, y:400 } }),
+    profileFor:() => prof, photoDir:() => 'land', layoutSnapshot:() => ({ ...prof }),
+    syncAdv:noop, setLayoutUndo:() => history++, saveSettings:() => writes++,
+    refresh:() => {
+      draws++;
+      dragZoom.scale *= 0.7;
+      dragZoom.x = 200 + draws * 10;
+      dragState._pv = { renderW:1400, units:{ [h.key]:112 } };
+    } };
+  const drag = new Function(...Object.keys(dragEnv), 'let edgeDrag = null;\n' +
+    section('function startEdgeDrag(', 'function hitBox(') +
+    '; return { start:startEdgeDrag, move:moveEdgeDrag, end:endEdgeDrag };')(...Object.values(dragEnv));
+  const at = distance => h.type === 'corner' ? { clientX:100-distance, clientY:200+distance }
+    : h.axis === 'y' ? { clientX:100, clientY:200+distance*h.dir }
+    : { clientX:100+distance, clientY:200 };
+  drag.start(at(0));
+  for (const [distance, expected] of [[10,'125'], [20,'150'], [40,'200']]){
+    drag.move(at(distance));
+    assert.equal(prof[h.key], expected, '여백은 같은 방향의 커서 이동에 단조 증가한다');
+    const beforeDraws = draws;
+    for (let i=0; i<10; i++) drag.move(at(distance));
+    assert.equal(prof[h.key], expected, '맞춤 재배치 뒤 같은 커서는 같은 크기를 유지한다');
+    assert.equal(draws, beforeDraws, '정지 커서는 불필요하게 다시 렌더하지 않는다');
+  }
+  drag.move(at(1000));
+  assert.equal(prof[h.key], h.key === 'borderScale' ? '300' : '500');
+  drag.move(at(-1000));
+  assert.equal(prof[h.key], h.key === 'borderScale' ? '0' : '50');
+  drag.end();
+  assert.equal(history, 1, '한 번의 프레임 드래그는 되돌리기 한 단계다');
+  assert.equal(writes, 1);
+  assert.equal(dragState._dragImg, null);
+}
 assert.match(html, /body\.has-photo \.viewport\{\s*position:sticky/, '좁은 화면의 미리보기 고정 규칙');
-console.log('모바일 동작 검사 통과 · 핀치 중심/범위/종료 · 정밀 이동/초기화/되돌리기 · 매트 핸들');
+console.log('모바일·조작 검사 통과 · 핀치 중심/범위/종료 · 정밀 이동/초기화/되돌리기 · 프레임 핸들 크기 안정성');
