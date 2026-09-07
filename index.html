@@ -167,15 +167,11 @@
 
   /* ----- filmstrip of loaded frames ----- */
   .stripArea{border-top:3px solid var(--ink);background:var(--surface);flex:0 0 auto}
-  .stripBar{
-    min-height:48px;padding:6px var(--space-3);display:flex;align-items:center;gap:var(--space-2);
-    border-bottom:1px solid var(--line);
-  }
-  .stripStatus{min-width:0;flex:1;font-family:var(--mono);font-size:11px;color:var(--muted-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .stripBar button{min-width:var(--touch);min-height:var(--touch);padding:7px 10px;border:1px solid var(--ink);background:var(--surface);color:var(--ink);font-family:var(--mono);font-size:11px;cursor:pointer}
-  .stripBar button:hover{background:var(--primary-soft);color:var(--primary-pressed)}
-  .stripBar button:disabled{border-color:var(--line);background:var(--neutral-soft);color:var(--muted-ink);cursor:not-allowed}
-  .stripBar #undoDelete{color:var(--error)}
+  .stripFooter{display:flex;justify-content:flex-end;gap:4px;padding:0 var(--space-3) 6px}
+  .stripFooter button{width:28px;height:28px;padding:0;border:1px solid var(--line);border-radius:var(--radius-button);background:var(--surface);color:var(--ink);font-size:16px;cursor:pointer}
+  .stripFooter button:hover{background:var(--primary-soft);color:var(--primary-pressed)}
+  .stripFooter button:disabled{color:var(--muted-ink);opacity:.4;cursor:default}
+  @media (pointer:coarse){.stripFooter button{width:40px;height:40px}}
   .strip{
     display:flex;gap:var(--space-2);align-items:center;
     padding:var(--space-2) var(--space-3);min-height:104px;
@@ -210,6 +206,7 @@
     transition:opacity .12s;
   }
   .chip .x:hover{background:var(--neutral-soft);color:var(--error)}
+  .chip .x:disabled{opacity:.4;cursor:default}
   .chip .pickTarget{
     position:absolute;left:0;bottom:0;width:48px;height:48px;
     display:grid;place-items:center;background:var(--surface);cursor:pointer;
@@ -472,8 +469,6 @@
     .zoombar button,.zoombar .pct{width:100%;min-width:0;padding:0 4px;white-space:normal}
     .zoombar > :nth-child(4n){border-right:0}
     .zoombar > :nth-child(n+5){border-top:1px solid var(--line)}
-    .stripBar{align-items:stretch;flex-wrap:wrap}
-    .stripStatus{flex-basis:100%}
     .strip{padding-bottom:max(var(--space-2), env(safe-area-inset-bottom))}
     .rail{padding:var(--space-3);padding-bottom:max(var(--space-4), env(safe-area-inset-bottom))}
     .railJump{margin:-16px -16px 16px;padding:8px 16px}
@@ -542,13 +537,11 @@
     </div>
 
     <div class="stripArea">
-      <div class="stripBar">
-        <p class="stripStatus" id="stripStatus" role="status" aria-live="polite">불러온 사진 없음</p>
-        <button type="button" id="movePrev" disabled>← 앞으로</button>
-        <button type="button" id="moveNext" disabled>뒤로 →</button>
-        <button type="button" id="undoDelete" disabled>삭제 취소</button>
-      </div>
       <div class="strip" id="strip" role="list" aria-label="불러온 사진"></div>
+      <div class="stripFooter" id="stripFooter" role="group" aria-label="사진 순서 이동" hidden>
+        <button type="button" id="movePrev" aria-label="현재 사진을 앞으로 한 칸 이동" title="현재 사진을 앞으로 한 칸 이동" disabled>←</button>
+        <button type="button" id="moveNext" aria-label="현재 사진을 뒤로 한 칸 이동" title="현재 사진을 뒤로 한 칸 이동" disabled>→</button>
+      </div>
     </div>
   </main>
 
@@ -1091,7 +1084,6 @@ const state = {
   projectTone: '',
 };
 let pendingProject = null;   // 프로젝트를 연 뒤 원본 파일과 연결할 manifest
-let deletedPhoto = null;     // 사진 삭제는 배치 되돌리기와 분리해 한 건만 복구한다
 /* 예전 배포본이 자동 저장한 시드만 제거한다. 다른 값은 사용자가 만든 프리셋으로 보존한다. */
 const LEGACY_GEAR_SEED = {
   body:['Nikon F5'],
@@ -1148,7 +1140,7 @@ function updateProjectStatus(){
 function markProjectDirty(message = ''){
   state.projectRevision = (state.projectRevision || 0) + 1;
   if (!state.exportBusy){ state.exportPlan = null; $('exportReview').hidden = true; }
-  if (!state.shots.length && !pendingProject && !deletedPhoto) return;
+  if (!state.shots.length && !pendingProject) return;
   state.projectDirty = true;
   state.projectMessage = message || '저장 필요 · 프로젝트에 반영되지 않은 변경이 있습니다.';
   state.projectTone = 'dirty';
@@ -1169,6 +1161,7 @@ window.addEventListener('beforeunload', e => {
 
 function syncActionButtons(){
   const busy = state.fontBusy > 0 || state.exportBusy;
+  document.querySelectorAll('#strip .x').forEach(button => { button.disabled = state.exportBusy; });
   const has = state.current >= 0;
   $('exportAll').disabled = busy || !state.shots.length;
   $('exportOne').disabled = busy || !has;
@@ -2904,44 +2897,22 @@ function releaseShot(shot){
   if (shot?.url) URL.revokeObjectURL(shot.url);
   shot?.img?.close?.();
 }
-function discardDeleted(){
-  if (!deletedPhoto) return;
-  releaseShot(deletedPhoto.shot);
-  deletedPhoto = null;
-}
 function syncStripControls(){
-  const shot = state.shots[state.current];
-  const picked = state.batch.size;
-  $('stripStatus').textContent = shot
-    ? `현재 ${state.current + 1}/${state.shots.length} · ${shot.name}${shot.example ? ' · 내장 예제' : ''} · 선택 ${picked}장`
-    : '불러온 사진 없음';
+  $('stripFooter').hidden = !state.shots.length;
   $('movePrev').disabled = state.current <= 0;
   $('moveNext').disabled = state.current < 0 || state.current >= state.shots.length - 1;
-  $('undoDelete').disabled = !deletedPhoto;
-  $('undoDelete').textContent = deletedPhoto ? `삭제 취소 · ${deletedPhoto.shot.name}` : '삭제 취소';
   updateProjectStatus();
 }
 function deleteShot(shot, index){
-  discardDeleted();
+  if (state.exportBusy) return;
+  markProjectDirty(`저장 필요 · “${shot.name}” 삭제됨`);
   const current = state.shots[state.current];
-  deletedPhoto = { shot, index, selected:state.batch.has(shot), wasCurrent:current === shot };
   state.batch.delete(shot);
   state.shots.splice(index, 1);
   state.current = state.shots.indexOf(current);
   if (state.current < 0) state.current = Math.min(index, state.shots.length - 1);
-  markProjectDirty(`저장 필요 · “${shot.name}” 삭제됨 (삭제 취소 가능)`);
+  releaseShot(shot);
   drawStrip(); syncFields(); refresh();
-}
-function undoDelete(){
-  if (!deletedPhoto) return;
-  const d = deletedPhoto; deletedPhoto = null;
-  const index = Math.min(d.index, state.shots.length);
-  state.shots.splice(index, 0, d.shot);
-  if (d.selected) state.batch.add(d.shot);
-  if (d.wasCurrent || state.current < 0) state.current = index;
-  else if (state.current >= index) state.current++;
-  markProjectDirty(`저장 필요 · “${d.shot.name}” 삭제를 취소했습니다.`);
-  drawStrip(); syncFields(); refresh(true); toast('사진 삭제를 취소했습니다');
 }
 function moveCurrent(delta){
   const from = state.current, to = from + delta;
@@ -3058,7 +3029,6 @@ function drawStrip(){
 }
 $('movePrev').onclick = () => moveCurrent(-1);
 $('moveNext').onclick = () => moveCurrent(1);
-$('undoDelete').onclick = undoDelete;
 
 /* ============================================================
    EXIF (JPEG) — 디지털 사진의 카메라/렌즈/촬영일 자동 입력.
@@ -4205,7 +4175,6 @@ function projectPhotoData(entry){
 function clearShots(){
   state.projectRevision = (state.projectRevision || 0) + 1;
   for (const s of state.shots) releaseShot(s);
-  discardDeleted();
   state.shots = [];
   state.current = -1;
   state.batch.clear();

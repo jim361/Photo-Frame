@@ -20,7 +20,8 @@ const context = vm.createContext({ $, assert, Blob, Set, Map, performance,
   document:{ documentElement:{ dataset:{} }, createElement:() => ({ textContent:'' }) },
   state:{ shots:[], batch:new Set(), current:-1, projectDirty:false, fontBusy:0, exportBusy:false,
     projectMessage:'', projectTone:'', dirHandle:{}, exportCancel:false },
-  pendingProject:null, deletedPhoto:null,
+  pendingProject:null,
+  URL:{ revokeObjectURL(){} },
   EXIF_KEYS:['body','lens','date','set'], INFO_KEYS:['body','lens','film','date','set','caption'],
   loadImage:async () => ({ width:4000, height:6000 }), thumbnailData:() => 'local-thumbnail',
   readExif:async () => null, applyDetectedExif:() => false,
@@ -38,7 +39,7 @@ const context = vm.createContext({ $, assert, Blob, Set, Map, performance,
 });
 for (const name of ['updateProjectStatus','markProjectDirty','markProjectClean','cleanExif','cleanOwn',
   'projectMismatchReasons','matchProjectPhoto','projectPhotoEntries','syncPendingPhotoOrder','projectPhotoData',
-  'addFiles','filename','makeExportPlan','exportDimensions','prepareExport','exportShots'])
+  'addFiles','releaseShot','deleteShot','filename','makeExportPlan','exportDimensions','prepareExport','exportShots'])
   vm.runInContext(source(name), context);
 vm.runInContext(script.match(/\$\('projectSave'\)\.onclick = async \(\) => \{[^]*?\n\};/)[0], context);
 
@@ -114,10 +115,28 @@ assert.deepEqual(Array.from(context.state.shots, shot => shot.name), ['c.jpg','b
 
 reset();
 await context.addFiles([file('a'), file('c')]);
-context.state.shots.shift(); context.state.current = 0; context.markProjectDirty();
+context.deleteShot(context.state.shots[0], 0);
 assert.deepEqual(Array.from(context.projectPhotoEntries(), entry => entry.file.name), ['b.jpg','c.jpg']);
 await context.addFiles([file('b')]);
 assert.deepEqual(Array.from(context.state.shots, shot => shot.name), ['b.jpg','c.jpg']);
+assert.equal(context.state.projectDirty, true);
+
+// Removing the last photo releases its decoded image and still records the unsaved deletion.
+reset(['a']);
+await context.addFiles([file('a')]);
+let closed = 0;
+const removed = context.state.shots[0]; removed.img.close = () => closed++;
+context.state.batch.add(removed);
+context.state.exportBusy = true;
+context.deleteShot(removed, 0);
+assert.equal(closed, 0, 'an image queued for export must remain decoded');
+assert.equal(context.state.shots.length, 1);
+context.state.exportBusy = false;
+context.deleteShot(removed, 0);
+assert.equal(closed, 1);
+assert.equal(context.state.shots.length, 0);
+assert.equal(context.state.batch.size, 0);
+assert.equal(context.state.current, -1);
 assert.equal(context.state.projectDirty, true);
 
 // Selection order does not renumber outputs; retries keep the original frozen filename.

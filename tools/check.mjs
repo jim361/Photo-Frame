@@ -13,7 +13,7 @@ const checks = [
   [/refresh[\s\S]*?render\(/.test(script) && /exportShots[\s\S]*?render\(/.test(script), '미리보기와 내보내기는 render()를 함께 써야 합니다.'],
   [/mode === '3:4'/.test(script) && /value="3:4"/.test(html), '3:4 출력 옵션과 계산이 함께 있어야 합니다.'],
   [/PROJECT_VERSION\s*=\s*2/.test(script) && /new Set\(\[1, PROJECT_VERSION\]\)/.test(script), '프로젝트 v1 읽기·v2 저장 호환을 유지해야 합니다.'],
-  [/배치 되돌리기/.test(html) && /id="undoDelete"/.test(html), '배치 되돌리기와 삭제 취소를 구분해야 합니다.'],
+  [/배치 되돌리기/.test(html) && !/id="undoDelete"/.test(html), '배치 되돌리기는 유지하고 삭제 취소는 제거해야 합니다.'],
   [/id="addPhotos"/.test(html) && /id="loadExample"/.test(html), '사진 추가와 내장 예제 진입점을 유지해야 합니다.'],
   [/beforeunload/.test(script) && /projectDirty/.test(script), '미저장 프로젝트 이탈 경고를 유지해야 합니다.'],
   [/projectMismatchReasons/.test(script) && /파일명만 같습니다/.test(script) && /if \(!ok\) return null/.test(script), '파일명만 같은 프로젝트 원본은 이유와 연결 선택을 거쳐야 합니다.'],
