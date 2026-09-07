@@ -564,21 +564,23 @@
         <button data-style="keyline" aria-pressed="false"><span>키라인</span></button>
         <button data-style="minimal" aria-pressed="false"><span>미니멀 EXIF</span></button>
       </div>
-      <div class="field" id="toneField" style="margin-top:9px;display:none">
-        <span>여백 색</span>
-        <select id="tone" hidden>
-          <option value="light">밝게 (아이보리)</option>
-          <option value="dark">어둡게 (필름 베이스)</option>
-        </select>
-        <div class="colorTools" id="frameSwatches">
-          <button type="button" class="gearadd" data-color="#ffffff">흰색</button>
-          <button type="button" class="gearadd" data-color="#000000">검정</button>
-          <button type="button" class="gearadd" data-color="#f6f3ec">아이보리</button>
-          <input type="color" id="frameColor" value="#ffffff" aria-label="프레임 색 고르기">
-          <input type="text" id="frameHex" value="#FFFFFF" maxlength="7" spellcheck="false" aria-label="프레임 HEX 색" placeholder="#FFFFFF">
+      <details class="disp" id="toneField" style="margin-top:9px;display:none">
+        <summary>여백 색</summary>
+        <div class="inner">
+          <select id="tone" hidden>
+            <option value="light">밝게 (아이보리)</option>
+            <option value="dark">어둡게 (필름 베이스)</option>
+          </select>
+          <div class="colorTools" id="frameSwatches">
+            <button type="button" class="gearadd" data-color="#ffffff">흰색</button>
+            <button type="button" class="gearadd" data-color="#000000">검정</button>
+            <button type="button" class="gearadd" data-color="#f6f3ec">아이보리</button>
+            <input type="color" id="frameColor" value="#ffffff" aria-label="프레임 색 고르기">
+            <input type="text" id="frameHex" value="#FFFFFF" maxlength="7" spellcheck="false" aria-label="프레임 HEX 색" placeholder="#FFFFFF">
+          </div>
+          <p class="note">현재 스타일의 여백 색 · 글자는 배경에 맞춰 밝게 또는 어둡게 표시합니다.</p>
         </div>
-        <p class="note">현재 스타일의 여백 색 · 글자는 배경에 맞춰 밝게 또는 어둡게 표시합니다.</p>
-      </div>
+      </details>
     </div>
 
     <hr>
@@ -3722,8 +3724,8 @@ $('dispPanel').addEventListener('toggle', () => {
   syncAdv();
 });
 
-/* 접이식 섹션(프리셋/표시·레이아웃) 열림 상태 기억 */
-const PANELS = ['presetPanel', 'dispPanel'];
+/* 접이식 섹션(여백 색/프리셋/표시·레이아웃) 열림 상태 기억 */
+const PANELS = ['toneField', 'presetPanel', 'dispPanel'];
 const savedPanels = store.read('frame.panels', null);
 if (savedPanels) PANELS.forEach(id => { if (savedPanels[id] != null) $(id).open = savedPanels[id]; });
 PANELS.forEach(id => $(id).addEventListener('toggle', () => {
