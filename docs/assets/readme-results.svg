@@ -36,7 +36,7 @@
   </g>
 
   <g transform="translate(445 105)">
-    <rect width="310" height="525" rx="3" fill="#f6f3ec"/>
+    <rect width="310" height="525" rx="3" fill="#ffffff"/>
     <use href="#photo" x="20" y="20" width="270" height="372" preserveAspectRatio="xMidYMid slice"/>
     <text x="26" y="432" fill="#2a2723" font-family="system-ui, sans-serif" font-size="16" font-weight="650">Nikon F5</text>
     <text x="26" y="454" fill="#6b655d" font-family="system-ui, sans-serif" font-size="11">AF-D 35mm f/2 · Portra 400</text>

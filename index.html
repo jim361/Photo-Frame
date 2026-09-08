@@ -63,17 +63,12 @@
   }
   .masthead{
     display:flex;align-items:center;gap:var(--space-3);
-    min-height:64px;padding:0 var(--space-4);border-bottom:3px solid var(--ink);
+    min-height:64px;padding:0 var(--space-4);
     flex:0 0 auto;
   }
   .wordmark{
     font-family:var(--sans);font-size:24px;line-height:1;font-weight:800;
     letter-spacing:-.04em;color:var(--ink);
-  }
-  .subtitle{
-    min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-    font-family:var(--mono);font-size:11px;font-weight:700;
-    color:var(--muted-ink);letter-spacing:.06em;
   }
   .headbtn{
     min-height:var(--touch);padding:8px 14px;border:2px solid var(--ink);
@@ -130,9 +125,6 @@
     word-break:keep-all;text-wrap:pretty;max-width:560px;
   }
   .dropzone .guide-note b{color:var(--ink);font-weight:700}
-  .demoAction{display:flex;align-items:center;gap:var(--space-2);margin-top:var(--space-3);flex-wrap:wrap}
-  .demoAction .btn{width:auto}
-  .demoAction small{font-family:var(--mono);font-size:10px;color:var(--muted-ink)}
 
   /* ----- zoom toolbar ----- */
   .zoombar{
@@ -324,6 +316,7 @@
   .eye:hover{color:var(--primary-pressed);background:var(--primary-soft)}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2)}
   .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-2)}
+  .exportFields{grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
   .fonttools{display:flex;gap:var(--space-2);margin-top:0}
   .fonttools .gearadd{flex:1;padding:8px}
   .fonttools .gearadd:disabled{opacity:.35;cursor:not-allowed}
@@ -450,11 +443,8 @@
   }
   @media (max-width:719px){
     .table{height:auto;min-height:max(680px,100dvh)}
-    .masthead{padding:8px var(--space-3);gap:var(--space-2);flex-wrap:wrap;min-width:0}
+    .masthead{padding:8px var(--space-3);gap:var(--space-2);min-width:0}
     .wordmark{font-size:20px;flex:1}
-    .subtitle{display:none}
-    .masthead #addPhotos{order:3;flex:1 0 calc(100% - 80px);margin-left:0}
-    .masthead #toSettings{order:4}
     .headbtn{padding:6px 9px;font-size:11px}
     .gearbtn{margin-left:0}
     .viewport{min-height:max(528px,calc(100dvh - 212px))}
@@ -500,9 +490,7 @@
   <main class="table">
     <header class="masthead">
       <h1 class="wordmark">PhotoFrame</h1>
-      <span class="subtitle">사진에 프레임과 촬영 정보를 얹습니다</span>
       <button type="button" class="headbtn" id="addPhotos">＋ 사진 추가</button>
-      <button type="button" class="headbtn mobileJump" id="toSettings">설정 ↓</button>
       <button type="button" class="gearbtn" id="gearBtn" title="개인 설정 (화면 표시)" aria-haspopup="dialog" aria-controls="advPanel" aria-expanded="false">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </button>
@@ -519,10 +507,6 @@
         </ol>
         <p class="guide-note">자주 쓰는 장비는 <b>프리셋</b>에 ＋로 저장해 두면 다음부터 클릭 한 번입니다 ·
           미리보기의 <b>경계</b>를 켜면 글씨 위치를 마우스로 옮길 수 있습니다</p>
-        <div class="demoAction">
-          <button type="button" class="btn" id="loadExample">내장 예제로 체험</button>
-          <small>도형으로 만든 로컬 예제 · 실제 사용자 사진이 아닙니다</small>
-        </div>
         <p class="guide-note" id="dropPrivacy">사진은 <b>이 브라우저 밖으로 나가지 않습니다</b> — 업로드도, 서버도, 계정도 없습니다</p>
       </div>
       <canvas id="preview" role="img" aria-label="프레임 합성 미리보기" hidden></canvas>
@@ -660,7 +644,7 @@
       <div class="field">
         <span>로고 · 서명 (투명 PNG 권장)</span>
         <div class="gearcol" id="logoRow"></div>
-        <input type="text" id="sigText" placeholder="또는 텍스트 서명 — @jim361 (이미지 선택 시 이미지 우선)" style="margin-top:6px">
+        <input type="text" id="sigText" placeholder="텍스트 서명 (이미지 선택 시 이미지 우선)" style="margin-top:6px">
       </div>
     </div>
 
@@ -804,40 +788,35 @@
 
     <div class="group">
       <span class="glabel">내보내기</span>
-      <div class="row3">
-        <div class="field">
-          <span>비율 맞춤</span>
-          <select id="ratio">
-            <option value="auto">Instagram 피드 자동</option>
-            <option value="none">원본 비율</option>
-            <option value="3:4">3:4 세로</option>
-            <option value="4:5">4:5 세로</option>
-            <option value="1:1">1:1 정방형</option>
-            <option value="1.91:1">1.91:1 가로</option>
-            <option value="9:16">9:16 스토리</option>
-          </select>
-        </div>
-        <div class="field">
-          <span>비율 여백 색</span>
-          <select id="ratioBg">
-            <option value="frame">프레임 색 따름</option>
-            <option value="#ffffff">흰색</option>
-            <option value="#f6f3ec">아이보리</option>
-            <option value="#0d0c0a">검정</option>
-            <option value="custom">직접 선택</option>
-          </select>
-          <input type="color" id="ratioCustom" value="#ffffff" aria-label="직접 지정한 비율 여백 색" hidden>
-        </div>
-        <div class="field">
-          <span>긴 변 크기</span>
-          <select id="size">
-            <option value="2048">2048 px</option>
-            <option value="1440">1440 px</option>
-            <option value="0">원본</option>
-          </select>
-        </div>
+      <div class="field">
+        <span>비율 맞춤</span>
+        <select id="ratio">
+          <option value="none" selected>원본 비율</option>
+          <option value="3:4">3:4 세로</option>
+          <option value="4:5">4:5 세로</option>
+          <option value="1:1">1:1 정방형</option>
+          <option value="1.91:1">1.91:1 가로</option>
+          <option value="9:16">9:16 스토리</option>
+          <option value="auto" hidden>이전 자동 비율 (저장값)</option>
+        </select>
       </div>
-      <div class="row3">
+      <!-- 기존 설정·프로젝트의 출력값만 보존한다. 새 작업은 프레임 색을 따른다. -->
+      <div hidden>
+        <select id="ratioBg">
+          <option value="frame">프레임 색 따름</option>
+          <option value="#ffffff">흰색</option>
+          <option value="#f6f3ec">아이보리</option>
+          <option value="#0d0c0a">검정</option>
+          <option value="custom">직접 선택</option>
+        </select>
+        <input type="color" id="ratioCustom" value="#ffffff" aria-label="직접 지정한 비율 여백 색" hidden>
+        <select id="size">
+          <option value="2048">2048 px</option>
+          <option value="1440">1440 px</option>
+          <option value="0">원본</option>
+        </select>
+      </div>
+      <div class="row3 exportFields">
         <div class="field">
           <span>형식</span>
           <select id="fmt">
@@ -845,13 +824,13 @@
             <option value="jpeg">JPEG</option>
           </select>
         </div>
-        <div class="field" id="qualityField" style="visibility:hidden">
+        <div class="field" id="qualityField" hidden>
           <span>품질</span>
           <input type="number" id="quality" min="50" max="100" value="92">
         </div>
         <div class="field">
           <span>파일 제목</span>
-          <input type="text" id="title" placeholder="예: 강릉여행">
+          <input type="text" id="title">
         </div>
       </div>
       <p class="note" id="exportNote"></p>
@@ -860,11 +839,7 @@
         <button class="btn solid" id="exportAll" disabled>전체 내보내기</button>
         <button class="btn" id="exportOne" disabled>현재 장만</button>
       </div>
-      <div class="row3" style="margin-top:8px">
-        <button class="btn" id="exportSelected" disabled>선택 0장 내보내기</button>
-        <button class="btn" id="exportRetry" disabled>실패 사진 재시도</button>
-        <button class="btn" id="exportCancel" hidden>다음 사진부터 취소</button>
-      </div>
+      <button class="btn" id="exportCancel" style="margin-top:8px" hidden>다음 사진부터 취소</button>
       <div id="exportReview" hidden>
         <p class="note" id="exportSummary" role="status"></p>
         <details><summary>대상별 예상 크기·넘침 확인</summary><ul class="note" id="exportItems"></ul></details>
@@ -1029,7 +1004,7 @@ const C = {
   base:   '#0d0c0a',
   edge:   '#e8873a',
   rebate: '#8a8378',
-  paper:  '#f6f3ec',
+  paper:  '#ffffff',
   ink:    '#2a2723',
   bandDark:'#14130f',
   bandDarkText:'#cfc9bd',
@@ -1087,7 +1062,6 @@ const state = {
   exportBusy: false,
   exportCancel: false,
   exportPlan: null,
-  exportRetry: null,
   projectDirty: false,
   projectMessage: '',
   projectTone: '',
@@ -1174,11 +1148,6 @@ function syncActionButtons(){
   const has = state.current >= 0;
   $('exportAll').disabled = busy || !state.shots.length;
   $('exportOne').disabled = busy || !has;
-  $('exportSelected').disabled = busy || !state.batch.size;
-  $('exportSelected').textContent = `선택 ${state.batch.size}장 내보내기`;
-  const retryCount = state.exportRetry?.jobs.filter(job => state.shots.includes(job.shot)).length || 0;
-  $('exportRetry').disabled = busy || !retryCount;
-  $('exportRetry').textContent = retryCount ? `실패 ${retryCount}장 재시도` : '실패 사진 재시도';
   $('exportStart').disabled = busy || !state.exportPlan;
   $('exportCancel').hidden = !state.exportBusy;
   $('projectSave').disabled = busy || (!state.shots.length && !pendingProject?.photos.length);
@@ -1561,7 +1530,7 @@ function syncScopeUi(){
   const pos = current ? `${state.current + 1}/${state.shots.length} · ${current.name}` : '사진 없음';
   const edit = scope === 'global' ? '전체 기본값' : count ? `선택 ${count}장` : '현재 사진 1장';
   const heading = document.createElement('b');
-  heading.textContent = `현재 ${pos}${current?.example ? ' · 내장 예제' : ''}`;
+  heading.textContent = `현재 ${pos}`;
   const detail = document.createElement('span');
   detail.append('촬영 정보 적용: ');
   const tag = document.createElement('strong'); tag.className = 'scopeTag'; tag.textContent = edit;
@@ -3158,7 +3127,7 @@ async function addFiles(files){
       const saved = pendingProject ? matchProjectPhoto(f) : null;
       if (pendingProject && !saved){ skipped++; continue; }
       const img = await loadImage(f);
-      const shot = { img, thumb:thumbnailData(img), name: f.name, example:!!f._photoFrameExample,
+      const shot = { img, thumb:thumbnailData(img), name: f.name,
         file: { name:f.name, size:f.size, lastModified:f.lastModified, type:f.type } };
       const x = await readExif(f);
       if (applyDetectedExif(shot, x)) exifCount++;
@@ -3222,30 +3191,7 @@ drop.onkeydown = e => {
 };
 $('picker').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
 $('addPhotos').onclick = () => $('picker').click();
-$('toSettings').onclick = () => $('settingsRail').scrollIntoView({ behavior:'smooth', block:'start' });
 $('toPreview').onclick = () => vp.scrollIntoView({ behavior:'smooth', block:'start' });
-$('loadExample').onclick = async e => {
-  e.stopPropagation();
-  const make = async (w, h, name) => {
-    const c = document.createElement('canvas'); c.width = w; c.height = h;
-    const g = c.getContext('2d'), y = h * 0.72;
-    g.fillStyle = '#dbe4df'; g.fillRect(0, 0, w, h);
-    g.fillStyle = '#8aa39b'; g.beginPath(); g.moveTo(0, y); g.lineTo(w*.33, h*.34); g.lineTo(w*.58, y); g.fill();
-    g.fillStyle = '#4f6864'; g.beginPath(); g.moveTo(w*.28, y); g.lineTo(w*.66, h*.25); g.lineTo(w, y); g.fill();
-    g.fillStyle = '#e8873a'; g.beginPath(); g.arc(w*.78, h*.2, Math.min(w,h)*.08, 0, Math.PI*2); g.fill();
-    g.fillStyle = '#1c2927'; g.fillRect(0, y, w, h-y);
-    g.fillStyle = '#f6f3ec'; g.font = `700 ${Math.max(20, Math.round(w*.028))}px system-ui`;
-    g.fillText('PHOTOFRAME · LOCAL EXAMPLE', w*.045, h*.92);
-    const blob = await new Promise(resolve => c.toBlob(resolve, 'image/png'));
-    const file = new File([blob], name, { type:'image/png', lastModified:0 });
-    file._photoFrameExample = true;
-    return file;
-  };
-  await addFiles(await Promise.all([
-    make(1200, 900, 'PhotoFrame-내장예제-가로.png'),
-    make(900, 1200, 'PhotoFrame-내장예제-세로.png'),
-  ]));
-};
 ['dragenter','dragover'].forEach(t => vp.addEventListener(t, e => {
   if (e.dataTransfer?.types.includes('Files')) { e.preventDefault(); drop.classList.add('hot'); }
 }));
@@ -3456,6 +3402,7 @@ $('dateFormat').onchange = () => { saveSettings(); refresh(true); };
 $('adoptExif').onclick = () => {
   const count = photoTargets().filter(adoptDetectedExif).length;
   if (!count) return;
+  state.infoScope = 'shot';
   markProjectDirty(); drawStrip(); syncFields(); refresh(true);
   toast(`${count}장의 EXIF를 채택했습니다. 수동 입력은 유지됩니다`);
 };
@@ -3795,21 +3742,22 @@ document.querySelectorAll('.eye[data-for]').forEach(b => b.onclick = () => {
 function updateExportNote(){
   const r = $('ratio').value;
   const ratioMsg =
-    r === 'auto' ? 'Instagram 사진 피드 자동: 3:4~1.91:1 밖에서만 여백을 붙입니다 (게시 경로별 지원 차이 가능)' :
-    r === 'none' ? '원본 비율 그대로 저장합니다 — 게시 화면에서 최종 표시를 확인하세요' :
+    r === 'auto' ? '이전에 저장한 자동 비율을 유지합니다' :
+    r === 'none' ? '프레임을 포함한 원본 비율로 저장합니다' :
     `모든 결과물을 ${r} 비율로 맞춥니다`;
   const t = $('title').value.trim().replace(/[\\/:*?"<>|]/g, '');
+  const ext = $('fmt').value === 'jpeg' ? 'jpg' : 'png';
   const titleMsg = t
-    ? `스트립 순서대로 <b>${t}(1), ${t}(2)…</b>로 저장됩니다`
-    : '제목을 쓰면 스트립 순서대로 제목(1), 제목(2)…로 저장됩니다';
-  $('exportNote').innerHTML = `${ratioMsg} · ${titleMsg}`;
+    ? `${t}(1).${ext}, ${t}(2).${ext}… (사진 순서)`
+    : `제목 입력 시 제목(1).${ext}, 제목(2).${ext}… · 비우면 원본이름_framed.${ext}`;
+  $('exportNote').textContent = `${titleMsg} · ${ratioMsg}`;
 }
 
 $('ratio').onchange  = () => { saveSettings(); updateExportNote(); refresh(); }; // 캔버스 비율이 바뀌므로 맞춤 리셋
 $('ratioBg').onchange = () => { saveSettings(); refresh(true); };
 ['size','quality'].forEach(id => $(id).addEventListener('change', saveSettings));
 $('title').addEventListener('input', () => { saveSettings(); updateExportNote(); });
-$('fmt').addEventListener('change', saveSettings);
+$('fmt').addEventListener('change', () => { saveSettings(); updateExportNote(); });
 
 /* ============================================================
    프리셋
@@ -4205,7 +4153,6 @@ function clearShots(){
   state._pv = null;
   pendingProject = null;
   state.exportPlan = null;
-  state.exportRetry = null;
   $('exportReview').hidden = true;
   state.projectDirty = false;
   state.projectMessage = '';
@@ -4372,7 +4319,7 @@ function toBlob(cv, fmt = $('fmt').value, quality = $('quality').value){
 }
 
 $('fmt').onchange = () => {
-  $('qualityField').style.visibility = $('fmt').value === 'jpeg' ? 'visible' : 'hidden';
+  $('qualityField').hidden = $('fmt').value !== 'jpeg';
 };
 
 async function availableName(name){
@@ -4433,11 +4380,9 @@ function exportDimensions(shot, options, longEdge){
   return { w:Math.round(w * down), h:Math.round(h * down), shrunk:scale < 1 };
 }
 
-async function prepareExport(list, retryPlan = null){
+async function prepareExport(list){
   if (state.exportBusy) return;
-  const plan = retryPlan
-    ? { config:retryPlan.config, jobs:retryPlan.jobs.filter(job => state.shots.includes(job.shot)) }
-    : makeExportPlan(list);
+  const plan = makeExportPlan(list);
   if (!plan.jobs.length) return;
   const revision = state.projectRevision || 0;
   state.exportBusy = true; state.exportCancel = false; state.exportPlan = null;
@@ -4489,7 +4434,7 @@ async function exportShots(list, prepared = null){
   const progress = $('exportProgress'), status = $('exportStatus');
   let saved = 0, requested = 0, shrunk = 0, renamed = 0, permissionLost = false, cancelled = 0, overflow = 0;
   const failed = [], metrics = [], started = performance.now();
-  state.exportBusy = true; state.exportCancel = false; state.exportRetry = null; state.exportPlan = null;
+  state.exportBusy = true; state.exportCancel = false; state.exportPlan = null;
   $('exportReview').hidden = true;
   syncActionButtons();
   progress.hidden = false; progress.max = jobs.length; progress.value = 0;
@@ -4532,13 +4477,12 @@ async function exportShots(list, prepared = null){
       progress.value = i + 1;
       if (!state.dirHandle) await new Promise(r => setTimeout(r, 350)); // 다운로드 연타 방지
     }
-    state.exportRetry = failed.length ? { config, jobs:failed } : null;
     const details = [saved ? `${saved}장 저장 확인` : '', requested ? `${requested}장 다운로드 요청` : '',
       failed.length ? `${failed.length}장 실패: ${failed.slice(0, 3).map(job => job.shot.name).join(', ')}${failed.length > 3 ? '…' : ''}` : '',
       cancelled ? `${cancelled}장 취소됨 (미처리)` : '', shrunk ? `${shrunk}장 자동 축소` : '',
       renamed ? `${renamed}개 이름 변경` : '', overflow ? `${overflow}장 요소 넘침 (배치 유지)` : ''].filter(Boolean);
     status.textContent = details.join(' · ') || '내보낸 사진이 없습니다.';
-    if (permissionLost) status.textContent += ' · 폴더 권한이 끊겼습니다. 저장 폴더를 다시 선택한 뒤 실패 사진을 재시도하세요.';
+    if (permissionLost) status.textContent += ' · 폴더 권한이 끊겼습니다. 저장 폴더를 다시 선택한 뒤 필요한 사진을 내보내세요.';
     if (requested) status.textContent += ' · 브라우저 다운로드 목록에서 완료 여부를 확인하세요.';
     state.lastExportMetrics = { count:jobs.length, completed:metrics.length, failed:failed.length, cancelled,
       totalMs:Math.round(performance.now() - started), photos:metrics };
@@ -4553,8 +4497,6 @@ async function exportShots(list, prepared = null){
 
 $('exportOne').onclick = () => prepareExport([state.shots[state.current]]);
 $('exportAll').onclick = () => prepareExport([...state.shots]);
-$('exportSelected').onclick = () => prepareExport([...state.batch]);
-$('exportRetry').onclick = () => prepareExport([], state.exportRetry);
 $('exportStart').onclick = () => { if (state.exportPlan) exportShots([], state.exportPlan); };
 $('exportCancel').onclick = () => {
   state.exportCancel = true;
@@ -4592,7 +4534,7 @@ function selfCheck(){
   const cleaned = cleanOwn({ body:'', film:null, show:{ lens:false } });
   console.assert(cleaned.body === '' && cleaned.film === null && cleaned.show.lens === false,
     'PhotoFrame 프로젝트 장별 상태 검사 실패');
-  console.assert(filename({ name:'photo.raw' }, 2, 'jpeg', '강릉여행') === '강릉여행(2).jpg',
+  console.assert(filename({ name:'photo.raw' }, 2, 'jpeg', '제목') === '제목(2).jpg',
     'PhotoFrame 내보내기 순번 검사 실패');
   console.assert(targetRatio(0.7, 'auto') === 0.75 && targetRatio(0.76, 'auto') === null &&
     targetRatio(1, '3:4') === 0.75, 'PhotoFrame Instagram 3:4 비율 검사 실패');

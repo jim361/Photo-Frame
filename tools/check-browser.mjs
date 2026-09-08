@@ -19,17 +19,33 @@ page.on('console', message => { if (['error','assert'].includes(message.type()))
 page.on('request', request => { if (/^https?:/.test(request.url())) external.push(request.url()); });
 page.on('dialog', dialog => dialog.accept());
 const tick = () => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+// Synthetic local PNG fixtures belong to this development check, not the shipped app.
+async function loadTestPhotos(target){
+  const images=await target.evaluate(()=>[[1200,900,'#39798a'],[900,1200,'#985d42']].map(([width,height,color],index)=>{
+    const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
+    const ctx=canvas.getContext('2d');ctx.fillStyle=color;ctx.fillRect(0,0,width,height);
+    const data=canvas.toDataURL('image/png').split(',')[1];canvas.width=canvas.height=1;
+    return {name:`fixture-${index+1}.png`,data};
+  }));
+  await target.locator('#picker').setInputFiles(images.map(({name,data})=>({name,mimeType:'image/png',buffer:Buffer.from(data,'base64')})));
+  await target.waitForFunction(()=>state.shots.length===2);
+  await target.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+}
 try {
   await page.goto(pathToFileURL(join(root,'index.html')).href + '?v=' + Date.now());
   await tick();
   assert.equal(await page.locator('#appearanceRow button').count(),1,'fresh storage completes preset init');
   assert.equal(await page.locator('#styleSeg button').count(),8);
   assert.equal(await page.locator('#ratioBg').inputValue(),'frame');
+  assert.equal(await page.locator('#ratio').inputValue(),'none');
+  assert.equal(await page.locator('#ratio option[value="auto"]:not([hidden])').count(),0,'legacy auto ratio is absent from visible choices');
+  assert.equal(await page.locator('#loadExample,#exportSelected,#exportRetry').count(),0,'removed demo and extra export actions stay absent');
   assert.deepEqual(errors,[],'fresh initialization has no console errors/assertions');
 
-  // Compare unchanged styles pixel-for-pixel against the git base in the same browser/font environment.
+  // Normalize only the intentional Instax paper change; all geometry and other pixels still match.
   const legacy = await context.newPage();
-  await legacy.setContent(execFileSync('git',['show','HEAD:index.html'],{ cwd:root, encoding:'utf8', maxBuffer:4e6 }));
+  const baseline=execFileSync('git',['show','HEAD:index.html'],{ cwd:root, encoding:'utf8', maxBuffer:4e6 });
+  await legacy.setContent(baseline.replace(/paper:\s*'#f6f3ec'/,"paper: '#ffffff'"));
   const legacyRenders = () => {
     const out = [];
     for (const [w,h] of [[600,900],[900,600]]) for (const style of ['film','instax','bottom','top'])
@@ -43,12 +59,10 @@ try {
       }
     return out;
   };
-  assert.deepEqual(await page.evaluate(legacyRenders),await legacy.evaluate(legacyRenders),'old four styles preserve exact pixels');
+  assert.deepEqual(await page.evaluate(legacyRenders),await legacy.evaluate(legacyRenders),'old four styles preserve exact pixels after intended white Instax paper change');
   await legacy.close();
 
-  await page.locator('#loadExample').click();
-  await page.waitForFunction(() => state.shots.length === 2);
-  await tick();
+  await loadTestPhotos(page);
   const dimensions = await page.evaluate(() => {
     const results=[];
     for (const shot of state.shots) for (const style of STYLE_KEYS){
@@ -68,6 +82,25 @@ try {
   });
   assert.equal(dimensions.length,16);
   assert.equal(await page.locator('#styleSeg canvas:visible').count(),8,'current photo thumbnails');
+  const instax=await page.evaluate(()=>{
+    const result={};
+    try {
+      for(const theme of ['light','dark']){
+        $('uiTheme').value=theme;applyUi();result[theme]=[];
+        for(const shot of state.shots) for(const sideText of ['stack','rotate']){
+          const o=withShot({...withProfile({...opts(),style:'instax',ratio:'1:1',ratioBg:'frame'},shot),sideText},shot);
+          const cv=render(shot.img,o),padded=padToRatio(cv,o);
+          for(const image of [cv,padded])
+            if(Array.from(image.getContext('2d').getImageData(0,0,1,1).data).join(',')!=='255,255,255,255')
+              throw Error(`Instax card/padding must be white in ${theme}/${sideText}`);
+          result[theme].push(padded.toDataURL());
+          for(const image of new Set([cv,padded])) image.width=image.height=1;
+        }
+      }
+    } finally {$('uiTheme').value='light';applyUi();}
+    return result;
+  });
+  assert.deepEqual(instax.light,instax.dark,'Instax output is identical across UI themes in both orientations and text directions');
   const colors=await page.evaluate(() => {
     for (const tone of ['light','dark']){
       loadFrameColors({tone});
@@ -99,14 +132,14 @@ try {
   await tick();
 
   await page.evaluate(async () => {
-    state.batch=new Set([state.shots[1]]); $('title').value='검사'; drawStrip();
-    await prepareExport([...state.batch]);
-    if (state.exportPlan.jobs[0].name!=='검사(2).png') throw Error('selected strip numbering');
+    state.current=1;state.batch=new Set([state.shots[0]]); $('title').value='검사'; drawStrip();
+    await $('exportOne').onclick();
+    if (state.exportPlan.jobs.length!==1 || state.exportPlan.jobs[0].name!=='검사(2).png') throw Error('current photo strip numbering independent of metadata selection');
     if (!$('exportSummary').textContent.includes('1장') || !$('exportItems').textContent.includes('px')) throw Error('preflight summary');
     const realSave=save; const output=[];
     save=async(blob,name)=>{output.push({bytes:blob.size,name}); return {name,confirmed:true};};
     try { await exportShots([],state.exportPlan); } finally { save=realSave; }
-    if (output.length!==1 || !output[0].bytes || output[0].name!=='검사(2).png') throw Error('selected actual encode');
+    if (output.length!==1 || !output[0].bytes || output[0].name!=='검사(2).png') throw Error('current photo actual encode');
     adv.matte.port.bodyDX='9'; state.shots[1].own={body:'Overflow'};
     await prepareExport([state.shots[1]]);
     if (!$('exportSummary').textContent.includes('1장 요소 넘침')) throw Error('overflow target not reported');
@@ -187,14 +220,14 @@ try {
         written.push(name); return {name,confirmed:true};
       };
       await exportShots([...state.shots]);
-      if (written.join(',')!=='복원검사(1).png,복원검사(3).png' || state.exportRetry?.jobs.length!==1 || $('exportRetry').disabled)
-        throw Error('real export failure did not preserve remaining outputs and retry');
-      state.current=1; moveCurrent(1);
-      await $('exportRetry').onclick();
-      if (state.exportPlan.jobs.length!==1 || state.exportPlan.jobs[0].name!=='복원검사(2).png') throw Error('retry renumbered the moved photo');
+      if (written.join(',')!=='복원검사(1).png,복원검사(3).png' || state.lastExportMetrics.failed!==1 ||
+          !$('exportStatus').textContent.includes('1장 실패')) throw Error('real export failure did not preserve remaining outputs and report the failed photo');
+      state.current=1;drawStrip();
+      await $('exportOne').onclick();
+      if (state.exportPlan.jobs.length!==1 || state.exportPlan.jobs[0].name!=='복원검사(2).png') throw Error('current photo re-export lost strip numbering');
       await exportShots([],state.exportPlan);
-      if (written.join(',')!=='복원검사(1).png,복원검사(3).png,복원검사(2).png' || state.exportRetry!==null)
-        throw Error('real retry did not save only the failed photo');
+      if (written.join(',')!=='복원검사(1).png,복원검사(3).png,복원검사(2).png' || state.lastExportMetrics.failed!==0)
+        throw Error('normal current photo export did not save only the retried photo');
     } finally { save=originalSave; state.dirHandle=originalDir; }
   });
 
@@ -204,11 +237,11 @@ try {
   resizePage.on('pageerror',error=>errors.push(error.message));
   resizePage.on('console',message=>{if(['error','assert'].includes(message.type())) errors.push(message.text());});
   resizePage.on('request',request=>{if(/^https?:/.test(request.url())) external.push(request.url());});
+  resizePage.on('dialog',dialog=>dialog.accept());
   const resizeTick=()=>resizePage.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   try {
     await resizePage.goto(pathToFileURL(join(root,'index.html')).href+'?v=resize-'+Date.now());
-    await resizePage.locator('#loadExample').click();
-    await resizePage.waitForFunction(()=>state.shots.length===2);await resizeTick();
+    await loadTestPhotos(resizePage);
     for(const highRes of [false,true]){
       if(highRes) await resizePage.evaluate(()=>{
         for(const [index,width,height] of [[0,6000,4000],[1,4000,6000]]){
@@ -300,12 +333,14 @@ try {
   await page.screenshot({path:join(process.env.PHOTOFRAME_QA_DIR || tmpdir(),'photoframe-desktop.png')});
   const persisted=await page.evaluate(() => {
     setStyle('matte');setFrameColor('#173d72');$('ratioBg').value='custom';$('ratioCustom').value='#abcdef';
+    $('ratio').value='auto';$('size').value='1440';
     metadataShow.iso=false;$('dateFormat').value='month';saveSettings();
-    return {color:state.frameColors.matte,ratio:opts().ratioBg,...metadataOptions()};
+    return {color:state.frameColors.matte,ratio:opts().ratioBg,outputRatio:$('ratio').value,size:$('size').value,...metadataOptions()};
   });
   await page.reload();await tick();
-  assert.deepEqual(await page.evaluate(()=>({color:state.frameColors.matte,ratio:opts().ratioBg,...metadataOptions()})),persisted,'color and metadata settings survive fresh reload');
+  assert.deepEqual(await page.evaluate(()=>({color:state.frameColors.matte,ratio:opts().ratioBg,outputRatio:$('ratio').value,size:$('size').value,...metadataOptions()})),persisted,'legacy auto ratio, custom padding, output size, color and metadata settings survive reload');
+  for(const id of ['size','ratioBg','ratioCustom']) assert.equal(await page.locator('#'+id).isVisible(),false,`${id} stays hidden when legacy values restore`);
   assert.deepEqual(errors,[],'all browser interactions without console errors');
   assert.deepEqual(external,[],'no external HTTP requests');
-  console.log(`PhotoFrame 브라우저 검사 통과 · ${browser.version()} · 16 방향별 렌더 · 구버전 16 픽셀 비교 · 색/프리셋/부분 복원·저장/선택 내보내기/취소/재시도/넘침 · 매트/키라인 실제 마우스·24MP·슬라이더 · 360/390/768px`);
+  console.log(`PhotoFrame 브라우저 검사 통과 · ${browser.version()} · 실제 PNG 추가 · 16 방향별 렌더 · 인스탁스 흰색 반영 구버전 16 픽셀 비교 · 테마별 인스탁스/색/프리셋/부분 복원·저장/현재 내보내기/취소/실패 후 현재 재출력/넘침 · 매트/키라인 실제 마우스·24MP·슬라이더 · 360/390/768px`);
 } finally { await browser.close(); }

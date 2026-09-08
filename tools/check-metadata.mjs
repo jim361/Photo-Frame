@@ -8,16 +8,22 @@ const between = (start, end) => {
   return html.slice(a, b);
 };
 const fields = { dateFormat:{ value:'original' }, metadataVisibility:{ children:[] } };
-const $ = id => fields[id] ||= { placeholder:'' };
+const $ = id => fields[id] ||= { placeholder:'', dataset:{} };
+const state = { shots:[], batch:new Set(), current:-1, infoScope:'global' };
 const code = [
   between('function dateText(o){', '/* 입력 필드는'),
   between("const INFO_KEYS =", 'function syncScopeUi(){'),
   between('function adoptDetectedExif(shot){', 'function syncFields(){'),
+  between('function syncFields(){', 'function captionLines(o){'),
   between('async function readExif(file){', 'async function loadImage(file){'),
+  between("$('adoptExif').onclick = () => {", "$('infoScope').onclick"),
 ].join('\n');
-const api = new Function('$', `${code}; return { dateText, exposureText, displayMetadata,
+const api = new Function('$', 'state', `
+  const noop=()=>{}, syncScopeUi=noop, syncInfoBadges=noop, updateEyes=noop,
+    drawStrip=noop, refresh=noop, toast=noop, markProjectDirty=()=>{state.projectDirty=true;};
+  ${code}; return { dateText, exposureText, displayMetadata,
   metadataOptions, loadMetadataSettings, readExif, applyDetectedExif, adoptDetectedExif,
-  shotValue, withShot, gInfo, gShow };`)($);
+  shotValue, withShot, syncFields, gInfo, gShow };`)($, state);
 
 // 작은 실제 APP1/TIFF 구조로 파서와 자동/수동 채택 경계를 함께 검증한다.
 function jpegExif(values){
@@ -95,6 +101,37 @@ for (const scannerValues of [{ make:'EPSON', model:'V850' }, { make:'Canon', sof
 assert.equal(await api.readExif(new Blob(['broken'], {type:'image/jpeg'})), null);
 assert.equal(await api.readExif(new Blob(['broken'], {type:'image/png'})), null);
 
+// The actual adoption button must display the adopted photo values, without copying them into globals.
+const adopted = {}, untouched = {};
+api.applyDetectedExif(adopted, partial);api.applyDetectedExif(untouched, dateOnly);
+state.shots=[adopted,untouched];state.current=0;state.batch.clear();state.infoScope='global';
+api.gInfo.body='전체 기본 카메라';api.gInfo.date='전체 기본 날짜';
+const globals={...api.gInfo};api.syncFields();
+assert.equal(fields.body.value, globals.body);
+fields.adoptExif.onclick();
+assert.equal(state.infoScope,'shot');assert.equal(state.projectDirty,true);
+assert.equal(fields.body.value,api.withShot({},adopted).body);
+assert.equal(fields.date.value,api.withShot({},adopted).date);
+assert.equal(fields.body.value,partial.camera);
+assert.equal(fields.date.value,partial.date);
+assert.deepEqual(api.gInfo,globals);assert.equal(adopted.own,undefined);
+assert.equal(untouched.exifReview,'partial','unselected photo remains pending');
+
+const manual={own:{body:'수동 카메라',date:null,film:''}}, inherited={};
+api.applyDetectedExif(manual,partial);api.applyDetectedExif(inherited,partial);
+state.shots=[untouched,manual,inherited];state.current=0;state.batch=new Set([manual,inherited]);
+state.infoScope='global';const ownBefore=JSON.stringify(manual.own);
+fields.adoptExif.onclick();
+assert.equal(state.infoScope,'shot');assert.equal(fields.body.dataset.mixed,'true');
+assert.equal(fields.body.value,'');assert.match(fields.body.placeholder,/여러 값.*2장/);
+assert.equal(JSON.stringify(manual.own),ownBefore,'adoption preserves manual, blank, and global-use values');
+assert.equal(api.shotValue(manual,'date'),globals.date);assert.deepEqual(api.gInfo,globals);
+assert.equal(untouched.exifReview,'partial','selection does not adopt the unselected current photo');
+state.infoScope='global';state.projectDirty=false;api.syncFields();
+fields.adoptExif.onclick();
+assert.equal(state.infoScope,'global','a no-op adoption does not switch the input scope');
+assert.equal(state.projectDirty,false);assert.equal(fields.body.value,globals.body);
+
 const original = { set:'F1.8 · 1/250s · ISO 400 · 50mm', metadataShow:{ iso:false, focal:false } };
 assert.equal(api.exposureText(original), 'F1.8 · 1/250s');
 assert.equal(api.displayMetadata(original).set, 'F1.8 · 1/250s');
@@ -118,4 +155,4 @@ api.loadMetadataSettings({metadataShow:{iso:false},dateFormat:'hyphen'});
 assert.deepEqual(api.metadataOptions(), {metadataShow:{aperture:true,shutter:true,iso:false,focal:true},dateFormat:'hyphen'});
 api.loadMetadataSettings({});
 assert.deepEqual(api.metadataOptions(), {metadataShow:{aperture:true,shutter:true,iso:true,focal:true},dateFormat:'original'});
-console.log('메타데이터 검사 통과 · JPEG 부분/스캐너 EXIF 채택 · 수동값 보존 · 개별 표시 · 날짜 호환');
+console.log('메타데이터 검사 통과 · JPEG 부분/스캐너 EXIF 채택 · 채택 후 현재/선택 입력 동기화 · 수동값 보존 · 개별 표시 · 날짜 호환');

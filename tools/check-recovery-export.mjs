@@ -49,7 +49,7 @@ const pending = (names = ['a','b','c']) => ({ changed:false, current:0,
     own:{ caption:`saved ${name}`, film:null, show:{ date:false } }, exif:{ body:`Camera ${name}` } })) });
 function reset(names){
   Object.assign(context.state, { shots:[], current:-1, batch:new Set(), projectDirty:false, projectMessage:'',
-    exportBusy:false, exportCancel:false, exportPlan:null, exportRetry:null });
+    exportBusy:false, exportCancel:false, exportPlan:null });
   context.pendingProject = pending(names);
 }
 
@@ -139,7 +139,7 @@ assert.equal(context.state.batch.size, 0);
 assert.equal(context.state.current, -1);
 assert.equal(context.state.projectDirty, true);
 
-// Selection order does not renumber outputs; retries keep the original frozen filename.
+// Explicit target order does not renumber outputs; normal current-photo export can retry a failure.
 reset(); context.pendingProject = null;
 const shots = ['a','b','c'].map(name => ({ name:`${name}.jpg`, img:{ width:4000, height:6000 } }));
 context.state.shots = shots; context.state.current = 0;
@@ -153,11 +153,14 @@ context.save = async (_blob, name) => {
 };
 await context.exportShots([], plan);
 assert.deepEqual(savedNames, ['여행(3).jpg']);
-assert.equal(context.state.exportRetry.jobs.length, 1);
-context.state.shots.reverse();
-await context.exportShots([], context.state.exportRetry);
+assert.equal(context.state.lastExportMetrics.failed, 1);
+assert.match($('exportStatus').textContent, /1장 실패/);
+context.state.current = 0;
+await context.prepareExport([context.state.shots[context.state.current]]);
+assert.deepEqual(Array.from(context.state.exportPlan.jobs, job => job.name), ['여행(1).jpg']);
+await context.exportShots([], context.state.exportPlan);
 assert.deepEqual(savedNames, ['여행(3).jpg','여행(1).jpg']);
-assert.equal(context.state.exportRetry, null);
+assert.equal(context.state.lastExportMetrics.failed, 0);
 
 // Cancel after one image: the next image must not render, encode, or write.
 context.state.shots = shots;
@@ -169,10 +172,13 @@ assert.equal(writes, 1); assert.equal(renderCount, 1);
 assert.equal(context.state.lastExportMetrics.cancelled, 2);
 assert.match($('exportStatus').textContent, /2장 취소됨/);
 
-// Lost folder permission keeps all unattempted jobs available for retry.
-context.save = async () => { const error = new Error('permission'); error.name = 'NotAllowedError'; throw error; };
+// Lost folder permission stops after the first attempt and reports all affected photos.
+let permissionAttempts = 0;
+context.save = async () => { permissionAttempts++; const error = new Error('permission'); error.name = 'NotAllowedError'; throw error; };
 await context.exportShots(shots);
-assert.equal(context.state.exportRetry.jobs.length, 3);
+assert.equal(permissionAttempts, 1);
+assert.equal(context.state.lastExportMetrics.failed, 3);
+assert.match($('exportStatus').textContent, /폴더 권한/);
 assert.equal(context.state.exportBusy, false);
 
 // Preflight visits every target, reports overflow, and does not save any images.
@@ -185,4 +191,4 @@ assert.match($('exportItems').children[0].textContent, /약 \d+ × \d+px/);
 assert.equal(context.state.exportPlan.jobs.length, 3);
 assert.equal(context.state.exportBusy, false);
 
-console.log('PhotoFrame 복원·내보내기 동작 검사 통과 · 부분 저장/dirty/정렬/선택 순번/재시도/취소/권한/넘침');
+console.log('PhotoFrame 복원·내보내기 동작 검사 통과 · 부분 저장/dirty/정렬/현재 순번/실패 후 재출력/취소/권한/넘침');

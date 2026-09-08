@@ -28,7 +28,8 @@ api.loadFrameColors({frameColors:{matte:'#ABC',bottom:'#ff8800'}});
 assert.deepEqual(state.frameColors,{bottom:'#ff8800',matte:'#aabbcc'});
 assert.deepEqual(state.legacyBandTones,{});
 assert.equal(api.frameColor({style:'film',frameColor:'#fff'}),api.C.base);
-assert.equal(api.frameColor({style:'instax',frameColor:'#000'}),api.C.paper);
+for(const tone of ['light','dark']) for(const frameColor of ['#000000','#f6f3ec'])
+  assert.equal(api.frameColor({style:'instax',tone,frameColor}),'#ffffff','Instax card and follow-frame padding stay pure white');
 for(const [w,h] of [[600,900],[900,600]]) for(const scale of [.5,1,2]){
   const o={style:'matte',borderScale:scale,bandScale:5,lines:2};
   const d=api.frameDims(w,h,o),margin=w*.08*scale;
@@ -40,4 +41,4 @@ const capture=new Function('settingsSnapshot',`const APPEARANCE_KEYS=${appearanc
 const appearance=capture();
 assert.equal(appearance.frameColors.matte,'#abcdef');assert.equal(appearance.logo,'local-logo');
 for(const field of ['body','lens','date','set','caption','title','shots','gear']) assert(!(field in appearance),`${field} must not be a design preset`);
-console.log('PhotoFrame 색·매트·디자인 검사 통과 · 4096색 대비 · 구버전 톤 · 균등 여백 · 촬영 정보 제외');
+console.log('PhotoFrame 색·매트·디자인 검사 통과 · 4096색 대비 · 구버전 톤 · 흰색 인스탁스 · 균등 여백 · 촬영 정보 제외');

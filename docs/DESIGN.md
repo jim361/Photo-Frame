@@ -49,7 +49,7 @@ PhotoFrame의 UI는 **Structural Modernism**을 따른다. 따뜻한 미색 canv
 | app bar 높이 | `64px` |
 | 일반 row·panel 선 | `1px` |
 | outline action·focus | `2px` |
-| app bar·workspace 구조선 | `3px` |
+| workspace·rail·strip 구조선 | `3px` |
 | 큰 panel 반경 | `0` |
 | 버튼 반경 | `2px` |
 | 입력·popover 반경 | `4px` |
@@ -73,7 +73,7 @@ PhotoFrame의 UI는 **Structural Modernism**을 따른다. 따뜻한 미색 canv
 - `.shell`은 중앙 workspace와 우측 설정 rail의 2열이다.
 - workspace는 남은 너비를 사용하고 rail은 사용자 설정 `--railw`를 사용한다(초기값과 CSS fallback `500px`). 기존 사용자가 직접 저장한 너비는 유지한다.
 - 높이는 `100dvh`이며 미리보기 workspace와 설정 rail은 각자 필요한 overflow를 처리한다.
-- masthead는 높이 `64px`, 좌우 gutter `24px`, 하단 `3px` ink 구조선이다.
+- masthead는 높이 `64px`, 좌우 gutter `24px`이며 미리보기와 같은 배경을 쓴다. 두 영역 사이 구분선은 없다.
 - rail은 흰 surface, 좌측 `3px` ink 구조선, 내부 gutter `24px`이다.
 
 ### Medium · `720px` 이상 `1100px` 미만
@@ -86,19 +86,19 @@ PhotoFrame의 UI는 **Structural Modernism**을 따른다. 따뜻한 미색 canv
 ### Compact · `720px` 미만
 
 - 좌우 gutter는 `16px`이다.
-- 헤더는 제목·개인 설정과 사진 추가·설정 이동의 두 행으로 배치하고 소개 문구를 숨겨 360px에서도 조작 버튼이 가로로 넘치지 않게 한다.
+- 헤더는 PhotoFrame·사진 추가·개인 설정을 한 행으로 배치한다. 별도 설정 이동 버튼은 두지 않는다.
 - 2열·3열 form row는 한 열로 쌓고 범위 선택, 글꼴 도구도 세로로 배치한다.
 - 빈 상태는 viewport 안에서 스크롤할 수 있고 headline을 `28px`로 낮춘다.
 - 줌바는 너비 안에서 **4열 × 2행** grid가 되어 모든 기능을 유지한다.
 - strip과 rail 하단에는 `env(safe-area-inset-bottom)`을 반영한다.
-- 헤더의 `설정 ↓`과 레일의 `↑ 미리보기로`를 유지한다. 사진이 있을 때는 미리보기가 고정되므로 설정을 스크롤하면서 결과를 확인하고, 레일의 이동 버튼은 일반 흐름에 두어 미리보기를 덮지 않는다. desktop 기능을 숨기지 않는다.
+- 아래로 스크롤해 설정에 접근하고 레일의 `↑ 미리보기로`로 돌아온다. 사진이 있을 때는 미리보기가 고정되므로 설정을 스크롤하면서 결과를 확인하고, 레일의 이동 버튼은 일반 흐름에 두어 미리보기를 덮지 않는다.
 
 ## 5. 화면 구조와 컴포넌트
 
 ### Masthead
 
-- `<header>` 안의 `<h1>` wordmark, 한 줄 ellipsis 설명, 작업 중에도 보이는 `＋ 사진 추가`, 모바일 `설정 ↓`, 48×48px 개인 설정 버튼으로 구성한다.
-- 그림자 없이 3px 하단선으로 workspace 시작점을 구분한다.
+- `<header>` 안의 `<h1>` wordmark, 작업 중에도 보이는 `＋ 사진 추가`, 48×48px 개인 설정 버튼을 한 행으로 배치한다. 소개 문구는 제공하지 않는다.
+- 미리보기와 같은 배경에 구분선·그림자 없이 이어 배치한다.
 
 ### 빈 상태와 사진 입력
 
@@ -107,7 +107,7 @@ PhotoFrame의 UI는 **Structural Modernism**을 따른다. 따뜻한 미색 canv
 - `01 / INPUT`, headline, 파일 안내, 3단계 사용법, 로컬 처리 안내 순으로 읽힌다.
 - hover는 `--primary-soft`, keyboard focus는 3px cobalt outline을 사용한다.
 - 사진은 브라우저 밖으로 전송하지 않는다는 문구를 항상 노출한다.
-- `내장 예제로 체험`은 HTML 안에서 Canvas로 만드는 도형 사진 두 장만 사용한다. 실제 사용자 사진이 아님과 로컬 생성임을 버튼 주변과 예제 이미지 자체에 표시한다.
+- 앱에는 내장 예제 버튼·생성기를 두지 않고 사용자가 직접 고른 로컬 사진으로 시작한다.
 
 ### 미리보기와 줌바
 
@@ -135,6 +135,8 @@ PhotoFrame의 UI는 **Structural Modernism**을 따른다. 따뜻한 미색 canv
 - 접이식 panel은 반경 0, 1px line frame이며 열림 상태를 `＋/−`와 구조선으로 표시한다.
 - 프레임 선택 버튼에는 선과 면만으로 만든 작은 스타일 예시를 넣고 텍스트 이름을 함께 유지한다.
 - 촬영 정보 적용 범위와 스타일·방향 공통 배치를 다른 안내 문장으로 구분하며, 현재 프레임에서 의미 없는 설정 행은 숨긴다.
+- 내보내기에는 비율·형식·품질·파일 제목과 저장 폴더·전체·현재 장 동작을 표시한다. 파일 제목·서명에는 특정 여행명·사용자 ID 예시를 넣지 않고, 파일명 규칙은 첫 로드부터 별도 안내한다.
+- 형식·품질·파일 제목 행은 보이는 입력 수에 맞춰 채운다. PNG에서는 품질 입력을 숨겨 빈 자리를 남기지 않고 JPEG에서만 표시한다.
 
 ### 버튼과 입력
 
@@ -161,7 +163,7 @@ PhotoFrame의 UI는 **Structural Modernism**을 따른다. 따뜻한 미색 canv
 
 이 문서의 토큰과 breakpoint는 **브라우저 UI에만 적용**한다. 합성 canvas는 `render()`라는 하나의 경로를 미리보기와 내보내기가 공유하며, UI를 밝은 Structural Modernism으로 바꿔도 결과물의 색·비율·배치는 바뀌지 않는다.
 
-- Canvas 색은 JavaScript 상수 `C`가 소유한다: `base #0d0c0a`, `edge #e8873a`, `rebate #8a8378`, `paper #f6f3ec`, `ink #2a2723`, `bandDark #14130f`, `bandDarkText #cfc9bd`.
+- Canvas 색은 JavaScript 상수 `C`가 소유한다: `base #0d0c0a`, `edge #e8873a`, `rebate #8a8378`, `paper #ffffff`, `ink #2a2723`, `bandDark #14130f`, `bandDarkText #cfc9bd`. 인스탁스 종이는 화면 테마·사진 방향에 관계없이 흰색이다.
 - 필름 스트립, 인스탁스, 상·하단 여백의 크기와 모든 요소 위치는 사진 폭 `W` 기준 비율과 스타일·방향별 profile이 소유한다.
 - CSS UI 토큰을 `C`, `render()`, `withProfile()`의 값으로 재사용하지 않는다.
 - 경계 box, handle, snap guide는 미리보기 전용 overlay이며 내보내기에 포함하지 않는다.
