@@ -35,12 +35,65 @@ try {
   await page.goto(pathToFileURL(join(root,'index.html')).href + '?v=' + Date.now());
   await tick();
   assert.equal(await page.locator('#appearanceRow button').count(),1,'fresh storage completes preset init');
-  assert.equal(await page.locator('#styleSeg button').count(),10);
+  assert.equal(await page.locator('#styleSeg button').count(),8);
+  assert.equal(await page.locator('#styleSeg [data-style="instax-square"],#styleSeg [data-style="instax-wide"]').count(),0,'removed Instax variants are not offered');
   assert.equal(await page.locator('#ratioBg').inputValue(),'frame');
   assert.equal(await page.locator('#ratio').inputValue(),'none');
   assert.equal(await page.locator('#ratio option[value="auto"]:not([hidden])').count(),0,'legacy auto ratio is absent from visible choices');
   assert.equal(await page.locator('#loadExample,#exportSelected,#exportRetry').count(),0,'removed demo and extra export actions stay absent');
   assert.deepEqual(errors,[],'fresh initialization has no console errors/assertions');
+
+  // Retired styles must still open saved work in Instax with the selected profile and other values intact.
+  const migrationContext=await browser.newContext();
+  const migrationPage=await migrationContext.newPage();
+  migrationPage.on('pageerror',error=>errors.push(error.message));
+  migrationPage.on('console',message=>{if(['error','assert'].includes(message.type())) errors.push(message.text());});
+  migrationPage.on('request',request=>{if(/^https?:/.test(request.url())) external.push(request.url());});
+  migrationPage.on('dialog',dialog=>dialog.accept());
+  try {
+    await migrationPage.goto(pathToFileURL(join(root,'index.html')).href+'?v=migration-'+Date.now());
+    for(const style of ['instax-square','instax-wide']){
+      await migrationPage.evaluate(style=>{
+        const settings={...settingsSnapshot(),style,body:'보존할 카메라',sigText:'보존할 서명',size:'1440'};
+        settings.advByStyle.instax.port.borderScale='77';
+        settings.advByStyle[style]={port:{...DEF_ADV,borderScale:'137',bodyDX:'.12'},
+          land:{...DEF_ADV,bandScale:'163',sideText:'rotate',dateDY:'-.03'}};
+        store.write('frame.settings',settings);
+        store.write('frame.layouts',[{name:'이전 규격 배치',style,...settings.advByStyle[style]}]);
+        store.write('frame.appearances',[{name:'이전 규격 디자인',settings}]);
+      },style);
+      await migrationPage.reload();
+      const restored=await migrationPage.evaluate(()=>({style:state.style,profile:adv.instax,
+        body:gInfo.body,sigText:$('sigText').value,size:$('size').value,layouts}));
+      assert.equal(restored.style,'instax',`${style} settings restore to Instax`);
+      assert.equal(restored.profile.port.borderScale,'137','selected retired profile wins over former Mini profile');
+      assert.equal(restored.profile.port.bodyDX,'.12');
+      assert.equal(restored.profile.land.bandScale,'163');
+      assert.equal(restored.profile.land.sideText,'rotate');
+      assert.equal(restored.body,'보존할 카메라');assert.equal(restored.sigText,'보존할 서명');assert.equal(restored.size,'1440');
+      assert.equal(restored.layouts[0].style,'instax','local layout style migrates during init');
+      await migrationPage.evaluate(()=>{adv.instax.port.borderScale='55';adv.instax.land.bandScale='60';$('dispPanel').open=true;drawLayouts();});
+      await migrationPage.locator('#layoutRow button[title="이전 규격 배치"]').click();
+      assert.equal(await migrationPage.evaluate(()=>adv.instax.port.borderScale),'137','saved local layout remains applicable');
+      assert.equal(await migrationPage.evaluate(()=>adv.instax.land.bandScale),'163');
+      await migrationPage.evaluate(()=>{gInfo.body='디자인 적용 전 수동 값';adv.instax.port.borderScale='66';$('appearancePanel').open=true;setStyle('film');});
+      await migrationPage.locator('#appearanceRow button[title="이전 규격 디자인"]').click();
+      assert.deepEqual(await migrationPage.evaluate(()=>[state.style,adv.instax.port.borderScale,gInfo.body]),
+        ['instax','137','디자인 적용 전 수동 값'],'old appearance adopts Instax without replacing photo metadata');
+      const imported=await migrationPage.evaluate(style=>{
+        const old=store.read('frame.appearances',[])[0].settings;
+        const project=cleanProjectSettings(old);
+        const layout=cleanPresetLayouts([{name:'가져온 규격 배치',style,...old.advByStyle[style]}])[0];
+        return {project,layout};
+      },style);
+      assert.equal(imported.project.style,'instax','project sanitizer migrates retired style');
+      assert.equal(imported.project.advByStyle.instax.port.borderScale,'137');
+      assert.equal(imported.project.advByStyle.instax.land.dateDY,'-.03');
+      assert.equal(imported.project.body,'보존할 카메라');
+      assert.equal(imported.layout.style,'instax','imported layout accepts retired style');
+      assert.equal(imported.layout.port.bodyDX,'.12');assert.equal(imported.layout.land.sideText,'rotate');
+    }
+  } finally {await migrationContext.close();}
 
   // Normalize only the intentional Instax paper change; all geometry and other pixels still match.
   const legacy = await context.newPage();
@@ -80,15 +133,15 @@ try {
     }
     return results;
   });
-  assert.equal(dimensions.length,20);
-  assert.equal(await page.locator('#styleSeg canvas:visible').count(),10,'current photo thumbnails');
+  assert.equal(dimensions.length,16);
+  assert.equal(await page.locator('#styleSeg canvas:visible').count(),8,'current photo thumbnails');
   const instax=await page.evaluate(()=>{
     const result={};
     try {
       for(const theme of ['light','dark']){
         $('uiTheme').value=theme;applyUi();result[theme]=[];
-        for(const shot of state.shots) for(const style of INSTAX_STYLES) for(const sideText of ['stack','rotate']){
-          const o=withShot({...withProfile({...opts(),style,ratio:'1:1',ratioBg:'frame'},shot),sideText},shot);
+        for(const shot of state.shots) for(const sideText of ['stack','rotate']){
+          const o=withShot({...withProfile({...opts(),style:'instax',ratio:'1:1',ratioBg:'frame'},shot),sideText},shot);
           const cv=render(shot.img,o),padded=padToRatio(cv,o);
           for(const image of [cv,padded])
             if(Array.from(image.getContext('2d').getImageData(0,0,1,1).data).join(',')!=='255,255,255,255')
@@ -101,29 +154,6 @@ try {
     return result;
   });
   assert.deepEqual(instax.light,instax.dark,'Instax output is identical across UI themes in both orientations and text directions');
-  await page.evaluate(()=>{
-    for(const [w,h] of [[600,900],[900,600],[600,600]]){
-      const src=document.createElement('canvas');src.width=w;src.height=h;
-      const ctx=src.getContext('2d');ctx.fillStyle='#326a80';ctx.fillRect(0,0,w,h);
-      const corners=[[5,5,'#ff0000'],[w-6,5,'#00ff00'],[5,h-6,'#0000ff'],[w-6,h-6,'#ffff00']];
-      for(const [x,y,color] of corners){ctx.fillStyle=color;ctx.fillRect(x-3,y-3,7,7);}
-      for(const style of INSTAX_STYLES){
-        const shot={img:src,own:{},exif:{}};
-        const o=withProfile({...opts(),style,ratio:'none',sigText:'',logoImg:null,show:{}},shot);
-        const info={collect:true},cv=render(src,o,info),g=cv.getContext('2d');
-        if(info.photo.w!==w || info.photo.h!==h) throw Error(`${style} changed source photo dimensions`);
-        for(const [x,y,color] of corners){
-          const actual=Array.from(g.getImageData(Math.round(info.photo.x+x),Math.round(info.photo.y+y),1,1).data).slice(0,3);
-          const expected=color.slice(1).match(/../g).map(v=>parseInt(v,16));
-          if(actual.join()!==expected.join()) throw Error(`${style} cropped or distorted source corner at ${w}x${h}`);
-        }
-        const side=style==='instax' && w>h?'right':'bottom';
-        if(info.areaSide!==side) throw Error(`${style} incorrect information band orientation`);
-        cv.width=cv.height=1;
-      }
-      src.width=src.height=1;
-    }
-  });
   const colors=await page.evaluate(() => {
     for (const tone of ['light','dark']){
       loadFrameColors({tone});
@@ -152,26 +182,6 @@ try {
     return answers;
   });
   assert.equal(colors.length,6);
-  await page.evaluate(()=>{
-    const original=settingsSnapshot(),metadata=JSON.stringify(gInfo),own=JSON.stringify(state.shots.map(s=>s.own));
-    try {
-      for(const [style,value] of [['instax',113],['instax-square',127],['instax-wide',149]]){
-        adv[style].port.borderScale=String(value);adv[style].land.borderScale=String(value+1);
-        adv[style].port.bodyDX=String(value/1000);adv[style].land.bandScale=String(value+2);
-      }
-      for(const style of ['instax-square','instax-wide']){
-        setStyle(style);saveSettings();
-        const expected=JSON.stringify(settingsSnapshot().advByStyle),entry={settings:captureAppearance()};
-        const project=cleanProjectSettings(JSON.parse(JSON.stringify(settingsSnapshot())));
-        if(project.style!==style || JSON.stringify(project.advByStyle)!==expected) throw Error(`${style} project loses variant profiles`);
-        adv[style].port.borderScale='200';loadSettings();
-        if(state.style!==style || JSON.stringify(settingsSnapshot().advByStyle)!==expected) throw Error(`${style} settings lose independent profiles`);
-        setStyle('film');adv[style].land.bandScale='200';applyAppearance(entry);
-        if(state.style!==style || JSON.stringify(settingsSnapshot().advByStyle)!==expected) throw Error(`${style} appearance loses variant or profiles`);
-        if(metadata!==JSON.stringify(gInfo) || own!==JSON.stringify(state.shots.map(s=>s.own))) throw Error('Instax appearance changed photo metadata');
-      }
-    } finally {store.write('frame.settings',original);loadSettings();syncFields();syncAdv();refresh();}
-  });
   await tick();
 
   await page.evaluate(async () => {
@@ -293,8 +303,7 @@ try {
           state.shots[index].img=canvas;
         }
       });
-      for(const style of highRes?['matte','keyline']:['matte','keyline','instax-square','instax-wide'])
-        for(const index of [0,1]) for(const mode of highRes?['fit']:['fit','free']){
+      for(const style of ['matte','keyline']) for(const index of [0,1]) for(const mode of highRes?['fit']:['fit','free']){
         await resizePage.evaluate(({style,index,mode})=>{
           state.current=index;advTab=photoDir(state.shots[index].img);$('ratio').value=mode==='free'?'1:1':'none';
           setStyle(style);profileFor().borderScale='100';clearLayoutUndo();syncAdv();refresh();
@@ -321,19 +330,6 @@ try {
         assert.equal(await resizePage.evaluate(()=>layoutUndoStack().length),1,'one grip gesture is one undo step');
         assert.equal(await resizePage.locator('#borderScaleRange').inputValue(),'50','grip synchronizes slider');
       }
-    }
-    for(const style of ['instax-square','instax-wide']){
-      await resizePage.evaluate(style=>{
-        state.current=0;advTab='land';setStyle(style);profileFor().borderScale='100';clearLayoutUndo();syncAdv();
-        $('dispPanel').open=true;refresh();
-      },style);await resizeTick();
-      assert.equal(await resizePage.locator('#sideTextField').isVisible(),false,`${style} has no rotated-side text option`);
-      assert.equal(await resizePage.locator('#bandScaleLabel').textContent(),'하단 정보 여백 크기 %',`${style} labels its bottom band`);
-      const range=resizePage.locator('#borderScaleRange');await range.focus();await range.press('ArrowRight');await range.press('Tab');await resizeTick();
-      assert.equal(await range.inputValue(),'101',`${style} native slider remains available`);
-      assert.equal(await resizePage.locator('#borderScale').inputValue(),'101',`${style} slider shares numeric profile value`);
-      assert.equal(await resizePage.evaluate(style=>store.read('frame.settings',{}).advByStyle[style].land.borderScale,style),'101',`${style} slider saves its own profile`);
-      assert.equal(await resizePage.evaluate(()=>layoutUndoStack().length),1,`${style} slider remains undoable`);
     }
     // A long held slider gesture must remain one undo action, including a pause over the numeric debounce.
     await resizePage.evaluate(()=>{
@@ -399,5 +395,5 @@ try {
   for(const id of ['size','ratioBg','ratioCustom']) assert.equal(await page.locator('#'+id).isVisible(),false,`${id} stays hidden when legacy values restore`);
   assert.deepEqual(errors,[],'all browser interactions without console errors');
   assert.deepEqual(external,[],'no external HTTP requests');
-  console.log(`PhotoFrame 브라우저 검사 통과 · ${browser.version()} · 실제 PNG 추가 · 20 방향별 렌더 · 인스탁스 흰색 반영 구버전 16 픽셀 비교 · 인스탁스 3종 원본 비율·흰색·프로파일 보존 · 테마/색/프리셋/부분 복원·저장/현재 내보내기/취소/실패 후 현재 재출력/넘침 · 매트/키라인/인스탁스 실제 마우스·슬라이더 · 24MP · 360/390/768px`);
+  console.log(`PhotoFrame 브라우저 검사 통과 · ${browser.version()} · 실제 PNG 추가 · 16 방향별 렌더 · 인스탁스 흰색 반영 구버전 16 픽셀 비교 · 제거한 규격 설정/프로젝트/디자인/배치 호환 · 테마별 인스탁스/색/프리셋/부분 복원·저장/현재 내보내기/취소/실패 후 현재 재출력/넘침 · 매트/키라인 실제 마우스·24MP·슬라이더 · 360/390/768px`);
 } finally { await browser.close(); }

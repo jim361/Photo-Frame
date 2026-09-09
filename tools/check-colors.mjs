@@ -4,9 +4,9 @@ const html = await readFile(new URL('../index.html',import.meta.url),'utf8');
 const script=html.match(/<script>([\s\S]*?)<\/script>/)[1];
 const source=name=>script.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))?.[0];
 const constants=script.slice(script.indexOf('const C = {'),script.indexOf('/* ============================================================',script.indexOf('const C = {')));
-const STYLE_KEYS=['film','instax','instax-square','instax-wide','bottom','top','matte','gallery','keyline','minimal'];
+const STYLE_KEYS=['film','instax','bottom','top','matte','gallery','keyline','minimal'];
 const state={};
-const code=constants+'\n'+['instaxMetrics','frameDims','loadFrameColors'].map(source).join('\n')+
+const code=constants+'\n'+['frameDims','loadFrameColors'].map(source).join('\n')+
   ';return {hexColor,frameColor,readableText,frameDims,loadFrameColors,C};';
 const api=new Function('STYLE_KEYS','state','infoRows',code)(STYLE_KEYS,state,o=>o.lines===2?[[],[]]:[[]]);
 assert.equal(api.hexColor('#AbC'),'#aabbcc');
@@ -28,16 +28,8 @@ api.loadFrameColors({frameColors:{matte:'#ABC',bottom:'#ff8800'}});
 assert.deepEqual(state.frameColors,{bottom:'#ff8800',matte:'#aabbcc'});
 assert.deepEqual(state.legacyBandTones,{});
 assert.equal(api.frameColor({style:'film',frameColor:'#fff'}),api.C.base);
-for(const style of ['instax','instax-square','instax-wide'])
-  for(const tone of ['light','dark']) for(const frameColor of ['#000000','#f6f3ec'])
-    assert.equal(api.frameColor({style,tone,frameColor}),'#ffffff','all Instax cards and follow-frame padding stay pure white');
-for(const [w,h] of [[600,900],[900,600],[600,600]]) for(const scale of [0,1,3]){
-  for(const [style,border,band] of [['instax-square',5/62,19/62],['instax-wide',4.5/99,19.5/99]]){
-    const d=api.frameDims(w,h,{style,borderScale:scale,bandScale:1.5});
-    assert(Math.abs(d.w-(w+2*w*border*scale))<1e-9,`${style} preserves photo width with equal side margins`);
-    assert(Math.abs(d.h-(h+w*border*scale+w*band*1.5))<1e-9,`${style} keeps its information band below either photo orientation`);
-  }
-}
+for(const tone of ['light','dark']) for(const frameColor of ['#000000','#f6f3ec'])
+  assert.equal(api.frameColor({style:'instax',tone,frameColor}),'#ffffff','Instax card and follow-frame padding stay pure white');
 for(const [w,h] of [[600,900],[900,600]]) for(const scale of [.5,1,2]){
   const o={style:'matte',borderScale:scale,bandScale:5,lines:2};
   const d=api.frameDims(w,h,o),margin=w*.08*scale;
@@ -49,4 +41,17 @@ const capture=new Function('settingsSnapshot',`const APPEARANCE_KEYS=${appearanc
 const appearance=capture();
 assert.equal(appearance.frameColors.matte,'#abcdef');assert.equal(appearance.logo,'local-logo');
 for(const field of ['body','lens','date','set','caption','title','shots','gear']) assert(!(field in appearance),`${field} must not be a design preset`);
-console.log('PhotoFrame 색·매트·디자인 검사 통과 · 4096색 대비 · 구버전 톤 · 인스탁스 3종 흰색·여백 치수 · 균등 여백 · 촬영 정보 제외');
+const migrateInstax=new Function(`${source('migrateInstax')};return migrateInstax;`)();
+for(const style of ['instax-square','instax-wide']){
+  const old={style,caption:'보존할 메모',advByStyle:{instax:{port:{borderScale:'77'}},
+    [style]:{port:{borderScale:'137'},land:{sideText:'rotate',bodyDX:'.12'}}}};
+  const before=structuredClone(old),mapped=migrateInstax(old);
+  assert.equal(mapped.style,'instax');assert.equal(mapped.caption,old.caption);
+  assert.deepEqual(mapped.advByStyle.instax,old.advByStyle[style],'the selected retired profile is retained');
+  assert.deepEqual(old,before,'migration leaves input data intact');
+}
+for(const style of STYLE_KEYS){
+  const current={style,advByStyle:{instax:{port:{borderScale:'77'}}}};
+  assert.equal(migrateInstax(current),current,'supported styles keep their existing settings');
+}
+console.log('PhotoFrame 색·매트·디자인 검사 통과 · 4096색 대비 · 구버전 톤 · 흰색 인스탁스 · 제거한 규격 이전 · 균등 여백 · 촬영 정보 제외');

@@ -245,10 +245,7 @@
   .seg button:last-child{border-right:0}
   .seg button:hover{background:var(--primary-soft);color:var(--primary-pressed)}
   .seg button[aria-pressed="true"]{background:var(--primary-pressed);color:#fff;font-weight:700}
-  #styleSeg{grid-template-columns:repeat(5,minmax(0,1fr))}
   #styleSeg button{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 4px}
-  #styleSeg button:nth-child(5n){border-right:0}
-  #styleSeg button:nth-child(n+6){border-top:1px solid var(--line)}
   #styleSeg canvas{width:100%;height:62px;object-fit:contain}
   .colorTools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   .colorTools input[type=color]{width:56px;height:48px;padding:3px;border:1px solid var(--line);background:var(--surface)}
@@ -432,7 +429,6 @@
     .row,.row3,.infoScope{grid-template-columns:1fr}
     .fonttools{flex-direction:column}
     #styleSeg{grid-template-columns:repeat(2,minmax(0,1fr))}
-    #styleSeg button:nth-child(odd){border-right:1px solid var(--line)}
     #styleSeg button:nth-child(even){border-right:0}
     #styleSeg button:nth-child(n+3){border-top:1px solid var(--line)}
   }
@@ -544,9 +540,7 @@
       <span class="glabel">프레임 스타일</span>
       <div class="seg" id="styleSeg">
         <button data-style="film" aria-pressed="true"><i class="frameMini film" aria-hidden="true"></i><span>필름 스트립</span></button>
-        <button data-style="instax" aria-pressed="false"><i class="frameMini instax" aria-hidden="true"></i><span>인스탁스 미니</span></button>
-        <button data-style="instax-square" aria-pressed="false"><span>인스탁스 스퀘어</span></button>
-        <button data-style="instax-wide" aria-pressed="false"><span>인스탁스 와이드</span></button>
+        <button data-style="instax" aria-pressed="false"><i class="frameMini instax" aria-hidden="true"></i><span>인스탁스</span></button>
         <button data-style="bottom" aria-pressed="false"><i class="frameMini bottom" aria-hidden="true"></i><span>하단 여백</span></button>
         <button data-style="top" aria-pressed="false"><i class="frameMini top" aria-hidden="true"></i><span>상단 여백</span></button>
         <button data-style="matte" aria-pressed="false"><span>균등 매트</span></button>
@@ -1017,7 +1011,6 @@ const C = {
 };
 
 const MATTE_STYLES = ['matte','gallery','keyline'];
-const INSTAX_STYLES = ['instax','instax-square','instax-wide'];
 function hexColor(value, fallback = '#ffffff'){
   const text = String(value || '').trim();
   if (/^#[\da-f]{6}$/i.test(text)) return text.toLowerCase();
@@ -1026,7 +1019,7 @@ function hexColor(value, fallback = '#ffffff'){
 }
 function frameColor(o){
   if (o.style === 'film') return C.base;
-  if (INSTAX_STYLES.includes(o.style)) return C.paper;
+  if (o.style === 'instax') return C.paper;
   return hexColor(o.frameColor, o.tone === 'dark' ? C.bandDark : '#f2efe8');
 }
 function readableText(background){
@@ -1660,15 +1653,6 @@ const CANVAS_LIMIT = (() => {
              : { side: 16384, area: 120e6 };
 })();
 
-// 사진 비율을 유지하는 규격별 여백. 기존 미니의 수치와 가로 회전은 그대로 둔다.
-function instaxMetrics(W, H, o){
-  const right = o.style === 'instax' && W > H;
-  if (o.style === 'instax-square') return { right, borderUnit:W*5/62, bandUnit:W*19/62 };
-  if (o.style === 'instax-wide') return { right, borderUnit:W*4.5/99, bandUnit:W*19.5/99 };
-  const base = right ? H : W;
-  return { right, borderUnit:base*0.055, bandUnit:base*0.27 };
-}
-
 function frameDims(W, H, o){
   const two = infoRows(o).length > 1;
   // 하단 공간은 사용자가 정한 값 고정 — 메모가 늘어도 결과물 비율이 바뀌지 않는다
@@ -1683,11 +1667,6 @@ function frameDims(W, H, o){
     if (W > H)  // 가로: 우측 여백 레이아웃
       return { w: W + H * (0.055*bs + 0.27 * o.bandScale), h: H * (1 + 0.11*bs) };
     return { w: W * (1 + 0.11*bs), h: H + W * 0.055*bs + W * 0.27 * o.bandScale };
-  }
-  if (INSTAX_STYLES.includes(o.style)){
-    const { borderUnit, bandUnit } = instaxMetrics(W, H, o);
-    const side = borderUnit*o.borderScale;
-    return { w:W+side*2, h:H+side+bandUnit*o.bandScale };
   }
   if (MATTE_STYLES.includes(o.style)){
     const margin = W * (o.style === 'matte' ? 0.08 : 0.06) * o.borderScale;
@@ -1951,11 +1930,10 @@ function render(img, o, info){
     // 가로 사진 — 세로 카드를 옆으로 돌린 레이아웃: 넓은 여백과 글씨가 오른쪽
     const caps = captionLines(o);
     const rotate = o.sideText === 'rotate';     // 글씨 방향: 가로 스택 / 세로(카드 회전)
-    const { borderUnit, bandUnit } = instaxMetrics(W, H, o);
-    const m = borderUnit*o.borderScale;            // 회전 카드이므로 사진 높이 H가 기준
+    const m = H*0.055*o.borderScale;            // 회전 카드이므로 사진 높이 H가 기준
     const fcap = H*0.030*o.fontScale;
     // 우측 컬럼 폭은 글자 수와 무관하게 사용자가 정한 하단 공간 비율을 유지한다.
-    const colW = bandUnit*o.bandScale;
+    const colW = H*0.27*o.bandScale;
     cv.width = m + W + colW; cv.height = H + m*2;
     ctx.fillStyle = C.paper; ctx.fillRect(0,0,cv.width,cv.height);
     ctx.drawImage(img, m, m, W, H);
@@ -1968,7 +1946,7 @@ function render(img, o, info){
     if (collect){   // 텍스트 영역(우측 컬럼) — 글씨 방향과 무관하게 같은 경계를 쓴다
       info.area = { x: colX, y: m, w: colW, h: H };
       info.areaSide = 'right';
-      info.units = { bandScale: bandUnit, borderScale: borderUnit };
+      info.units = { bandScale: H*0.27, borderScale: H*0.055 };
       info.photo = { x: m, y: m, w: W, h: H };
     }
 
@@ -2057,18 +2035,16 @@ function render(img, o, info){
     }
   }
 
-  else if (INSTAX_STYLES.includes(o.style)) {
-    const { borderUnit, bandUnit } = instaxMetrics(W, H, o);
-    const side = borderUnit*o.borderScale, top = side;
-    const fontW = o.style === 'instax' ? W : bandUnit/0.27;
+  else if (o.style === 'instax') {
+    const side = W*0.055*o.borderScale, top = W*0.055*o.borderScale;
     const caps = captionLines(o);
-    const fcap = fontW*0.030*o.fontScale, capLH = fcap*1.8;
-    const bot = bandUnit*o.bandScale;
+    const fcap = W*0.030*o.fontScale, capLH = fcap*1.8;
+    const bot = W*0.27*o.bandScale;
     cv.width = W + side*2; cv.height = H + top + bot;
     if (collect){   // 텍스트 영역(카드 하단 여백)
       info.area = { x: side, y: H + top, w: W, h: bot };
       info.areaSide = 'bottom';
-      info.units = { bandScale: bandUnit, borderScale: borderUnit };
+      info.units = { bandScale: W*0.27, borderScale: W*0.055 };
       info.photo = { x: side, y: top, w: W, h: H };
     }
     ctx.fillStyle = C.paper; ctx.fillRect(0,0,cv.width,cv.height);
@@ -2079,8 +2055,8 @@ function render(img, o, info){
     const cy = H + top + bot*0.50;
     const p2 = W*0.02, cx = side + W/2;
     const maxW = W - 2*p2;
-    const fs1 = fontW*0.0392*o.fontScale;   // 규격별 기본 하단 여백의 14.5%
-    const fs2 = fontW*0.0284*o.fontScale;   // 규격별 기본 하단 여백의 10.5%
+    const fs1 = W*0.0392*o.fontScale;   // 기본 하단 여백(0.27W)의 14.5%
+    const fs2 = W*0.0284*o.fontScale;   // 기본 하단 여백의 10.5%
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
 
     // 장비 줄 / 필름·설정 줄 — 각 항목이 개별로 움직인다
@@ -2233,10 +2209,17 @@ const PROFILE_KEYS = [...ADV_KEYS, ...OFF_KEYS];
 const DEF_ADV = { lines:'1', fontScale:'100', bandScale:'100', borderScale:'100',
                   sideText:'stack', logoScale:'100',
                   ...Object.fromEntries(OFF_KEYS.map(k => [k, '0'])) };
-const STYLE_KEYS = ['film',...INSTAX_STYLES,'bottom','top','matte','gallery','keyline','minimal'];
-const STYLE_LABELS = { film:'필름 스트립', instax:'인스탁스 미니', 'instax-square':'인스탁스 스퀘어',
-  'instax-wide':'인스탁스 와이드', bottom:'하단 여백', top:'상단 여백',
+const STYLE_KEYS = ['film','instax','bottom','top','matte','gallery','keyline','minimal'];
+const STYLE_LABELS = { film:'필름 스트립', instax:'인스탁스', bottom:'하단 여백', top:'상단 여백',
   matte:'균등 매트', gallery:'갤러리', keyline:'키라인', minimal:'미니멀 EXIF' };
+// 제거한 규격으로 저장한 작업은 선택 당시 배치 값을 인스탁스로 이어받는다.
+function migrateInstax(s){
+  if (!s || !['instax-square','instax-wide'].includes(s.style)) return s;
+  const out = { ...s, style:'instax' };
+  if (s.advByStyle?.[s.style])
+    out.advByStyle = { ...s.advByStyle, instax:s.advByStyle[s.style] };
+  return out;
+}
 const freshAdv = () => Object.fromEntries(STYLE_KEYS.map(style =>
   [style, { port:{ ...DEF_ADV }, land:{ ...DEF_ADV } }]));
 const adv = freshAdv();
@@ -2520,7 +2503,7 @@ function edgeHandles(){
   const P = state._pv; if (!P || !P.area || !P.units) return [];
   const R = P.raw, hs = [];
   const areaLabel = state.style === 'film' ? '필름 정보 영역'
-    : INSTAX_STYLES.includes(state.style) ? '정보 여백'
+    : state.style === 'instax' ? '정보 여백'
     : state.style === 'top' ? '상단 정보 띠' : '하단 정보 띠';
   if (P.units.borderScale && P.photo)
     hs.push({ key:'borderScale', type:'corner', x: P.photo.x + P.photo.w, y: P.photo.y, label:'사진 둘레 여백' });
@@ -3253,7 +3236,7 @@ function loadFrameColors(s){
   }
 }
 function syncColorUi(){
-  $('toneField').style.display = state.style === 'film' || INSTAX_STYLES.includes(state.style) ? 'none' : '';
+  $('toneField').style.display = ['film','instax'].includes(state.style) ? 'none' : '';
   const color = state.frameColors[state.style] || '#ffffff';
   $('frameColor').value = color;
   if (document.activeElement !== $('frameHex')) $('frameHex').value = color.toUpperCase();
@@ -3340,7 +3323,7 @@ function saveSettings(){
 }
 
 function loadSettings(){
-  const s = store.read('frame.settings', null);
+  const s = migrateInstax(store.read('frame.settings', null));
   if (!s){
     return;   // 첫 실행 — 입력은 비운 채로 시작한다
   }
@@ -3456,13 +3439,13 @@ function syncAdv(){
   ADV_KEYS.forEach(k => $(k).value = p[k]);
   syncBorderScaleRange();
   [...$('advTab').children].forEach(b => b.setAttribute('aria-pressed', b.dataset.t === advTab));
-  const instax = INSTAX_STYLES.includes(state.style);
+  const instax = state.style === 'instax';
   $('linesField').hidden = instax;
   $('borderScaleField').hidden = !instax && !MATTE_STYLES.includes(state.style);
   $('bandScale').closest('.field').hidden = ['matte','keyline'].includes(state.style);
-  $('sideTextField').hidden = !(state.style === 'instax' && advTab === 'land');
+  $('sideTextField').hidden = !(instax && advTab === 'land');
   $('bandScaleLabel').textContent = state.style === 'film' ? '필름 정보 영역 크기 %'
-    : instax ? (state.style === 'instax' && advTab === 'land' ? '오른쪽 정보 여백 크기 %' : '하단 정보 여백 크기 %')
+    : state.style === 'instax' ? (advTab === 'land' ? '오른쪽 정보 여백 크기 %' : '하단 정보 여백 크기 %')
     : state.style === 'top' ? '상단 정보 띠 크기 %' : '하단 정보 띠 크기 %';
   $('layoutScope').innerHTML = `<b>${STYLE_LABELS[state.style]} · ${advTab === 'land' ? '가로' : '세로'} 사진 공통 배치</b>를 편집합니다. 촬영 정보의 장별 범위와는 별개입니다.`;
 }
@@ -3525,6 +3508,8 @@ $('advTab').onclick = e => {
    마음에 들면 이름 붙여 저장해 둔다 (현재 스타일의 세로·가로 프로파일 한 쌍)
    ============================================================ */
 let layouts = store.read('frame.layouts', []);
+if (!Array.isArray(layouts)) layouts = [];
+layouts = layouts.map(migrateInstax);
 let appearances = store.read('frame.appearances', []);
 if (!Array.isArray(appearances)) appearances = [];
 const APPEARANCE_KEYS = ['show','advByStyle','logo','sigText','fontEn','fontKo',
@@ -3884,6 +3869,7 @@ function cleanPresetProfile(v){
 function cleanPresetLayouts(v){
   if (!Array.isArray(v) || v.length > 200) throw new Error('layouts');
   return v.map(l => {
+    l = migrateInstax(l);
     if (!l || typeof l.name !== 'string' || !STYLE_KEYS.includes(l.style) ||
         !l.port || !l.land) throw new Error('layout');
     const name = l.name.trim();
@@ -4030,6 +4016,7 @@ function cleanOwn(v){
 
 function cleanProjectSettings(v){
   if (!v || typeof v !== 'object') throw new Error('settings');
+  v = migrateInstax(v);
   const out = {};
   const scalar = ['body','lens','film','date','set','caption','logo','sigText','fontEn','fontKo',
                   'ratio','ratioBg','ratioCustom','title','style','tone','size','fmt','quality','dateFormat'];
@@ -4569,7 +4556,7 @@ function selfCheck(){
     lens:LEGACY_GEAR_SEED.lens.slice(0, 2), film:[...LEGACY_GEAR_SEED.film] });
   console.assert(JSON.stringify(cleanedGear) === JSON.stringify({ body:['내 카메라'], lens:[], film:[] }),
     'PhotoFrame 예전 장비 시드 정리 검사 실패');
-  console.assert($('borderScaleField').hidden === (!INSTAX_STYLES.includes(state.style) && !MATTE_STYLES.includes(state.style)) &&
+  console.assert($('borderScaleField').hidden === (state.style !== 'instax' && !MATTE_STYLES.includes(state.style)) &&
     $('sideTextField').hidden === !(state.style === 'instax' && advTab === 'land'),
     'PhotoFrame 스타일별 설정 노출 검사 실패');
   console.assert([...document.querySelectorAll('input:not([hidden]),select,textarea')]
