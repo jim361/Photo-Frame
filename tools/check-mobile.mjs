@@ -68,7 +68,8 @@ state._pv.boxes = [];
 nudge(1, 0);
 assert.equal(saves, 3, '표시되지 않는 요소는 이동하지 않는다');
 
-const handles = new Function('state', section('function edgeHandles(', 'function hitEdge(') + '; return edgeHandles;')(state);
+const instaxStyles = script.match(/const INSTAX_STYLES = (\[[^;]+\]);/)[0];
+const handles = new Function('state', instaxStyles + section('function edgeHandles(', 'function hitEdge(') + '; return edgeHandles;')(state);
 state.style = 'matte';
 state._pv = { area:{}, raw:{ width:1160, height:660 }, units:{ borderScale:80 }, photo:{ x:80,y:80,w:1000,h:500 } };
 assert.deepEqual(handles().map(h => h.key), ['borderScale'], '균등 매트에는 잘못된 정보 띠 핸들을 만들지 않는다');

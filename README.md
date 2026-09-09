@@ -7,11 +7,11 @@
 
 <img src="docs/assets/example-result.png" width="420" alt="PhotoFrame 도형 사진을 상단 여백 스타일로 실제 내보낸 결과">
 
-위 이미지는 이전 버전의 도형 예제를 PhotoFrame에서 실제 PNG로 내보낸 결과입니다. [프레임 안내 그림](docs/assets/readme-results.svg)과 함께, 앱에서는 직접 불러온 사진을 넣은 8종 썸네일을 비교할 수 있습니다.
+위 이미지는 이전 버전의 도형 예제를 PhotoFrame에서 실제 PNG로 내보낸 결과입니다. [프레임 안내 그림](docs/assets/readme-results.svg)과 함께, 앱에서는 직접 불러온 사진을 넣은 10종 썸네일을 비교할 수 있습니다.
 
 ## English summary
 
-PhotoFrame is a free, privacy-first browser tool with eight film, Instax, band, matte, gallery, keyline, and minimal EXIF choices. Everything runs locally — no uploads, account, analytics, external fonts, install, or build. It supports per-photo metadata, configurable frame colors, appearance presets, all-photo or current-photo export with cancellation, touch zoom, local fonts, and portable project files that preserve disconnected originals without storing photo bytes.
+PhotoFrame is a free, privacy-first browser tool with ten frame choices, including Instax Mini, Square, and Wide-inspired borders. It preserves the photo's aspect ratio without cropping or fixing the output to physical film dimensions. Everything runs locally — no uploads, account, analytics, external fonts, install, or build. It supports per-photo metadata, configurable frame colors, appearance presets, all-photo or current-photo export with cancellation, touch zoom, local fonts, and portable project files that preserve disconnected originals without storing photo bytes.
 
 **[Open PhotoFrame](https://jim361.github.io/Photo-Frame/)** · The interface is currently available in Korean.
 
@@ -29,9 +29,9 @@ Nikon F5로 필름 풍경 사진을 찍고 롤 단위로 인스타그램에 올�
 
 ## 주요 기능
 
-**프레임 8종 — 현재 사진 썸네일·사진 방향 자동 대응**
+**프레임 10종 — 현재 사진 썸네일·사진 방향 자동 대응**
 - 필름 스트립: 퍼포레이션 + 엣지프린트. 세로 사진이면 필름이 세로로 지나가는 구조(퍼포레이션 좌우)로 자동 전환
-- 인스탁스: 화면 테마와 관계없이 흰색인 카드. 가로 사진이면 카드를 옆으로 돌린 우측 여백 레이아웃(글씨는 가로 스택 / 세로 회전 선택)
+- 인스탁스 미니·스퀘어·와이드: 화면 테마와 관계없이 흰색인 카드. 사진 비율을 유지하며 규격에서 따온 여백 모양만 적용하므로 자르거나 실제 필름 비율로 고정하지 않음. 기존 인스탁스는 미니로 유지하며 가로 사진은 우측 여백(가로 스택 / 세로 회전 글씨 선택), 스퀘어·와이드는 사진 방향과 관계없이 하단 여백
 - 하단·상단 여백 띠, 네 변 여백이 같은 균등 매트, 넓은 하단과 중앙 정렬의 갤러리, 얇은 선을 두른 키라인, 작은 글자와 얇은 띠의 미니멀 EXIF
 - 여백 프레임은 흰색 기본, 접이식 `여백 색` 패널에서 흰색/검정/아이보리 버튼·색상 선택기·HEX 입력 사용. 패널은 기본으로 접히며 열림 상태를 기억. 배경에 맞춰 글자색을 자동 결정하며 기존 여백 띠의 밝음/어두움 결과와 필름 색은 보존
 
@@ -48,7 +48,7 @@ Nikon F5로 필름 풍경 사진을 찍고 롤 단위로 인스타그램에 올�
 **레이아웃 — 프레임 스타일·세로/가로 사진별 프로파일**
 - 한 줄/두 줄, 글자 크기·스타일별 정보 영역·사진 둘레 여백 %, 글꼴(모노/산세리프/세리프/필기체), 요소별 위치
 - **로컬 글꼴**: 기본 시스템 글꼴, 권한을 받은 PC 설치 글꼴(데스크톱 Chrome/Edge), 직접 고른 TTF·OTF·WOFF·WOFF2 파일. 외부 폰트 요청 없음
-- 인스탁스에서 맞춘 여백과 요소 위치가 하단·상단 여백이나 필름 스트립에 섞이지 않으며, 각 스타일 안에서도 세로/가로 값을 따로 기억
+- 인스탁스 미니·스퀘어·와이드를 포함해 스타일별 여백과 요소 위치를 분리하고, 각 스타일 안에서도 세로/가로 값을 따로 기억. 기존 인스탁스 설정·프로젝트·레이아웃 프리셋은 미니에서 그대로 사용
 - **경계 표시 + 드래그 배치**: 각 요소의 실제 영역이 기본으로 표시되고(줌바 "경계"로 끄기 가능), 박스를 끌어 위치를 정합니다. 다른 요소와 수평/수직이 맞으면 가이드라인 스냅, 더블클릭으로 초기화. 정보 영역은 경계선, 인스탁스·매트 계열의 사진 둘레 여백은 사진 우상단 모서리 그립이나 `사진 둘레 여백 %` 슬라이더·숫자 입력으로 조절합니다. 요소 이동·크기·수치·프리셋·초기화는 **배치 되돌리기**로 스타일마다 최대 50단계 복원합니다
 - 좁은 화면에서는 미리보기를 고정한 채 설정을 스크롤하고 두 손가락으로 확대·이동. 정밀 이동 버튼은 사진 폭의 0.1/0.5/1%씩 요소를 이동하며 기존 되돌리기에 기록
 
@@ -86,7 +86,7 @@ Nikon F5로 필름 풍경 사진을 찍고 롤 단위로 인스타그램에 올�
 
 | 기능 | 구현 경로 | 이번 변경에서 직접 확인 |
 |---|---|---|
-| 프레임 합성·PNG/JPEG | 표준 Canvas·Blob·download | Chrome 152: 8종 × 세로/가로, 실제 인코딩. 다운로드 폴백은 이전 인앱 검증 |
+| 프레임 합성·PNG/JPEG | 표준 Canvas·Blob·download | 2026-09-09 Chrome 152: 10종 × 세로/가로, 실제 인코딩·원본 사진 모서리 보존. 다운로드 폴백은 이전 인앱 검증 |
 | 폴더 지정 저장 | File System Access API, 없으면 다운로드 폴백 | 다운로드 폴백 |
 | JPEG EXIF·자동 회전 | 자체 APP1/TIFF 파서·브라우저 디코더 | 합성 JPEG APP1/TIFF로 전체/부분/스캐너 파서 검증. 실제 기기 회전 파일 미확인 |
 | PC 설치 글꼴 | `queryLocalFonts()` 또는 파일 선택 | 권한·실제 글꼴 없이 미확인 |
@@ -109,7 +109,7 @@ Nikon F5로 필름 풍경 사진을 찍고 롤 단위로 인스타그램에 올�
 
 `node tools/check.mjs`는 Node 표준 라이브러리로 구문·DOM·외부 요청 코드·`legacy/` 무변경과 복구/저장/내보내기, EXIF, 핀치/정밀 이동, 색 대비/매트/디자인 제외 항목의 실제 동작을 검사합니다. 같은 검사가 GitHub Pages 배포 전에 실행됩니다.
 
-기존 Playwright 개발 환경이 있으면 `node tools/check-browser.mjs`로 신선 저장소 초기화·콘솔 오류·외부 요청, 기존 프레임 픽셀 비교(인스탁스 흰색 변경 제외), 8종 세로/가로, 색·프리셋·출력·360/390/768px 화면을 확인할 수 있습니다. `PLAYWRIGHT_MODULE`은 설치된 패키지 경로, `CHROME_PATH`는 로컬 Chrome 실행 파일로 지정할 수 있습니다. 앱의 런타임 의존성은 추가하지 않습니다. 스크린샷은 기본 임시 폴더 또는 `PHOTOFRAME_QA_DIR`에 기록합니다.
+기존 Playwright 개발 환경이 있으면 `node tools/check-browser.mjs`로 신선 저장소 초기화·콘솔 오류·외부 요청, 기존 프레임 픽셀 비교(인스탁스 흰색 변경 제외), 10종 세로/가로, 인스탁스 3종의 사진 비율 보존·프로파일·저장 호환, 색·프리셋·출력·360/390/768px 화면을 확인할 수 있습니다. 2026-09-09 Chrome 152.0.7977.83에서 이 검사와 `node tools/check.mjs`를 통과했습니다. `PLAYWRIGHT_MODULE`은 설치된 패키지 경로, `CHROME_PATH`는 로컬 Chrome 실행 파일로 지정할 수 있습니다. 앱의 런타임 의존성은 추가하지 않습니다. 스크린샷은 기본 임시 폴더 또는 `PHOTOFRAME_QA_DIR`에 기록합니다.
 
 2026-09-07 Windows 11(10.0.26200), i5-13600KF, headless Chrome 152.0.7977.82에서 6000×4000(24MP) 합성 JPEG 약 4.4MB를 측정했습니다. 각 배치는 새 브라우저에서 1회 실행했으며 갤러리·2048px·JPEG 92 출력입니다. `node tools/benchmark-browser.mjs`로 재실행할 수 있습니다.
 
