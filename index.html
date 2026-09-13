@@ -282,7 +282,7 @@
   }
   ::placeholder{color:var(--muted-ink);opacity:1}
   textarea{font-family:var(--sans);resize:vertical;min-height:72px;padding:12px 16px;line-height:1.5}
-  input:focus,select:focus,textarea:focus,button:focus-visible,.chip:focus-visible,summary:focus-visible{
+  input:focus,select:focus,textarea:focus,button:focus-visible,a:focus-visible,.chip:focus-visible,summary:focus-visible{
     outline:2px solid var(--primary);outline-offset:2px;
   }
   input.dim,textarea.dim{background:var(--neutral-soft);color:var(--muted-ink)}
@@ -336,6 +336,8 @@
     background:var(--surface);border:2px solid var(--ink);border-radius:var(--radius-control);
     padding:var(--space-3);word-break:keep-all;
   }
+  .settingslinks{display:flex;flex-wrap:wrap;gap:0 var(--space-2);margin-top:var(--space-3);border-top:1px solid var(--line)}
+  .settingslinks a{display:inline-flex;align-items:center;min-height:var(--touch);color:var(--ink);font-size:12px;text-underline-offset:3px}
 
   /* 표시·레이아웃 설정 — 촬영 정보 안의 접이식 섹션 */
   details.disp{margin:0 0 var(--space-2);border:1px solid var(--line);background:var(--surface)}
@@ -878,6 +880,10 @@
     <select id="uiTheme"><option value="light">화이트</option><option value="dark">블랙</option></select>
   </div>
   <p class="note" style="margin-top:2px">화면 표시만 바꾸는 설정입니다 — 결과물에는 영향이 없습니다.</p>
+  <nav class="settingslinks" aria-label="프로젝트 안내">
+    <a href="https://github.com/jim361" target="_blank" rel="noopener noreferrer" aria-label="제작자 GitHub (새 탭)">제작자 GitHub</a>
+    <a href="https://github.com/jim361/Photo-Frame/issues/new/choose" target="_blank" rel="noopener noreferrer" aria-label="의견·버그 보내기 (새 탭)">의견·버그 보내기</a>
+  </nav>
   <button type="button" class="btn" id="closeSettings" style="margin-top:16px">닫기</button>
 </div>
 
