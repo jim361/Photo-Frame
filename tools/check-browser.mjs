@@ -148,6 +148,36 @@ try {
     return results;
   });
   assert.equal(dimensions.length,16);
+  const keylineCheck=await page.evaluate(()=>{
+    const results=[],nativeStroke=CanvasRenderingContext2D.prototype.strokeRect;
+    let strokes=[];
+    CanvasRenderingContext2D.prototype.strokeRect=function(x,y,w,h){
+      strokes.push({x,y,w,h,line:this.lineWidth});return nativeStroke.call(this,x,y,w,h);
+    };
+    try {
+      for(const shot of state.shots) for(const borderScale of [0,.01,.64,1]) for(const lines of [1,2]){
+        strokes=[];
+        const o={...withProfile({...opts(),style:'keyline'},shot),borderScale,lines,fontScale:.75,
+          body:'SONY ILCE-7C',lens:'FE 20-70mm F4 G',film:'KODAK VISION3 250D',date:'2025.02',set:'',caption:'',sigText:'',ratio:'none',frameColor:'#ffffff',legacyTone:null};
+        const info={collect:true},cv=render(shot.img,o,info),p=info.photo;
+        if(!borderScale){
+          if(strokes.length)throw Error('zero-margin keyline must not draw over the photo');
+        }else{
+          if(strokes.length!==1)throw Error('keyline must draw one outline');
+          const s=strokes[0],inner={left:s.x+s.line/2,top:s.y+s.line/2,right:s.x+s.w-s.line/2,bottom:s.y+s.h-s.line/2};
+          if(s.line>p.x+.001)throw Error('keyline thickness exceeds the available margin');
+          for(const [actual,expected] of [[inner.left,p.x],[inner.top,p.y],[inner.right,p.x+p.w],[inner.bottom,p.y+p.h]])
+            if(Math.abs(actual-expected)>.001)throw Error('keyline must touch the outside photo edge without entering the metadata band');
+          if(borderScale>=.64&&info.boxes.some(b=>b.y<=s.y+s.h+s.line/2))throw Error('default metadata overlaps the keyline');
+        }
+        const d=frameDims(shot.img.naturalWidth||shot.img.width,shot.img.naturalHeight||shot.img.height,o);
+        if(cv.width!==Math.floor(d.w)||cv.height!==Math.floor(d.h))throw Error('keyline changed the saved frame dimensions');
+        results.push([borderScale,lines]);cv.width=cv.height=1;
+      }
+    }finally{CanvasRenderingContext2D.prototype.strokeRect=nativeStroke;}
+    return results;
+  });
+  assert.equal(keylineCheck.length,16,'keyline border and metadata are separate in both orientations');
   assert.equal(await page.locator('#styleSeg canvas:visible').count(),8,'current photo thumbnails');
   const instax=await page.evaluate(()=>{
     const result={};

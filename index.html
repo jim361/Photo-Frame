@@ -2148,10 +2148,10 @@ function render(img, o, info){
     ctx.fillStyle = frameColor(o);
     ctx.fillRect(0,0,cv.width,cv.height);
     ctx.drawImage(img, side, photoY, W, H);
-    if (o.style === 'keyline'){
-      const inset = Math.min(side*0.35, W*0.014);
-      ctx.strokeStyle = ink; ctx.lineWidth = Math.max(1, W*0.001);
-      ctx.strokeRect(side-inset, side-inset, W+2*inset, H+2*inset);
+    if (o.style === 'keyline' && side > 0){
+      const line = Math.min(side, Math.max(1, W*0.001));
+      ctx.strokeStyle = ink; ctx.lineWidth = line;
+      ctx.strokeRect(side-line/2, photoY-line/2, W+line, H+line);
     }
 
     ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
