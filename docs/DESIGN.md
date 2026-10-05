@@ -61,7 +61,7 @@ PhotoFrame의 UI는 **Structural Modernism**을 따른다. 따뜻한 미색 canv
 - 본문과 headline은 `system-ui, Apple SD Gothic Neo, Malgun Gothic` 계열 산세리프를 사용한다.
 - 구조 label, 버튼, 비율, px, 순번과 파일명은 시스템 monospace를 사용한다.
 - 숫자 입력과 줌 배율에는 `tabular-nums`를 적용해 값이 바뀌어도 정렬을 유지한다.
-- wordmark는 `24px / 800`, 빈 상태 headline은 desktop `36px / 1.1 / 800`, compact `28px`이다.
+- wordmark는 `24px / 800`(compact `20px`)이며 P·F만 `1.2em`으로 키워 같은 기준선에 정렬한다. 단색·기존 글꼴을 유지하고 줄바꿈하지 않는다. 빈 상태 headline은 desktop `36px / 1.1 / 800`, compact `28px`이다.
 - section label은 `12px / 700` monospace이며 `01 /`, `02 /` 순번을 함께 표시한다.
 - 기본 본문은 `14px / 1.5`, 보조 설명은 `12px / 1.5`다.
 - 한글 본문을 모두 대문자로 바꾸지 않는다. 넓은 자간은 짧은 구조 label에만 제한한다.
