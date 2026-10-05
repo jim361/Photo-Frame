@@ -92,7 +92,7 @@
   #preview{
     position:absolute;left:0;top:0;
     transform-origin:0 0;
-    outline:1px solid var(--line);
+    box-shadow:0 0 0 var(--preview-edge, 1px) var(--muted-ink);
   }
 
   .dropzone{
@@ -156,7 +156,8 @@
   }
   .zoombar button.pct{cursor:pointer}
   .zoombar button.pct:hover{color:var(--primary-pressed)}
-  .moveButtons{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-2)}
+  .moveButtons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3)}
+  .moveButtons > div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
   .moveButtons button{min-width:0;min-height:var(--touch);padding:4px}
 
   /* ----- filmstrip of loaded frames ----- */
@@ -344,17 +345,17 @@
   /* 표시·레이아웃 설정 — 촬영 정보 안의 접이식 섹션 */
   details.disp{margin:0 0 var(--space-2);border:1px solid var(--line);background:var(--surface)}
   details.disp:last-child{margin-bottom:0}
-  details.disp summary{
+  details.disp > summary{
     display:flex;align-items:center;min-height:var(--touch);
     cursor:pointer;list-style:none;padding:8px 12px;
     font-family:var(--mono);font-size:11px;font-weight:700;
     letter-spacing:.06em;color:var(--ink);transition:color .15s,background .15s;
   }
-  details.disp summary:hover{color:var(--primary-pressed);background:var(--primary-soft)}
-  details.disp summary::-webkit-details-marker{display:none}
-  details.disp summary::before{content:"＋";width:20px;color:var(--primary);font-size:16px}
-  details.disp[open] summary::before{content:"−"}
-  details.disp .inner{padding:var(--space-2) 12px var(--space-3);border-top:1px solid var(--line)}
+  details.disp > summary:hover{color:var(--primary-pressed);background:var(--primary-soft)}
+  details.disp > summary::-webkit-details-marker{display:none}
+  details.disp > summary::before{content:"＋";width:20px;color:var(--primary);font-size:16px}
+  details.disp[open] > summary::before{content:"−"}
+  details.disp > .inner{padding:var(--space-2) 12px var(--space-3);border-top:1px solid var(--line)}
   .advpanel h3{
     font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.06em;
     color:var(--ink);margin-bottom:var(--space-3);
@@ -685,21 +686,30 @@
             <button type="button" data-t="land" aria-pressed="false">가로 사진</button>
           </div>
           <p class="note" id="layoutScope" style="margin:0 0 10px"></p>
-          <div class="row">
-            <label class="field"><span>정밀 이동 요소</span><select id="moveElement" aria-describedby="moveNote">
-              <option value="body">카메라</option><option value="lens">렌즈</option><option value="film">필름 · 기타</option>
-              <option value="set">설정</option><option value="date">날짜</option><option value="cap">메모</option><option value="logo">로고 · 서명</option>
-            </select></label>
-            <label class="field"><span>한 번 이동 거리</span><select id="moveStep"><option value="0.001">사진 폭의 0.1%</option><option value="0.005">사진 폭의 0.5%</option><option value="0.01">사진 폭의 1%</option></select></label>
-          </div>
-          <div class="moveButtons" id="moveButtons">
-            <button type="button" class="btn" data-dx="-1" data-dy="0" aria-label="요소 왼쪽으로 이동">←</button>
-            <button type="button" class="btn" data-dx="0" data-dy="-1" aria-label="요소 위로 이동">↑</button>
-            <button type="button" class="btn" data-dx="0" data-dy="1" aria-label="요소 아래로 이동">↓</button>
-            <button type="button" class="btn" data-dx="1" data-dy="0" aria-label="요소 오른쪽으로 이동">→</button>
-          </div>
-          <button type="button" class="btn" id="moveReset" style="margin-top:8px">선택 요소 위치 초기화</button>
-          <p class="note" id="moveNote">현재 미리보기 사진의 배치를 조절합니다. 이동은 배치 되돌리기로 취소할 수 있습니다.</p>
+          <details class="disp" id="movePanel">
+            <summary>정밀 위치 조정</summary>
+            <div class="inner">
+              <div class="row">
+                <label class="field"><span>정밀 이동 요소</span><select id="moveElement" aria-describedby="moveNote">
+                  <option value="body">카메라</option><option value="lens">렌즈</option><option value="film">필름 · 기타</option>
+                  <option value="set">설정</option><option value="date">날짜</option><option value="cap">메모</option><option value="logo">로고 · 서명</option>
+                </select></label>
+                <label class="field"><span>한 번 이동 거리</span><select id="moveStep"><option value="0.001">사진 폭의 0.1%</option><option value="0.005">사진 폭의 0.5%</option><option value="0.01">사진 폭의 1%</option></select></label>
+              </div>
+              <div class="moveButtons" id="moveButtons">
+                <div role="group" aria-label="위아래 이동">
+                  <button type="button" class="btn" data-dx="0" data-dy="-1" aria-label="요소 위로 이동">↑</button>
+                  <button type="button" class="btn" data-dx="0" data-dy="1" aria-label="요소 아래로 이동">↓</button>
+                </div>
+                <div role="group" aria-label="좌우 이동">
+                  <button type="button" class="btn" data-dx="-1" data-dy="0" aria-label="요소 왼쪽으로 이동">←</button>
+                  <button type="button" class="btn" data-dx="1" data-dy="0" aria-label="요소 오른쪽으로 이동">→</button>
+                </div>
+              </div>
+              <button type="button" class="btn" id="moveReset" style="margin-top:8px">선택 요소 위치 초기화</button>
+              <p class="note" id="moveNote">드래그로 맞추기 어려울 때 현재 미리보기 요소를 조금씩 옮깁니다. 배치 되돌리기로 취소할 수 있습니다.</p>
+            </div>
+          </details>
           <div class="field" id="linesField">
             <span>정보 줄 배치</span>
             <select id="lines">
@@ -2364,6 +2374,7 @@ function fitScale(){
 
 function applyZoom(){
   pv.style.transform = `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.scale})`;
+  pv.style.setProperty('--preview-edge', (1 / zoom.scale) + 'px');
   $('zPct').textContent = Math.round(zoom.scale * 100) + '%';
   vp.classList.toggle('grabbable', zoom.scale > zoom.fit + 0.001);
 }
@@ -3693,8 +3704,8 @@ $('dispPanel').addEventListener('toggle', () => {
   syncAdv();
 });
 
-/* 접이식 섹션(여백 색/프리셋/표시·레이아웃) 열림 상태 기억 */
-const PANELS = ['toneField', 'presetPanel', 'dispPanel'];
+/* 접이식 섹션(여백 색/프리셋/표시·레이아웃/정밀 위치) 열림 상태 기억 */
+const PANELS = ['toneField', 'presetPanel', 'dispPanel', 'movePanel'];
 const savedPanels = store.read('frame.panels', null);
 if (savedPanels) PANELS.forEach(id => { if (savedPanels[id] != null) $(id).open = savedPanels[id]; });
 PANELS.forEach(id => $(id).addEventListener('toggle', () => {

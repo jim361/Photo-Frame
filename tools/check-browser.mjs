@@ -38,6 +38,8 @@ try {
   assert.equal(await page.locator('#styleSeg button').count(),8);
   assert.equal(await page.locator('#styleSeg [data-style="instax-square"],#styleSeg [data-style="instax-wide"]').count(),0,'removed Instax variants are not offered');
   assert.equal(await page.locator('#ratioBg').inputValue(),'frame');
+  assert.equal(await page.locator('#movePanel').evaluate(el=>el.open),false,'precision movement starts collapsed');
+  assert.deepEqual(await page.locator('#moveButtons > div').allTextContents().then(groups=>groups.map(s=>s.replace(/\s/g,''))),['↑↓','←→'],'movement controls are grouped by axis');
   assert.equal(await page.locator('#ratio').inputValue(),'none');
   assert.equal(await page.locator('#ratio option[value="auto"]:not([hidden])').count(),0,'legacy auto ratio is absent from visible choices');
   assert.equal(await page.locator('#loadExample,#exportSelected,#exportRetry').count(),0,'removed demo and extra export actions stay absent');
@@ -116,6 +118,18 @@ try {
   await legacy.close();
 
   await loadTestPhotos(page);
+  const previewEdges=await page.evaluate(()=>{
+    const before=pv.toDataURL(),widths=[];
+    for(const scale of [.03,.25,1,4]){
+      zoomTo(scale);
+      const lengths=getComputedStyle(pv).boxShadow.match(/-?[\d.]+px/g).map(parseFloat);
+      widths.push(lengths.at(-1)*zoom.scale);
+    }
+    const unchanged=before===pv.toDataURL();zoomFit();
+    return {widths,unchanged};
+  });
+  for(const width of previewEdges.widths) assert(Math.abs(width-1)<.001,'preview edge stays one screen pixel at every zoom');
+  assert.equal(previewEdges.unchanged,true,'preview edge does not alter canvas pixels');
   const dimensions = await page.evaluate(() => {
     const results=[];
     for (const shot of state.shots) for (const style of STYLE_KEYS){
