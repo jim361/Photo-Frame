@@ -170,6 +170,21 @@ try {
   const chooser=page.waitForEvent('filechooser');await page.locator('#addPhotos').click();await (await chooser).setFiles([]);
   assert.equal(await page.evaluate(()=>JSON.stringify(zoom)),beforeControls,'floating buttons do not start preview gestures');
   await page.evaluate(()=>{state.current=0;setStyle('film');refresh();});await tick();
+  for(const target of ['.wordmark','#zRatio']){
+    await page.evaluate(()=>{window.getSelection().removeAllRanges();state.showBoxes=false;zoomFit();});
+    const photo=await page.locator('#preview').boundingBox(),menu=await page.locator(target).boundingBox();
+    const before=await page.evaluate(()=>({x:zoom.x,y:zoom.y}));
+    await page.mouse.move(photo.x+photo.width/2,photo.y+photo.height/2);await page.mouse.down();
+    await page.mouse.move(menu.x+menu.width/2,menu.y+menu.height/2,{steps:8});await page.mouse.up();
+    assert.equal(await page.evaluate(()=>window.getSelection().toString()),'',`photo drag must not select ${target} text`);
+    assert.notDeepEqual(await page.evaluate(()=>({x:zoom.x,y:zoom.y})),before,'photo pan still moves');
+    await page.locator(target).dblclick();
+    assert.equal(await page.evaluate(()=>window.getSelection().toString()),'',`preview menu text stays unselectable on repeated clicks: ${target}`);
+  }
+  await page.locator('#body').fill('텍스트 선택 검사');await page.locator('#body').press('ControlOrMeta+a');
+  assert.equal(await page.locator('#body').evaluate(el=>el.value.slice(el.selectionStart,el.selectionEnd)),'텍스트 선택 검사','metadata text stays selectable');
+  await page.locator('#body').fill('');
+  await page.evaluate(()=>{state.showBoxes=true;refresh();});await tick();
   const previewEdges=await page.evaluate(()=>{
     const before=pv.toDataURL(),widths=[];
     for(const scale of [.03,.25,1,4]){
