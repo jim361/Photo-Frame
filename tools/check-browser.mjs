@@ -97,10 +97,34 @@ try {
     }
   } finally {await migrationContext.close();}
 
-  // Normalize only the intentional Instax paper change; all geometry and other pixels still match.
+  // Date ink follows band metadata, including both legacy tone entry points; film keeps orange.
+  await page.evaluate(()=>{
+    const nativeFill=CanvasRenderingContext2D.prototype.fillText;
+    let inks={};
+    CanvasRenderingContext2D.prototype.fillText=function(text,...args){
+      inks[text]=this.fillStyle;return nativeFill.call(this,text,...args);
+    };
+    try {
+      for(const [w,h] of [[600,900],[900,600]]) for(const style of ['film','bottom','top'])
+        for(const colors of [{tone:'light'},{tone:'dark'},
+          {frameColor:'#f2efe8',legacyTone:'light'},{frameColor:'#14130f',legacyTone:'dark'},
+          {frameColor:'#ffffff'},{frameColor:'#000000'}]){
+          inks={};
+          const src=document.createElement('canvas');src.width=w;src.height=h;
+          const o={...opts(),style,frameColor:null,legacyTone:null,...colors,body:'X',lens:'',film:'',set:'',date:'D',caption:'',sigText:'',
+            show:{body:true,date:true},fontScale:1,bandScale:1,borderScale:1,logoScale:1,lines:1};
+          const cv=render(src,o);
+          if(!inks.D||inks.D!==(style==='film'?C.edge:inks.X))throw Error(`${style} date ink does not match its style: ${JSON.stringify(colors)}`);
+          cv.width=cv.height=src.width=src.height=1;
+        }
+    }finally{CanvasRenderingContext2D.prototype.fillText=nativeFill;}
+  });
+
+  // Normalize only intentional paper/date colors; all geometry and other pixels still match.
   const legacy = await context.newPage();
   const baseline=execFileSync('git',['show','HEAD:index.html'],{ cwd:root, encoding:'utf8', maxBuffer:4e6 });
-  await legacy.setContent(baseline.replace(/paper:\s*'#f6f3ec'/,"paper: '#ffffff'"));
+  await legacy.setContent(baseline.replace(/paper:\s*'#f6f3ec'/,"paper: '#ffffff'")
+    .replace('ctx.fillStyle = legacyTone ? C.edge : ink;','ctx.fillStyle = ink;'));
   const legacyRenders = () => {
     const out = [];
     for (const [w,h] of [[600,900],[900,600]]) for (const style of ['film','instax','bottom','top'])
@@ -114,7 +138,7 @@ try {
       }
     return out;
   };
-  assert.deepEqual(await page.evaluate(legacyRenders),await legacy.evaluate(legacyRenders),'old four styles preserve exact pixels after intended white Instax paper change');
+  assert.deepEqual(await page.evaluate(legacyRenders),await legacy.evaluate(legacyRenders),'old four styles preserve exact pixels after intended paper and band date color changes');
   await legacy.close();
 
   await loadTestPhotos(page);

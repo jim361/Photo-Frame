@@ -2193,10 +2193,10 @@ function render(img, o, info){
       ctx.fillText(t, x, y);
       box('cap', x, y - sc*0.65, w, sc*1.3);
     });
-    // 날짜 — 데이트 스탬프처럼 주황, 기본 오른쪽 (정보와 독립 배치)
+    // 날짜 — 촬영 정보와 같은 색, 기본 오른쪽 (정보와 독립 배치)
     if (dt){
       ctx.font = `600 ${fs}px ${family}`;
-      ctx.fillStyle = legacyTone ? C.edge : ink;
+      ctx.fillStyle = ink;
       const x = right - dateW + OFF.date.x, y = bandTop + infoY + OFF.date.y;
       ctx.fillText(dt, x, y);
       box('date', x, y - fs*0.65, dateW, fs*1.3);
@@ -3250,7 +3250,7 @@ function loadFrameColors(s){
       if (['bottom','top'].includes(style) && ['light','dark'].includes(s.legacyBandTones?.[style]))
         state.legacyBandTones[style] = s.legacyBandTones[style];
     }
-  } else { // 구버전 밝음/어두움의 배경·글자·날짜 색을 그대로 보존한다
+  } else { // 구버전 밝음/어두움의 배경·정보 글자 색을 보존한다
     for (const style of ['bottom','top']){
       const tone = s.tone === 'dark' ? 'dark' : 'light';
       state.frameColors[style] = tone === 'dark' ? C.bandDark : '#f2efe8';
