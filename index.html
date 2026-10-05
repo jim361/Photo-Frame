@@ -26,7 +26,7 @@
     --mono: ui-monospace, "SF Mono", Menlo, "Cascadia Mono", "Roboto Mono", monospace;
     --sans: system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   }
-  /* 화면의 무채색만 반전한다. 강조색과 Canvas 합성 색상은 그대로 둔다. */
+  /* 화면 테마를 바꾸되 버튼 강조색과 Canvas 합성 색상은 그대로 둔다. */
   :root[data-theme="dark"]{
     color-scheme:dark;
     --canvas:#171717;--surface:#000000;--ink:#ffffff;
@@ -70,7 +70,8 @@
     font-family:var(--sans);font-size:24px;line-height:1;font-weight:800;
     letter-spacing:-.04em;color:var(--ink);white-space:nowrap;
   }
-  .wordmark span{font-size:1.2em}
+  .wordmark span{font-size:1.2em;color:var(--primary)}
+  :root[data-theme="dark"] .wordmark span{color:#8badff}
   .headbtn{
     min-height:var(--touch);padding:8px 14px;border:2px solid var(--ink);
     background:var(--surface);color:var(--ink);font-family:var(--mono);font-size:12px;font-weight:700;

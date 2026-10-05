@@ -4,7 +4,7 @@
 
 PhotoFrame의 UI는 **Structural Modernism**을 따른다. 따뜻한 미색 canvas 위에 흰색 작업 surface를 놓고, 카드나 그림자 대신 그리드·정렬·노출된 구분선으로 구조를 보여준다. 부르탈리즘의 큰 면과 굵은 선은 빈 상태, 선택 상태, 주요 동작처럼 화면에서 가장 중요한 한 곳에만 쓴다.
 
-- 기본 화면은 화이트 테마다. 개인 설정의 화면 테마에서 블랙으로 바꿀 수 있으며, 무채색 배경·본문·구분선만 바꾸고 코발트 및 상태 색은 유지한다.
+- 기본 화면은 화이트 테마다. 개인 설정의 화면 테마에서 블랙으로 바꿀 수 있으며, 무채색 배경·본문·구분선을 바꾸고 제목의 P·F는 밝은 파랑으로 표시한다. 버튼의 코발트 및 상태 색은 유지한다.
 - cobalt는 주요 동작, focus, 선택, 진행 상태에만 쓴다. 장식용 강조색으로 반복하지 않는다.
 - 큰 panel은 직각, 버튼은 거의 직각, 입력은 작은 반경만 사용한다.
 - gradient, glass, 장식용 blur·shadow·illustration은 사용하지 않는다.
@@ -61,7 +61,7 @@ PhotoFrame의 UI는 **Structural Modernism**을 따른다. 따뜻한 미색 canv
 - 본문과 headline은 `system-ui, Apple SD Gothic Neo, Malgun Gothic` 계열 산세리프를 사용한다.
 - 구조 label, 버튼, 비율, px, 순번과 파일명은 시스템 monospace를 사용한다.
 - 숫자 입력과 줌 배율에는 `tabular-nums`를 적용해 값이 바뀌어도 정렬을 유지한다.
-- wordmark는 `24px / 800`(compact `20px`)이며 P·F만 `1.2em`으로 키워 같은 기준선에 정렬한다. 단색·기존 글꼴을 유지하고 줄바꿈하지 않는다. 빈 상태 headline은 desktop `36px / 1.1 / 800`, compact `28px`이다.
+- wordmark는 `24px / 800`(compact `20px`)이며 P·F만 `1.2em`으로 키워 같은 기준선에 정렬하고 코발트 `--primary`로 강조한다. 블랙 테마에서는 P·F에 `#8badff`를 써 대비를 확보한다. 나머지 글자는 `--ink`이며 기존 글꼴을 유지하고 줄바꿈하지 않는다. 빈 상태 headline은 desktop `36px / 1.1 / 800`, compact `28px`이다.
 - section label은 `12px / 700` monospace이며 `01 /`, `02 /` 순번을 함께 표시한다.
 - 기본 본문은 `14px / 1.5`, 보조 설명은 `12px / 1.5`다.
 - 한글 본문을 모두 대문자로 바꾸지 않는다. 넓은 자간은 짧은 구조 label에만 제한한다.
