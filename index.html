@@ -62,13 +62,16 @@
     overflow:hidden;min-width:0;
   }
   .masthead{
+    position:absolute;top:var(--space-2);left:var(--space-4);right:var(--space-4);z-index:6;
     display:flex;align-items:center;gap:var(--space-3);
-    min-height:64px;padding:0 var(--space-4);
-    flex:0 0 auto;
+    pointer-events:none;
   }
+  .masthead > *{pointer-events:auto;cursor:auto}
+  .masthead > button{cursor:pointer}
   .wordmark{
     font-family:var(--sans);font-size:24px;line-height:1;font-weight:800;
     letter-spacing:-.04em;color:var(--ink);white-space:nowrap;
+    padding:4px;background:var(--canvas);
   }
   .wordmark span{font-size:1.2em;color:var(--primary)}
   :root[data-theme="dark"] .wordmark span{color:#8badff}
@@ -96,8 +99,9 @@
   }
 
   .dropzone{
-    position:absolute;inset:0;margin:auto;
+    position:absolute;inset:72px 0 0;margin:auto;
     width:min(680px, calc(100% - 64px));height:fit-content;
+    max-height:calc(100% - 88px);overflow-y:auto;
     padding:48px;text-align:left;background:var(--surface);color:var(--ink);
     border:1px solid var(--ink);border-left:8px solid var(--primary);border-radius:0;
     transition:border-color .18s, background .18s;
@@ -452,13 +456,13 @@
   }
   @media (max-width:719px){
     .table{height:auto;min-height:max(680px,100dvh)}
-    .masthead{padding:8px var(--space-3);gap:var(--space-2);min-width:0}
-    .wordmark{font-size:20px;flex:1}
+    .masthead{left:var(--space-3);right:var(--space-3);gap:var(--space-2);min-width:0}
+    .wordmark{font-size:20px}
     .headbtn{padding:6px 9px;font-size:11px}
     .gearbtn{margin-left:0}
     .viewport{min-height:max(528px,calc(100dvh - 212px))}
     .dropzone{
-      inset:var(--space-3);width:auto;max-height:calc(100% - 32px);
+      inset:72px var(--space-3) var(--space-3);width:auto;
       padding:32px 24px;overflow-y:auto;
     }
     .dropzone::before{margin-bottom:var(--space-3)}
@@ -484,10 +488,10 @@
     .shell{grid-template-columns:minmax(0,1fr)}
     body.has-photo .table{display:contents}
     body.has-photo .viewport{
-      position:sticky;top:0;z-index:9;height:clamp(240px,48dvh,520px);min-height:0;
+      position:sticky;top:0;z-index:9;height:clamp(304px,48dvh,520px);min-height:0;
       background:var(--canvas);border-bottom:3px solid var(--ink);
     }
-    body.has-photo .rail{scroll-margin-top:clamp(240px,48dvh,520px)}
+    body.has-photo .rail{scroll-margin-top:clamp(304px,48dvh,520px)}
     body.has-photo .railJump{position:static}
   }
 </style>
@@ -497,15 +501,15 @@
 
   <!-- ================= LIGHT TABLE ================= -->
   <main class="table">
-    <header class="masthead">
-      <h1 class="wordmark" aria-label="PhotoFrame"><span>P</span>hoto<span>F</span>rame</h1>
-      <button type="button" class="headbtn" id="addPhotos">＋ 사진 추가</button>
-      <button type="button" class="gearbtn" id="gearBtn" title="개인 설정 (화면 표시)" aria-haspopup="dialog" aria-controls="advPanel" aria-expanded="false">
-        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-      </button>
-    </header>
-
     <div class="viewport" id="viewport">
+      <header class="masthead">
+        <h1 class="wordmark" aria-label="PhotoFrame"><span>P</span>hoto<span>F</span>rame</h1>
+        <button type="button" class="headbtn" id="addPhotos">＋ 사진 추가</button>
+        <button type="button" class="gearbtn" id="gearBtn" title="개인 설정 (화면 표시)" aria-haspopup="dialog" aria-controls="advPanel" aria-expanded="false">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </header>
+
       <div class="dropzone" id="drop" role="button" tabindex="0" aria-controls="picker" aria-describedby="dropHelp dropPrivacy">
         <h2>사진을 여기에 놓으세요</h2>
         <p id="dropHelp">클릭해서 고를 수도 있습니다 · JPG, PNG · 여러 장 한 번에</p>
@@ -2366,8 +2370,7 @@ function fitRoom(){
   return { w, h:Math.max(1, h - ($('zoombar').hidden ? 0 : $('zoombar').offsetHeight + 32)) };
 }
 
-function fitScale(){
-  const { w, h } = fitRoom();
+function fitScale(w, h){
   if (!pv.width || !pv.height) return 1;
   return Math.min(Math.max(1, w - 48) / pv.width, Math.max(1, h - 24) / pv.height, 1);
 }
@@ -2380,12 +2383,21 @@ function applyZoom(){
 }
 
 function zoomFit(){
-  zoom.fit = fitScale();
-  zoom.mode = 'fit';
   const { w, h } = fitRoom();
+  const scale = fitScale(w, h), x = (w - pv.width*scale)/2, y = (h - pv.height*scale)/2;
+  const bounds = vp.getBoundingClientRect();
+  let top = 0;
+  // 모서리 버튼과 실제로 겹칠 때만 상단 공간을 비운다.
+  for (const el of document.querySelector('.masthead').children){
+    const r = el.getBoundingClientRect();
+    if (x < r.right-bounds.left+8 && x+pv.width*scale > r.left-bounds.left-8 && y < r.bottom-bounds.top+8)
+      top = Math.max(top, r.bottom-bounds.top+8);
+  }
+  zoom.fit = fitScale(w, h-top);
+  zoom.mode = 'fit';
   zoom.scale = zoom.fit;
   zoom.x = (w - pv.width * zoom.fit) / 2;
-  zoom.y = (h - pv.height * zoom.fit) / 2;
+  zoom.y = top + (h - top - pv.height * zoom.fit) / 2;
   applyZoom();
 }
 
@@ -2718,7 +2730,7 @@ $('moveReset').onclick = () => nudgeElement(0, 0, true);
 
 /* 더블클릭 = 해당 요소 위치 초기화 */
 vp.addEventListener('dblclick', e => {
-  if (pv.hidden || !state.showBoxes) return;
+  if (pv.hidden || !state.showBoxes || e.target.closest('.masthead')) return;
   const hit = hitBox(e);
   if (!hit) return;
   const s = state.shots[state.current]; if (!s) return;
@@ -2731,7 +2743,7 @@ vp.addEventListener('dblclick', e => {
 });
 
 vp.addEventListener('wheel', e => {
-  if (pv.hidden) return;
+  if (pv.hidden || e.target.closest('.masthead')) return;
   e.preventDefault();
   const r = vp.getBoundingClientRect();
   const factor = e.deltaY < 0 ? 1.12 : 1/1.12;
@@ -2756,7 +2768,7 @@ function movePinch(){
   applyZoom();
 }
 vp.addEventListener('pointerdown', e => {
-  if (pv.hidden || e.button !== 0 || e.target.closest('.zoombar') || e.target.closest('.dropzone') || pointers.size >= 2) return;
+  if (pv.hidden || e.button !== 0 || e.target.closest('.masthead, .zoombar, .dropzone') || pointers.size >= 2) return;
   pointers.set(e.pointerId, { x:e.clientX, y:e.clientY });
   vp.setPointerCapture(e.pointerId);
   if (pointers.size === 2){
@@ -2798,7 +2810,7 @@ vp.addEventListener('pointermove', e => {
     return;
   }
   // 호버 — 조정 가능한 부위 위에서 커서·강조 표시
-  if (!state.showBoxes || pv.hidden || !state._pv){
+  if (!state.showBoxes || pv.hidden || !state._pv || e.target.closest('.masthead')){
     if (state._hotSig){ state._hotSig = ''; state._hot = null; vp.style.cursor = ''; }
     return;
   }

@@ -46,7 +46,7 @@ PhotoFrame의 UI는 **Structural Modernism**을 따른다. 따뜻한 미색 canv
 | wide gutter | `24px` |
 | 버튼·아이콘·체크박스 레이블 touch target | `48px` |
 | 스트립 순서 아이콘 버튼 (기본 / 터치 포인터) | `28px` / `40px` |
-| app bar 높이 | `64px` |
+| 미리보기 모서리 요소의 상단 간격 | `8px` |
 | 일반 row·panel 선 | `1px` |
 | outline action·focus | `2px` |
 | workspace·rail·strip 구조선 | `3px` |
@@ -73,20 +73,20 @@ PhotoFrame의 UI는 **Structural Modernism**을 따른다. 따뜻한 미색 canv
 - `.shell`은 중앙 workspace와 우측 설정 rail의 2열이다.
 - workspace는 남은 너비를 사용하고 rail은 사용자 설정 `--railw`를 사용한다(초기값과 CSS fallback `500px`). 기존 사용자가 직접 저장한 너비는 유지한다.
 - 높이는 `100dvh`이며 미리보기 workspace와 설정 rail은 각자 필요한 overflow를 처리한다.
-- masthead는 높이 `64px`, 좌우 gutter `24px`이며 미리보기와 같은 배경을 쓴다. 두 영역 사이 구분선은 없다.
+- 별도 높이의 masthead 바는 없다. 로고·버튼만 미리보기 안쪽 상단 `8px`, 좌우 gutter `24px` 위치에 띄운다.
 - rail은 흰 surface, 좌측 `3px` ink 구조선, 내부 gutter `24px`이다.
 
 ### Medium · `720px` 이상 `1100px` 미만
 
 - 필수 기능을 줄이지 않고 한 열로 전환한다.
-- 빈 상태는 미리보기 workspace를 한 화면 높이로 먼저 보여주고 설정 rail을 그 아래 배치한다. 사진을 불러오면 `.table`을 `display:contents`로 두어 미리보기만 `sticky; top:0`으로 고정한다. 높이는 `clamp(240px,48dvh,520px)`이며 헤더·사진 스트립·설정은 페이지에서 스크롤된다.
+- 빈 상태는 미리보기 workspace를 한 화면 높이로 먼저 보여주고 설정 rail을 그 아래 배치한다. 사진을 불러오면 `.table`을 `display:contents`로 두어 로고·버튼을 포함한 미리보기를 `sticky; top:0`으로 고정한다. 높이는 `clamp(304px,48dvh,520px)`이며 사진 스트립·설정은 페이지에서 스크롤된다.
 - rail의 좌측선은 상단 `3px` 구조선으로 바뀐다.
 - 별도 navigation destination이 없으므로 navigation rail이나 하단 navigation을 만들지 않는다.
 
 ### Compact · `720px` 미만
 
 - 좌우 gutter는 `16px`이다.
-- 헤더는 PhotoFrame·사진 추가·개인 설정을 한 행으로 배치한다. 별도 설정 이동 버튼은 두지 않는다.
+- PhotoFrame·사진 추가·개인 설정은 미리보기 안에 띄워 한 행으로 배치한다. 별도 설정 이동 버튼은 두지 않는다.
 - 2열·3열 form row는 한 열로 쌓고 범위 선택, 글꼴 도구도 세로로 배치한다.
 - 빈 상태는 viewport 안에서 스크롤할 수 있고 headline을 `28px`로 낮춘다.
 - 줌바는 너비 안에서 **4열 × 2행** grid가 되어 모든 기능을 유지한다.
@@ -97,8 +97,8 @@ PhotoFrame의 UI는 **Structural Modernism**을 따른다. 따뜻한 미색 canv
 
 ### Masthead
 
-- `<header>` 안의 `<h1>` wordmark, 작업 중에도 보이는 `＋ 사진 추가`, 48×48px 개인 설정 버튼을 한 행으로 배치한다. 소개 문구는 제공하지 않는다.
-- 미리보기와 같은 배경에 구분선·그림자 없이 이어 배치한다.
+- 미리보기 안의 절대 위치 `<header>`에 `<h1>` wordmark, `＋ 사진 추가`, 48×48px 개인 설정 버튼을 배치한다. 로고는 왼쪽, 버튼은 오른쪽이며 소개 문구는 제공하지 않는다.
+- 컨테이너에는 배경·테두리·고정 높이를 두지 않고 빈 공간의 포인터를 미리보기에 통과시킨다. 로고·버튼만 개별 불투명 배경을 사용해 확대된 사진 위에서도 읽을 수 있게 한다.
 
 ### 빈 상태와 사진 입력
 
@@ -114,7 +114,7 @@ PhotoFrame의 UI는 **Structural Modernism**을 따른다. 따뜻한 미색 canv
 - 미리보기 canvas 바깥에는 `--muted-ink`로 화면 기준 1px 경계를 둔다. 번짐 없는 CSS `box-shadow`의 두께를 줌 배율의 역수로 보정해 축소해도 경계가 사라지지 않게 한다. 흰 프레임과 작업 배경을 구분하는 화면 전용 표시이며 요소 경계 토글·저장 이미지와 독립적이다.
 - 줌바는 흰 surface와 2px ink frame으로 미리보기 위에 놓인다.
 - 버튼은 최소 48×48px이고 사이를 1px line으로 나눈다.
-- 화면 맞춤은 실제 도구막대 높이를 제외한 공간에 사진을 배치해 2행 도구막대와 겹치지 않는다.
+- 화면 맞춤은 실제 줌바 높이를 제외한 공간에 사진을 배치한다. 상단 모서리의 로고·버튼과 겹칠 때만 위쪽 간격도 확보하며, 겹치지 않는 세로 사진은 상단까지 활용한다.
 - 활성 토글은 cobalt 면 + 흰 글자, hover는 primary-soft, 비활성은 neutral-soft로 표현한다.
 - 경계 넘침은 `--error`와 점 표식을 함께 써 색만으로 알리지 않는다.
 - 두 손가락 줌·팬은 기존 canvas transform만 바꾼다. 표시·레이아웃 설정의 `정밀 위치 조정`은 기본으로 접고 열림 상태를 기억한다. 요소와 이동 간격 선택, 위아래 `↑ ↓`·좌우 `← →` 두 묶음의 48px 방향 버튼, 선택 요소 위치 초기화를 제공하고 기존 배치 되돌리기와 연결한다. 상위 패널과 내부 패널의 열림 표시는 각각 독립적이다.

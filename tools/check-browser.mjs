@@ -142,6 +142,34 @@ try {
   await legacy.close();
 
   await loadTestPhotos(page);
+  await page.evaluate(()=>setStyle('bottom'));
+  for(const [width,height] of [[1440,1000],[768,844],[390,844],[320,480]]){
+    await page.setViewportSize({width,height});
+    for(const current of [0,1]){
+      await page.evaluate(current=>{state.current=current;refresh();},current);await tick();
+      const layout=await page.evaluate(()=>{
+        const photo=pv.getBoundingClientRect(),head=document.querySelector('.masthead'),view=vp.getBoundingClientRect();
+        const controls=[...head.children].map(el=>el.getBoundingClientRect());
+        const overlaps=r=>photo.left<r.right&&photo.right>r.left&&photo.top<r.bottom&&photo.bottom>r.top;
+        return {floating:head.parentElement===vp&&getComputedStyle(head).position==='absolute',top:view.top,
+          fits:controls.every(r=>r.left>=view.left&&r.right<=view.right&&r.top>=view.top&&r.bottom<=view.bottom),
+          clear:controls.every(r=>!overlaps(r)),photoHeight:photo.height,
+          touches:[...head.querySelectorAll('button')].map(el=>el.getBoundingClientRect().height)};
+      });
+      assert.equal(layout.floating,true,'header controls float inside the preview');
+      assert.equal(layout.top,0,'no separate top bar takes editor height');
+      assert(layout.fits&&layout.clear,`floating controls stay visible and clear of fitted photos at ${width}px`);
+      assert(layout.photoHeight>=80,`usable fitted photo at ${width}px`);
+      assert(layout.touches.every(h=>h>=48),'floating buttons preserve touch targets');
+    }
+  }
+  await page.setViewportSize({width:1440,height:1000});await tick();
+  const beforeControls=await page.evaluate(()=>JSON.stringify(zoom));
+  await page.locator('#gearBtn').click();await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#advPanel').isVisible(),false);
+  const chooser=page.waitForEvent('filechooser');await page.locator('#addPhotos').click();await (await chooser).setFiles([]);
+  assert.equal(await page.evaluate(()=>JSON.stringify(zoom)),beforeControls,'floating buttons do not start preview gestures');
+  await page.evaluate(()=>{state.current=0;setStyle('film');refresh();});await tick();
   const previewEdges=await page.evaluate(()=>{
     const before=pv.toDataURL(),widths=[];
     for(const scale of [.03,.25,1,4]){
