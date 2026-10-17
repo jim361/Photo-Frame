@@ -4,14 +4,16 @@ import assert from 'node:assert/strict';
 export async function checkAlignment(page, loadTestPhotos){
   const tick = () => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const buttons = page.locator('#alignButtons button');
-  assert.equal(await buttons.count(), 6, '촬영 정보·로고의 좌·중앙·우측 버튼 6개');
+  assert.equal(await buttons.count(), 12, '촬영 정보·로고의 좌우·위아래 버튼 12개');
   assert.deepEqual(await buttons.evaluateAll(nodes => nodes.map(b => `${b.dataset.group}/${b.dataset.align}`).sort()),
-    ['info/center','info/left','info/right','logo/center','logo/left','logo/right']);
+    ['info/bottom','info/center','info/left','info/middle','info/right','info/top',
+      'logo/bottom','logo/center','logo/left','logo/middle','logo/right','logo/top']);
   assert.equal(await page.locator('#alignButtons').evaluate(el =>
     !!el.closest('#dispPanel > .inner') && !el.closest('#movePanel')), true, '정렬은 펼친 주 영역에 위치한다');
   assert.equal(await buttons.evaluateAll(nodes => nodes.every(b => b.disabled)), true, '사진 없으면 정렬 비활성');
   assert.equal(await page.evaluate(() => {
-    const before = JSON.stringify(adv); alignElements('info','left'); alignElements('logo','right');
+    const before = JSON.stringify(adv);
+    for(const group of ['info','logo']) for(const alignment of ['left','center','right','top','middle','bottom']) alignElements(group,alignment);
     return before === JSON.stringify(adv) && STYLE_KEYS.every(s => !layoutUndoStack(s).length);
   }), true, '사진 없는 호출은 프로파일·되돌리기를 바꾸지 않는다');
 
@@ -27,11 +29,15 @@ export async function checkAlignment(page, loadTestPhotos){
       check(info.alignBounds && Number.isFinite(info.alignBounds.left) && Number.isFinite(info.alignBounds.right), '실제 render가 정렬 경계를 반환한다');
       check(info.alignBounds.left<info.alignBounds.right, `${state.style}: 유효한 내부 정보 폭`);
       check(info.alignBounds.left>=info.area.x && info.alignBounds.right<=info.area.x+info.area.w, `${state.style}: 내부 경계는 정보 영역 안에 있다`);
+      check(Number.isFinite(info.alignBounds.top) && Number.isFinite(info.alignBounds.bottom) && info.alignBounds.top<=info.alignBounds.bottom, `${state.style}: 유효한 내부 정보 높이`);
+      check(info.alignBounds.top>=info.area.y && info.alignBounds.bottom<=info.area.y+info.area.h, `${state.style}: 위아래 경계는 정보 영역 안에 있다`);
       return info;
     };
-    const union = boxes => ({ left:Math.min(...boxes.map(b=>b.x)), right:Math.max(...boxes.map(b=>b.x+b.w)) });
+    const union = boxes => ({ left:Math.min(...boxes.map(b=>b.x)), right:Math.max(...boxes.map(b=>b.x+b.w)),
+      top:Math.min(...boxes.map(b=>b.y)), bottom:Math.max(...boxes.map(b=>b.y+b.h)) });
     const selected = (boxes,group) => boxes.filter(b=>group==='logo'?b.key==='logo':b.key && b.key!=='logo');
-    const target = (bounds,alignment) => alignment==='center'?(bounds.left+bounds.right)/2:bounds[alignment];
+    const target = (bounds,alignment) => alignment==='center'?(bounds.left+bounds.right)/2
+      :alignment==='middle'?(bounds.top+bounds.bottom)/2:bounds[alignment];
     const logoCanvas=document.createElement('canvas'); logoCanvas.width=100; logoCanvas.height=40;
     logoCanvas.getContext('2d').fillRect(12,6,76,28);
     const image=new Image(); image.src=logoCanvas.toDataURL(); await image.decode(); logoCanvas.width=logoCanvas.height=1;
@@ -57,10 +63,11 @@ export async function checkAlignment(page, loadTestPhotos){
           check(initial.boxes.filter(b=>b.key==='cap').length===2, `${label}: 여러 줄 메모는 한 묶음이다`);
           check(initial.boxes.find(b=>b.key==='logo').label===(logo==='image'?'로고':'서명'), `${label}: 이미지 우선·서명 대체`);
 
-          for(const group of ['info','logo']) for(const alignment of ['left','center','right']){
+          for(const group of ['info','logo']) for(const alignment of ['left','center','right','top','middle','bottom']){
+            const vertical=['top','middle','bottom'].includes(alignment), axis=vertical?'y':'x', offset=vertical?'DY':'DX';
             const before=measure(), beforeAdv=clone(adv), history=layoutUndoStack().length;
             const oldBoxes=selected(before.boxes,group), oldUnion=union(oldBoxes);
-            const dx=Math.round(target(before.alignBounds,alignment)-target(oldUnion,alignment));
+            const delta=Math.round(target(before.alignBounds,alignment)-target(oldUnion,alignment));
             // Deliberately retain stale preview data across calls; only render() is authoritative.
             alignElements(group,alignment);
             const after=measure(), actual=selected(after.boxes,group), newUnion=union(actual);
@@ -70,16 +77,16 @@ export async function checkAlignment(page, loadTestPhotos){
             before.boxes.forEach((box,i)=>{
               const next=after.boxes[i], moving=group==='logo'?box.key==='logo':box.key!=='logo';
               check(box.key===next.key, `${label}: 박스 순서 보존`);
-              near(next.x-box.x,moving?dx:0, `${label}/${box.key}: 같은 화면축 X 이동`, 1e-6);
-              for(const k of ['y','w','h']) near(next[k],box[k], `${label}/${box.key}: ${k} 보존`,1e-6);
+              near(next[axis]-box[axis],moving?delta:0, `${label}/${box.key}: 같은 화면축 ${axis} 이동`, 1e-6);
+              for(const k of [vertical?'x':'y','w','h']) near(next[k],box[k], `${label}/${box.key}: ${k} 보존`,1e-6);
             });
-            const keys=new Set(oldBoxes.map(b=>b.key+'DX'));
+            const keys=new Set(oldBoxes.map(b=>b.key+offset));
             for(const s of STYLE_KEYS) for(const d of ['port','land']) for(const key of PROFILE_KEYS){
               if(s===style && d===dir && keys.has(key))
-                near(Number(adv[s][d][key])-Number(beforeAdv[s][d][key]), dx/before.renderW, `${label}/${key}: 저장 DX 비율`,1e-10);
+                near(Number(adv[s][d][key])-Number(beforeAdv[s][d][key]), delta/before.renderW, `${label}/${key}: 저장 ${offset} 비율`,1e-10);
               else check(adv[s][d][key]===beforeAdv[s][d][key], `${label}/${s}/${d}/${key}: 다른 묶음·축·프로파일 보존`);
             }
-            check(layoutUndoStack().length===history+(dx?1:0), `${label}: 한 정렬은 한 undo`);
+            check(layoutUndoStack().length===history+(delta?1:0), `${label}: 한 정렬은 한 undo`);
             const persisted=store.read('frame.settings',{}).advByStyle;
             check(same(persisted,adv), `${label}: 기존 설정 저장 경로`);
             check(same(cleanProjectSettings(JSON.parse(JSON.stringify(settingsSnapshot()))).advByStyle,adv), `${label}: 프로젝트 JSON roundtrip`);
@@ -89,7 +96,7 @@ export async function checkAlignment(page, loadTestPhotos){
             alignElements(group,alignment);
             check(JSON.stringify(adv)===aligned && layoutUndoStack().length===count, `${label}/${group}/${alignment}: 반복 정렬 무변경`);
             check(JSON.stringify(store.read('frame.settings',{}))===saved, `${label}: 반복 정렬 저장 무변경`);
-            if(dx){
+            if(delta){
               undoLayout(); check(same(adv,beforeAdv), `${label}: undo가 전체 이전 배치를 복원한다`);
               check(layoutUndoStack().length===history, `${label}: undo 한 단계만 제거`);
               check(same(store.read('frame.settings',{}).advByStyle,beforeAdv), `${label}: undo도 저장된다`);
@@ -129,7 +136,7 @@ export async function checkAlignment(page, loadTestPhotos){
   await tick();
   for(const width of [1440,390,320]){
     await page.setViewportSize({width,height:844});
-    for(const group of ['info','logo']) for(const alignment of ['left','center','right']){
+    for(const group of ['info','logo']) for(const alignment of ['left','center','right','top','middle','bottom']){
       const button=page.locator(`#alignButtons [data-group="${group}"][data-align="${alignment}"]`);
       assert.equal(await button.isVisible(),true,'정밀 위치를 접어도 정렬 버튼 노출');
       await button.scrollIntoViewIfNeeded();
@@ -142,8 +149,11 @@ export async function checkAlignment(page, loadTestPhotos){
         cv.width=cv.height=1;
         const boxes=info.boxes.filter(b=>group==='logo'?b.key==='logo':b.key&&b.key!=='logo');
         const left=Math.min(...boxes.map(b=>b.x)),right=Math.max(...boxes.map(b=>b.x+b.w));
+        const top=Math.min(...boxes.map(b=>b.y)),bottom=Math.max(...boxes.map(b=>b.y+b.h));
         return alignment==='center'?(left+right-info.alignBounds.left-info.alignBounds.right)/2
-          :alignment==='left'?left-info.alignBounds.left:right-info.alignBounds.right;
+          :alignment==='middle'?(top+bottom-info.alignBounds.top-info.alignBounds.bottom)/2
+          :alignment==='left'?left-info.alignBounds.left:alignment==='right'?right-info.alignBounds.right
+          :alignment==='top'?top-info.alignBounds.top:bottom-info.alignBounds.bottom;
       },{group,alignment});
       assert(Math.abs(error)<=1,`${width}px ${group}/${alignment} 실제 클릭 정렬: ${error}`);
     }
@@ -158,6 +168,7 @@ export async function checkAlignment(page, loadTestPhotos){
       state.showBoxes=showBoxes; $('ratio').value=ratio; refresh(); await tick();
       if(free) zoomTo(.43);
       alignElements('info','left'); alignElements('logo','right');
+      alignElements('info','top'); alignElements('logo','bottom');
       results.push(JSON.stringify(adv));
     }
     return results;
@@ -172,7 +183,8 @@ export async function checkAlignment(page, loadTestPhotos){
       {name:'정렬 배치 roundtrip',style,port:{...adv[style].port},land:{...adv[style].land}},
     ])))[0];
     layouts.push(entry);store.write('frame.layouts',layouts);drawLayouts();
-    adv[style].port.bodyDX='0.87';adv[style].land.logoDX='-0.31';clearLayoutUndo();
+    adv[style].port.bodyDX='0.87';adv[style].land.logoDX='-0.31';
+    adv[style].port.bodyDY='0.49';adv[style].land.logoDY='-0.28';clearLayoutUndo();
     const changed=JSON.stringify(adv[style]);
     $('layoutRow').querySelector('button[title="정렬 배치 roundtrip"]').click();
     if(JSON.stringify(adv)!==before || layoutUndoStack().length!==1)throw Error('정렬 배치 프리셋 실제 적용 실패');
@@ -184,6 +196,19 @@ export async function checkAlignment(page, loadTestPhotos){
       const o={...withShot(withProfile({...opts(),style:s},shot),shot),bandScale:scale/100,borderScale:scale===50?0:3};
       const info={collect:true},cv=render(shot.img,o,info);cv.width=cv.height=1;
       if(!(info.alignBounds.left<info.alignBounds.right))throw Error(`${s}/${photoDir(shot.img)}/${scale}: 내부 정렬 경계 역전`);
+      if(!(info.alignBounds.top<=info.alignBounds.bottom))throw Error(`${s}/${photoDir(shot.img)}/${scale}: 내부 위아래 정렬 경계 역전`);
+    }
+    // Zero-height matte margins still align to a finite line; overflowing content keeps its size.
+    state.current=1;setStyle('matte');Object.assign(profileFor('matte','port'),DEF_ADV,{borderScale:'0'});
+    const shot=state.shots[1],measure=()=>{
+      const info={collect:true},cv=render(shot.img,withShot(withProfile(opts(),shot),shot),info);cv.width=cv.height=1;return info;
+    };
+    const initial=measure(),height=initial.boxes.find(b=>b.key==='logo').h;
+    if(initial.alignBounds.top!==initial.alignBounds.bottom)throw Error('여백 0의 위아래 기준은 같은 선이어야 한다');
+    for(const alignment of ['top','middle','bottom']){
+      alignElements('logo',alignment);const info=measure(),box=info.boxes.find(b=>b.key==='logo');
+      const actual=alignment==='top'?box.y:alignment==='bottom'?box.y+box.h:box.y+box.h/2;
+      if(Math.abs(actual-info.alignBounds.top)>1 || box.h!==height)throw Error('여백 0에서도 크기를 유지하며 정렬해야 한다');
     }
   });
 
@@ -204,7 +229,7 @@ export async function checkAlignment(page, loadTestPhotos){
     assert.deepEqual(disabled,{info:['empty','hidden'].includes(mode),logo:!['signature','image'].includes(mode)},`${mode}: 없는 묶음만 비활성`);
     await page.evaluate(disabled=>{
       const before=JSON.stringify(adv),count=layoutUndoStack().length;
-      for(const group of ['info','logo'])if(disabled[group])alignElements(group,'right');
+      for(const group of ['info','logo'])if(disabled[group])for(const alignment of ['right','top','middle','bottom'])alignElements(group,alignment);
       if(JSON.stringify(adv)!==before || layoutUndoStack().length!==count)throw Error('비활성 묶음 직접 호출은 무변경이어야 한다');
     },disabled);
   }
@@ -244,5 +269,5 @@ export async function checkAlignment(page, loadTestPhotos){
   await page.reload();await tick();
   assert.deepEqual(await page.evaluate(()=>settingsSnapshot().advByStyle),saved,'정렬·정밀 이동·드래그 프로파일 reload 보존');
   assert.equal(await buttons.evaluateAll(nodes=>nodes.every(b=>b.disabled)),true,'사진 없는 재로드에서 정렬 비활성');
-  console.log(`정렬 브라우저 검사 통과 · ${matrix.cases} 배치 · ${matrix.actions} 정렬/반복/undo · 6개 실제 버튼 · 저장/프로젝트/프리셋 · 세로 film 화면축 · 320/390px`);
+  console.log(`정렬 브라우저 검사 통과 · ${matrix.cases} 배치 · ${matrix.actions} 정렬/반복/undo · 12개 실제 버튼 · 저장/프로젝트/프리셋 · 세로 film 화면축 · 여백 0 · 320/390px`);
 }

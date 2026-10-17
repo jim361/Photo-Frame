@@ -251,6 +251,8 @@
     transition:color .15s,background .15s;
   }
   .seg button:last-child{border-right:0}
+  .seg3 button:nth-child(3n){border-right:0}
+  .seg3 button:nth-child(n+4){border-top:1px solid var(--line)}
   .seg button:hover{background:var(--primary-soft);color:var(--primary-pressed)}
   .seg button[aria-pressed="true"]{background:var(--primary-pressed);color:#fff;font-weight:700}
   #styleSeg button{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 4px}
@@ -693,6 +695,9 @@
                 <button type="button" data-group="info" data-align="left" disabled>좌측</button>
                 <button type="button" data-group="info" data-align="center" disabled>중앙</button>
                 <button type="button" data-group="info" data-align="right" disabled>우측</button>
+                <button type="button" data-group="info" data-align="top" disabled>위</button>
+                <button type="button" data-group="info" data-align="middle" disabled>가운데</button>
+                <button type="button" data-group="info" data-align="bottom" disabled>아래</button>
               </div>
             </div>
             <div class="field">
@@ -701,10 +706,13 @@
                 <button type="button" data-group="logo" data-align="left" disabled>좌측</button>
                 <button type="button" data-group="logo" data-align="center" disabled>중앙</button>
                 <button type="button" data-group="logo" data-align="right" disabled>우측</button>
+                <button type="button" data-group="logo" data-align="top" disabled>위</button>
+                <button type="button" data-group="logo" data-align="middle" disabled>가운데</button>
+                <button type="button" data-group="logo" data-align="bottom" disabled>아래</button>
               </div>
             </div>
           </div>
-          <p class="note" id="alignNote" style="margin-bottom:12px">현재 사진의 정보 영역 안에서 화면 기준 좌우로 맞춥니다. 촬영 정보는 날짜·메모를 포함해 간격과 높이를 유지합니다. 같은 스타일·사진 방향에 적용되며 배치 되돌리기로 취소할 수 있습니다.</p>
+          <p class="note" id="alignNote" style="margin-bottom:12px">현재 사진의 정보 영역 안에서 화면 기준 좌우·위아래로 맞춥니다. 촬영 정보는 날짜·메모를 포함해 요소 사이 간격과 크기를 유지합니다. 같은 스타일·사진 방향에 적용되며 배치 되돌리기로 취소할 수 있습니다.</p>
           <div class="seg seg2" id="advTab" style="margin-bottom:10px">
             <button type="button" data-t="port" aria-pressed="true">세로 사진</button>
             <button type="button" data-t="land" aria-pressed="false">가로 사진</button>
@@ -1825,7 +1833,8 @@ function render(img, o, info){
     cv.width = bar + W + botBar; cv.height = H;   // 왼쪽 얇은 바 + 사진 + 오른쪽 텍스트 바
     if (collect){
       info.area = { x: bar + W, y: 0, w: botBar, h: H };
-      info.alignBounds = { left:bar + W + Math.min(bar, botBar/2), right:bar + W + botBar - W*0.022 };
+      info.alignBounds = { left:bar + W + Math.min(bar, botBar/2), right:bar + W + botBar - W*0.022,
+        top:H*0.022, bottom:H*(1-0.022) };
     }
     ctx.fillStyle = C.base; ctx.fillRect(0,0,cv.width,cv.height);
     ctx.drawImage(img, bar, 0, W, H);
@@ -1909,7 +1918,8 @@ function render(img, o, info){
     cv.width = W; cv.height = H + bar + botBar;
     if (collect){   // 텍스트 영역(아래 바) — 경계 드래그가 쓰는 정보
       info.area = { x: 0, y: H + bar, w: W, h: botBar };
-      info.alignBounds = { left:W*0.022, right:W*(1-0.022) };
+      info.alignBounds = { left:W*0.022, right:W*(1-0.022),
+        top:H + bar + Math.min(bar, botBar/2), bottom:H + bar + botBar - W*0.022 };
       info.areaSide = 'bottom';
       info.units = { bandScale: bar * (two ? 2.3 : 1.75) };
     }
@@ -1999,7 +2009,8 @@ function render(img, o, info){
     const colX = m + W;
     if (collect){   // 텍스트 영역(우측 컬럼) — 글씨 방향과 무관하게 같은 경계를 쓴다
       info.area = { x: colX, y: m, w: colW, h: H };
-      info.alignBounds = { left:colX + H*0.02, right:colX + colW - H*0.02 };
+      info.alignBounds = { left:colX + H*0.02, right:colX + colW - H*0.02,
+        top:m + H*0.02, bottom:m + H*(1-0.02) };
       info.areaSide = 'right';
       info.units = { bandScale: H*0.27, borderScale: H*0.055 };
       info.photo = { x: m, y: m, w: W, h: H };
@@ -2098,7 +2109,8 @@ function render(img, o, info){
     cv.width = W + side*2; cv.height = H + top + bot;
     if (collect){   // 텍스트 영역(카드 하단 여백)
       info.area = { x: side, y: H + top, w: W, h: bot };
-      info.alignBounds = { left:side + W*0.02, right:side + W*(1-0.02) };
+      info.alignBounds = { left:side + W*0.02, right:side + W*(1-0.02),
+        top:H + top + W*0.02, bottom:H + top + bot - W*0.02 };
       info.areaSide = 'bottom';
       info.units = { bandScale: W*0.27, borderScale: W*0.055 };
       info.photo = { x: side, y: top, w: W, h: H };
@@ -2168,7 +2180,9 @@ function render(img, o, info){
     cv.width = W+2*side; cv.height = H + side + band;
     if (collect){   // 텍스트 영역(띠)
       info.area = { x: side, y: bandTop, w: W, h: band };
-      info.alignBounds = { left:side + W*0.018, right:side + W*(1-0.018) };
+      const inset = Math.min(W*0.018, band/2);
+      info.alignBounds = { left:side + W*0.018, right:side + W*(1-0.018),
+        top:bandTop + inset, bottom:bandTop + band - inset };
       info.areaSide = o.style === 'top' ? 'top' : 'bottom';
       info.units = matte && !gallery ? {} : { bandScale:bandUnit };
       if (matte){
@@ -2765,22 +2779,28 @@ $('moveReset').onclick = () => nudgeElement(0, 0, true);
 
 function alignElements(group, alignment){
   const shot = state.shots[state.current];
-  if (!shot || boxDrag || edgeDrag || !['info','logo'].includes(group) || !['left','center','right'].includes(alignment)) return;
+  if (!shot || boxDrag || edgeDrag || !['info','logo'].includes(group) || !['left','center','right','top','middle','bottom'].includes(alignment)) return;
   // 연속 클릭·정보 입력 직후에도 최신 내용과 오프셋으로 측정한다.
   const info = { collect:true };
   const raw = render(shot.img, withShot(withProfile(opts(), shot), shot), info);
   raw.width = raw.height = 1;
   const boxes = info.boxes.filter(b => b.key && (group === 'logo' ? b.key === 'logo' : b.key !== 'logo'));
   if (!boxes.length) return;
-  const left = Math.min(...boxes.map(b => b.x)), right = Math.max(...boxes.map(b => b.x + b.w));
+  const vertical = ['top','middle','bottom'].includes(alignment);
+  const axis = vertical ? 'y' : 'x', size = vertical ? 'h' : 'w';
+  const start = vertical ? 'top' : 'left', end = vertical ? 'bottom' : 'right';
+  const min = Math.min(...boxes.map(b => b[axis])), max = Math.max(...boxes.map(b => b[axis] + b[size]));
   const bounds = info.alignBounds;
-  const dx = Math.round(alignment === 'left' ? bounds.left - left : alignment === 'right' ? bounds.right - right
-    : (bounds.left + bounds.right - left - right)/2);
-  if (!dx) return;
+  const distance = alignment === start ? bounds[start] - min : alignment === end ? bounds[end] - max
+    : (bounds[start] + bounds[end] - min - max)/2;
+  // 반 픽셀 경계의 계산 오차 때문에 반복 정렬이 1px 움직이지 않게 한다.
+  if (Math.abs(distance) <= 0.5 + 1e-7) return;
+  const delta = Math.round(distance);
   const before = layoutSnapshot(), p = profileFor(state.style, photoDir(shot.img));
+  const offset = vertical ? 'DY' : 'DX';
   for (const key of new Set(boxes.map(b => b.key)))
-    p[key + 'DX'] = String((Number(p[key + 'DX']) || 0) + dx/info.renderW);
-  setLayoutUndo(`${group === 'logo' ? '로고·서명' : '촬영 정보'} ${{ left:'좌측', center:'중앙', right:'우측' }[alignment]} 정렬`, before);
+    p[key + offset] = String((Number(p[key + offset]) || 0) + delta/info.renderW);
+  setLayoutUndo(`${group === 'logo' ? '로고·서명' : '촬영 정보'} ${{ left:'좌측', center:'중앙', right:'우측', top:'위', middle:'가운데', bottom:'아래' }[alignment]} 정렬`, before);
   saveSettings(); refresh(true);
 }
 $('alignButtons').onclick = e => {
