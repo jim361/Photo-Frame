@@ -41,6 +41,21 @@ const capture=new Function('settingsSnapshot',`const APPEARANCE_KEYS=${appearanc
 const appearance=capture();
 assert.equal(appearance.frameColors.matte,'#abcdef');assert.equal(appearance.logo,'local-logo');
 for(const field of ['body','lens','date','set','caption','title','shots','gear']) assert(!(field in appearance),`${field} must not be a design preset`);
+const offsets=['body','lens','film','set','date','cap','logo'].flatMap(k=>[k+'DX',k+'DY']);
+const layoutVersion=new Function('OFF_KEYS',source('logoLayoutVersion')+';return logoLayoutVersion;')(offsets);
+assert.equal(layoutVersion({}),'2','빈 프로파일은 새 로고 배치');
+for(const key of [...offsets,'infoDX','infoDY']){
+  assert.equal(layoutVersion({[key]:'0.025'}),'1',`${key}: 기존 이동 기준 보존`);
+  assert.equal(layoutVersion({[key]:'0'}),'2',`${key}: 이동하지 않은 기본값`);
+  assert.equal(layoutVersion({[key]:'0.025',logoLayout:'2'}),'2','새 배치의 첫 이동은 기준을 바꾸지 않음');
+}
+assert.equal(layoutVersion({logoLayout:'1'}),'1','이동값이 다시 0이어도 명시한 이전 기준 보존');
+assert.equal(layoutVersion({logoLayout:1}),'1','숫자로 저장된 이전 기준 호환');
+const cleanProfile=new Function('PROFILE_KEYS','hasOwn','logoLayoutVersion',source('cleanPresetProfile')+';return cleanPresetProfile;')(
+  ['lines','sideText',...offsets,'logoLayout'],(o,k)=>Object.hasOwn(o,k),layoutVersion);
+assert.equal(cleanProfile({logoDX:'.1'}).logoLayout,'1','가져오는 배치 프리셋의 이동 기준 보존');
+assert.equal(cleanProfile({logoDX:'.1',logoLayout:'2'}).logoLayout,'2','새 프리셋 저장값 보존');
+assert.throws(()=>cleanProfile({logoLayout:'3'}),'알 수 없는 배치 버전 거부');
 const migrateInstax=new Function(`${source('migrateInstax')};return migrateInstax;`)();
 for(const style of ['instax-square','instax-wide']){
   const old={style,caption:'보존할 메모',advByStyle:{instax:{port:{borderScale:'77'}},

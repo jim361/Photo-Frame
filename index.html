@@ -1635,7 +1635,7 @@ function captionLines(o){
   return o.caption.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 4);
 }
 
-function drawLogo(ctx, o, left, center, right, yCenter, baseH, align, sigColor, limitH, limitW){
+function drawLogo(ctx, o, left, center, right, yCenter, baseH, align, sigColor, limitH, limitW, measureOnly = false){
   // 로고·서명 — 이미지가 있으면 이미지, 없으면 텍스트 서명(필기체)을 같은 자리에.
   // limitH/limitW = 텍스트 서명이 여백을 넘지 않게 하는 최대 크기
   // 위치는 스타일별 기본값(align) — 정렬·이동은 요소 오프셋으로 반영한다
@@ -1645,6 +1645,7 @@ function drawLogo(ctx, o, left, center, right, yCenter, baseH, align, sigColor, 
     // 이미지 로고는 입력 배율을 그대로 쓰고, 넘침은 기존 경계 경고로 알린다.
     const h = baseH * o.logoScale;
     const w = h * (img.width / img.height);
+    if (measureOnly) return { w, h };
     const x = align === 'left' ? left : align === 'center' ? center - w / 2 : right - w;
     ctx.drawImage(img, x, yCenter - h / 2, w, h);
     if (o._box) o._box('logo', x, yCenter - h / 2, w, h, '로고');
@@ -1662,6 +1663,7 @@ function drawLogo(ctx, o, left, center, right, yCenter, baseH, align, sigColor, 
   let { asc, desc } = ink(m);
   const k = Math.min(1, maxH / (asc + desc), maxW / (m.width || 1));
   if (k < 1){ size *= k; m = measure(size); ({ asc, desc } = ink(m)); }
+  if (measureOnly) return { w:m.width, h:asc+desc };
   ctx.textAlign = align; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = sigColor;
   ctx.fillText(o.sigText, align === 'left' ? left : align === 'center' ? center : right, yCenter + (asc - desc) / 2);
   if (o._box){
@@ -1669,6 +1671,56 @@ function drawLogo(ctx, o, left, center, right, yCenter, baseH, align, sigColor, 
     const bx = align === 'left' ? left : align === 'center' ? center - w / 2 : right - w;
     o._box('logo', bx, yCenter - (asc + desc) / 2, w, asc + desc, '서명');
   }
+}
+
+function drawLogoBand(ctx, o, { W, side, band, bandTop, fs, family, ink, baseH = fs*1.9 }, OFF){
+  const pad = W*0.018, gap = W*0.018, left = side+pad, right = side+W-pad;
+  const innerH = band*0.76, cy = bandTop+band/2, film = o.style==='film';
+  // 실측 로고 폭을 먼저 확보하고, 남은 두 영역 안에서만 정보를 맞춘다.
+  ctx.save(); ctx.textBaseline = 'middle';
+  const size = drawLogo(ctx,o,0,0,0,0,baseH,'center',ink,innerH,W*0.26,true);
+  const scale = Math.min(1, W*0.26/size.w, innerH/size.h);
+  const colW = (right-left-size.w*scale)/2-gap;
+  const item = key => ({ k:key, t:key==='date'?dateText(o):o.style==='gallery'?String(o[key]):String(o[key]).toUpperCase(),
+    size:fs, wt:key==='date'?600:500, fam:family, col:film&&key==='date'?C.edge:ink, track:o.style==='gallery'?0:fs*0.15 });
+  const info = infoRows(o).map(row => row.filter(k => film || k!=='set').map(item)).filter(row => row.length);
+  const captionInk = film ? '#6f6a5f' : o.legacyTone ? (o.legacyTone==='dark'?'#8a8378':'#7d766a') : ink;
+  captionLines(o).forEach(t => info.push([{ k:'cap',t,size:fs*0.95,wt:400,fam:family,col:captionInk,track:0 }]));
+  const details = [];
+  if (!film && o.show.set && o.set) details.push([item('set')]);
+  if (dateText(o)) details.push([item('date')]);
+  const drawColumn = (rows, align) => {
+    const measured = rows.map(row => {
+      const items = rowLayout(ctx,row,fs*0.8,colW,0,'left');
+      const width = Math.max(...items.map(it => it.x+it.w));
+      const fit = Math.min(1,colW/width);
+      return { items,width,fit,h:Math.max(...items.map(it => it.size))*1.3*fit };
+    });
+    const rowGap = fs*0.3;
+    const height = measured.reduce((sum,row) => sum+row.h,0)+rowGap*Math.max(0,rows.length-1);
+    const fitH = Math.min(1,innerH/(height || 1));
+    let y = cy-height*fitH/2;
+    for (const row of measured){
+      const fit = row.fit*fitH, x = align==='left'?left:right-row.width*fit;
+      for (const it of row.items){
+        const size = it.size*fit, off = OFF[it.k];
+        const bx = x+it.x*fit+off.x, by = y+row.h*fitH/2+off.y;
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.font = `${it.wt} ${size}px ${it.fam}`; ctx.fillStyle = it.col;
+        trackedText(ctx,it.t,bx,by,it.track*fit);
+        o._box?.(it.k,bx,by-size*0.65,it.w*fit,size*1.3);
+      }
+      y += (row.h+rowGap)*fitH;
+    }
+  };
+  drawColumn(film?details:info,'left'); drawColumn(film?info:details,'right');
+  const lx = side+W/2+OFF.logo.x, ly = cy+OFF.logo.y;
+  // 작은 글꼴의 잉크 높이는 반올림되므로, 실측한 로고 자체를 축소해 경계와 그림을 맞춘다.
+  ctx.save(); ctx.translate(lx,ly); ctx.scale(scale,scale);
+  drawLogo(ctx,{ ...o,_box:(key,x,y,w,h,label) => o._box?.(key,lx+x*scale,ly+y*scale,w*scale,h*scale,label) },
+    0,0,0,0,baseH,'center',ink,innerH,W*0.26);
+  ctx.restore();
+  ctx.restore();
 }
 
 function fitSize(ctx, text, size, weight, family, maxW){
@@ -1849,6 +1901,13 @@ function render(img, o, info){
     ctx.rotate(-Math.PI/2);
     // 가상 좌표: 스트립 길이 H(가로축), 세로축 = bar + W + botBar
     const fs = bar*0.33*o.fontScale;
+    if (o.logoLayout==='2' && (o.logoImg || o.sigText)){
+      const inset = Math.min(bar,botBar/2);
+      drawLogoBand(ctx,o,{ W:H,side:0,band:botBar-inset,bandTop:bar+W+inset,
+        fs,family:FMONO,ink:C.rebate,baseH:bar*0.6 },Object.fromEntries(ELEM_KEYS.map(k => [k,vOff(k)])));
+      ctx.restore(); o._box = keepBox;
+      return cv;
+    }
     const pad = H*0.022;
     const gap = fs*1.5;
     const dt = dateText(o);
@@ -1929,6 +1988,12 @@ function render(img, o, info){
     // 엣지 프린트 — 항목을 구분자 없이 간격으로 나열, 각 항목이 개별로 움직인다
     const baseY = H + bar + botBar*(two ? 0.87 : 0.82);
     const fs = bar*0.33*o.fontScale;
+    if (o.logoLayout==='2' && (o.logoImg || o.sigText)){
+      const inset = Math.min(bar,botBar/2);
+      drawLogoBand(ctx,o,{ W,side:0,band:botBar-inset,bandTop:H+bar+inset,
+        fs,family:FMONO,ink:C.rebate,baseH:bar*0.6 },OFF);
+      return cv;
+    }
     const pad = W*0.022;
     const gap = fs*1.5;
     const dt = dateText(o);
@@ -2187,6 +2252,11 @@ function render(img, o, info){
       ctx.strokeRect(side-line/2, photoY-line/2, W+line, H+line);
     }
 
+    if (o.style!=='minimal' && band>0 && o.logoLayout==='2' && (o.logoImg || o.sigText)){
+      drawLogoBand(ctx,o,{ W,side,band,bandTop,fs,family,ink },OFF);
+      return cv;
+    }
+
     ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
     const pad = W*0.018, left = side+pad, right = side+W-pad;
     const gap = fs*1.5;
@@ -2260,10 +2330,16 @@ function downscale(cv, longEdge){
 const ADV_KEYS = ['lines','fontScale','bandScale','borderScale','sideText','logoScale'];
 /* 요소별 위치 오프셋(사진 폭 W 비율) — 드래그·정밀 이동·묶음 정렬이 함께 쓴다 */
 const OFF_KEYS = ELEM_KEYS.flatMap(k => [k + 'DX', k + 'DY']);
-const PROFILE_KEYS = [...ADV_KEYS, ...OFF_KEYS];
+const PROFILE_KEYS = [...ADV_KEYS, ...OFF_KEYS, 'logoLayout'];
 const DEF_ADV = { lines:'1', fontScale:'100', bandScale:'100', borderScale:'100',
                   sideText:'stack', logoScale:'100',
-                  ...Object.fromEntries(OFF_KEYS.map(k => [k, '0'])) };
+                  ...Object.fromEntries(OFF_KEYS.map(k => [k, '0'])), logoLayout:'2' };
+function logoLayoutVersion(p){
+  const version = String(p?.logoLayout ?? '');
+  if (version==='1' || version==='2') return version;
+  // 기존 이동값은 당시 기본 좌표와 한 쌍으로 보존한다. 새 배치의 첫 드래그로 기준을 바꾸지 않는다.
+  return [...OFF_KEYS,'infoDX','infoDY'].some(k => Number(p?.[k])) ? '1' : '2';
+}
 const STYLE_KEYS = ['film','instax','bottom','top','matte','gallery','keyline','minimal'];
 const STYLE_LABELS = { film:'필름 스트립', instax:'인스탁스', bottom:'하단 여백', top:'상단 여백',
   matte:'균등 매트', gallery:'갤러리', keyline:'키라인', minimal:'미니멀 EXIF' };
@@ -2348,6 +2424,7 @@ function withProfile(o, shot){
     return Math.min(max, Math.max(min, isNaN(n) ? 100 : n)) / 100;
   };
   return { ...o,
+    logoLayout:logoLayoutVersion(p),
     lines: Number(p.lines) || 1,
     fontScale: pv(p.fontScale, 50, 200),
     bandScale: pv(p.bandScale, 50, 500),   // 메모가 길면 공간을 크게 늘려야 한다
@@ -3496,13 +3573,13 @@ function loadSettings(){
     for (const style of STYLE_KEYS){
       const saved = s.advByStyle[style];
       if (!saved || typeof saved !== 'object') continue;
-      Object.assign(adv[style].port, saved.port || {});
-      Object.assign(adv[style].land, saved.land || {});
+      Object.assign(adv[style].port, saved.port || {}, {logoLayout:logoLayoutVersion(saved.port)});
+      Object.assign(adv[style].land, saved.land || {}, {logoLayout:logoLayoutVersion(saved.land)});
     }
   } else {
     const oldStyle = STYLE_KEYS.includes(s.style) ? s.style : 'film';
-    Object.assign(adv[oldStyle].port, flat, s.advPort || {});
-    Object.assign(adv[oldStyle].land, flat, s.advLand || {});
+    Object.assign(adv[oldStyle].port, flat, s.advPort || {}, {logoLayout:logoLayoutVersion(s.advPort)});
+    Object.assign(adv[oldStyle].land, flat, s.advLand || {}, {logoLayout:logoLayoutVersion(s.advLand)});
   }
   if (s.fontEn || s.font) setFontSelect('fontEn', s.fontEn || s.font);   // s.font = 구버전 단일 글꼴
   if (s.fontKo) setFontSelect('fontKo', s.fontKo);
@@ -3604,6 +3681,9 @@ function syncAdv(){
     : state.style === 'instax' ? (advTab === 'land' ? '오른쪽 정보 여백 크기 %' : '하단 정보 여백 크기 %')
     : state.style === 'top' ? '상단 정보 띠 크기 %' : '하단 정보 띠 크기 %';
   $('layoutScope').innerHTML = `<b>${STYLE_LABELS[state.style]} · ${advTab === 'land' ? '가로' : '세로'} 사진 공통 배치</b>를 편집합니다. 촬영 정보의 장별 범위와는 별개입니다.`;
+  if (!['instax','minimal'].includes(state.style)) $('layoutScope').append(document.createTextNode(
+    p.logoLayout==='1' ? ' 기존에 옮긴 배치를 유지합니다. 레이아웃 프리셋 옆 초기화를 누르면 중앙 로고 배치를 적용합니다.'
+      : ' 로고를 켜면 중앙 공간을 확보하며, 글자·로고 크기는 남는 공간에 맞게 제한됩니다.'));
 }
 ADV_KEYS.forEach(id => {
   const ev = id.endsWith('Scale') ? 'input' : 'change';
@@ -3749,7 +3829,8 @@ function drawLayouts(){
     el.appendChild(paletteItem(em, l.name, () => {
       const before = layoutSnapshot();
       const next = { style:state.style,
-        port:{ ...DEF_ADV, ...l.port }, land:{ ...DEF_ADV, ...l.land } };
+        port:{ ...DEF_ADV, ...l.port, logoLayout:logoLayoutVersion(l.port) },
+        land:{ ...DEF_ADV, ...l.land, logoLayout:logoLayoutVersion(l.land) } };
       if (!sameStyleLayout(before, next)) setLayoutUndo('레이아웃 프리셋 적용', before);
       adv[state.style].port = next.port;
       adv[state.style].land = next.land;
@@ -4016,9 +4097,12 @@ function cleanPresetProfile(v){
       if (!['1','2'].includes(value)) throw new Error('profile');
     } else if (key === 'sideText'){
       if (!['stack','rotate'].includes(value)) throw new Error('profile');
+    } else if (key === 'logoLayout'){
+      if (!['1','2'].includes(value)) throw new Error('profile');
     } else if (value.length > 32 || !Number.isFinite(Number(value))) throw new Error('profile');
     out[key] = value;
   }
+  out.logoLayout = logoLayoutVersion(v);
   return out;
 }
 
@@ -4201,6 +4285,8 @@ function cleanProjectSettings(v){
     for (const k of PROFILE_KEYS){
       if (typeof p[k] === 'string' || typeof p[k] === 'number') r[k] = String(p[k]);
     }
+    for (const k of ['infoDX','infoDY']) if (Number.isFinite(Number(p[k])) && p[k]!=null) r[k] = String(p[k]);
+    r.logoLayout = logoLayoutVersion(r);
     return r;
   };
   if (v.advByStyle && typeof v.advByStyle === 'object'){
