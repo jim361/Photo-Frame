@@ -251,8 +251,6 @@
     transition:color .15s,background .15s;
   }
   .seg button:last-child{border-right:0}
-  .seg3 button:nth-child(3n){border-right:0}
-  .seg3 button:nth-child(n+4){border-top:1px solid var(--line)}
   .seg button:hover{background:var(--primary-soft);color:var(--primary-pressed)}
   .seg button[aria-pressed="true"]{background:var(--primary-pressed);color:#fff;font-weight:700}
   #styleSeg button{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 4px}
@@ -690,29 +688,15 @@
         <div class="inner">
           <div id="alignButtons">
             <div class="field">
-              <span id="alignInfoLabel">촬영 정보 묶음 정렬</span>
-              <div class="seg seg3" role="group" aria-labelledby="alignInfoLabel" aria-describedby="alignNote">
-                <button type="button" data-group="info" data-align="left" disabled>좌측</button>
-                <button type="button" data-group="info" data-align="center" disabled>중앙</button>
-                <button type="button" data-group="info" data-align="right" disabled>우측</button>
-                <button type="button" data-group="info" data-align="top" disabled>위</button>
-                <button type="button" data-group="info" data-align="middle" disabled>가운데</button>
-                <button type="button" data-group="info" data-align="bottom" disabled>아래</button>
-              </div>
-            </div>
-            <div class="field">
-              <span id="alignLogoLabel">로고 · 서명 정렬</span>
-              <div class="seg seg3" role="group" aria-labelledby="alignLogoLabel" aria-describedby="alignNote">
-                <button type="button" data-group="logo" data-align="left" disabled>좌측</button>
-                <button type="button" data-group="logo" data-align="center" disabled>중앙</button>
-                <button type="button" data-group="logo" data-align="right" disabled>우측</button>
-                <button type="button" data-group="logo" data-align="top" disabled>위</button>
-                <button type="button" data-group="logo" data-align="middle" disabled>가운데</button>
-                <button type="button" data-group="logo" data-align="bottom" disabled>아래</button>
+              <span id="alignLabel">표시한 정보 · 로고 정렬</span>
+              <div class="seg seg3" role="group" aria-labelledby="alignLabel" aria-describedby="alignNote">
+                <button type="button" data-align="left" disabled>좌측</button>
+                <button type="button" data-align="center" disabled>중앙</button>
+                <button type="button" data-align="right" disabled>우측</button>
               </div>
             </div>
           </div>
-          <p class="note" id="alignNote" style="margin-bottom:12px">현재 사진의 정보 영역 안에서 화면 기준 좌우·위아래로 맞춥니다. 촬영 정보는 날짜·메모를 포함해 요소 사이 간격과 크기를 유지합니다. 같은 스타일·사진 방향에 적용되며 배치 되돌리기로 취소할 수 있습니다.</p>
+          <p class="note" id="alignNote" style="margin-bottom:12px">켜진 정보와 로고를 줄별로 함께 맞춘 뒤, 마우스로 따로 옮길 수 있습니다. 긴 줄은 줄바꿈하며 공간 부족 안내가 나오면 여백이나 글자·로고 크기를 조절하세요. 같은 스타일·사진 방향에 적용되며 배치 되돌리기로 취소할 수 있습니다.</p>
           <div class="seg seg2" id="advTab" style="margin-bottom:10px">
             <button type="button" data-t="port" aria-pressed="true">세로 사진</button>
             <button type="button" data-t="land" aria-pressed="false">가로 사진</button>
@@ -2743,8 +2727,7 @@ function endBoxDrag(){
 function syncMoveControls(){
   const keys = new Set((state._pv?.boxes || []).map(b => b.key));
   $('alignButtons').querySelectorAll('button').forEach(b => {
-    const has = b.dataset.group === 'logo' ? keys.has('logo') : ELEM_KEYS.some(k => k !== 'logo' && keys.has(k));
-    b.disabled = pv.hidden || !has;
+    b.disabled = pv.hidden || !ELEM_KEYS.some(k => keys.has(k));
   });
   const select = $('moveElement');
   for (const option of select.options) option.disabled = pv.hidden || !keys.has(option.value);
@@ -2777,35 +2760,93 @@ $('moveButtons').onclick = e => {
 $('moveElement').onchange = syncMoveControls;
 $('moveReset').onclick = () => nudgeElement(0, 0, true);
 
-function alignElements(group, alignment){
+function alignmentMoves(boxes, bounds, alignment, gap, rotated){
+  const items = ELEM_KEYS.map(key => {
+    const mine = boxes.filter(b => b.key === key);
+    if (!mine.length) return null;
+    const x = Math.min(...mine.map(b => b.x)), y = Math.min(...mine.map(b => b.y));
+    return { key, x, y, w:Math.max(...mine.map(b => b.x+b.w))-x, h:Math.max(...mine.map(b => b.y+b.h))-y };
+  }).filter(Boolean);
+  const startX = width => alignment === 'left' ? bounds.left : alignment === 'right' ? bounds.right-width
+    : (bounds.left+bounds.right-width)/2;
+  const pixels = distance => Math.abs(distance) <= 0.5+1e-7 ? 0 : Math.round(distance);
+  if (!items.length) return [];
+  // 회전 글씨의 열을 포개지 않도록 화면 가로축에서는 열 묶음을 유지한다.
+  if (rotated){
+    const left = Math.min(...items.map(b => b.x)), right = Math.max(...items.map(b => b.x+b.w));
+    return items.map(b => ({ key:b.key, dx:pixels(startX(right-left)-left), dy:0 }));
+  }
+  const rows = [];
+  for (const item of items.sort((a,b) => a.y-b.y || a.x-b.x)){
+    // 공통으로 겹치는 높이만 비교해 큰 로고 하나가 여러 줄을 합치지 않게 한다.
+    let row = rows.find(r => Math.min(r.bottom,item.y+item.h)-Math.max(r.top,item.y) > Math.min(r.height,item.h)*0.3);
+    if (!row){ row = { items:[], top:item.y, bottom:item.y+item.h, height:item.h }; rows.push(row); }
+    row.items.push(item);
+    row.top = Math.max(row.top,item.y); row.bottom = Math.min(row.bottom,item.y+item.h);
+    row.height = Math.min(row.height,item.h);
+  }
+  const moves = [];
+  const rowGap = Math.min(gap,...items.map(b => b.h*0.3));
+  let bottom = -Infinity;
+  for (const row of rows){
+    const lines = [];
+    let line = [], width = 0;
+    for (const item of row.items.sort((a,b) => a.x-b.x)){
+      if (line.length && width+gap+item.w > bounds.right-bounds.left+1e-7){
+        lines.push(line); line = []; width = 0;
+      }
+      width += (line.length ? gap : 0)+item.w; line.push(item);
+    }
+    if (line.length) lines.push(line);
+    for (const line of lines){
+      const oldTop = Math.min(...line.map(b => b.y)), top = Math.max(oldTop,bottom+rowGap);
+      let x = startX(line.reduce((sum,b) => sum+b.w,0)+gap*(line.length-1));
+      for (const item of line){
+        const dx = pixels(x-item.x), dy = Math.max(0,Math.ceil(top-oldTop-1e-7));
+        moves.push({ key:item.key, dx, dy });
+        bottom = Math.max(bottom,item.y+dy+item.h);
+        x += item.w+gap;
+      }
+    }
+  }
+  // 줄바꿈으로 아래 경계를 넘으면 남아 있는 위쪽 여백부터 사용한다.
+  const top = Math.min(...items.map(b => b.y+moves.find(m => m.key===b.key).dy));
+  if (bottom>bounds.bottom+0.5 && top>bounds.top+0.5){
+    const up = Math.min(Math.floor(top-bounds.top),Math.ceil(bottom-bounds.bottom-0.5));
+    moves.forEach(m => m.dy-=up);
+  }
+  return moves;
+}
+
+function alignElements(alignment){
   const shot = state.shots[state.current];
-  if (!shot || boxDrag || edgeDrag || !['info','logo'].includes(group) || !['left','center','right','top','middle','bottom'].includes(alignment)) return;
+  if (!shot || boxDrag || edgeDrag || !['left','center','right'].includes(alignment)) return;
   // 연속 클릭·정보 입력 직후에도 최신 내용과 오프셋으로 측정한다.
   const info = { collect:true };
-  const raw = render(shot.img, withShot(withProfile(opts(), shot), shot), info);
+  const o = withShot(withProfile(opts(), shot), shot);
+  const raw = render(shot.img, o, info);
+  const w = shot.img.naturalWidth || shot.img.width, h = shot.img.naturalHeight || shot.img.height;
+  const rotated = o.style === 'film' && h>w || o.style === 'instax' && w>h && o.sideText === 'rotate';
+  const moves = alignmentMoves(info.boxes,info.alignBounds,alignment,info.renderW*0.012,rotated);
+  const overflow = info.boxes.some(b => {
+    const m = moves.find(m => m.key===b.key);
+    return m && boxOver({ ...b, x:b.x+m.dx, y:b.y+m.dy, moved:false },{ raw, area:info.area });
+  });
   raw.width = raw.height = 1;
-  const boxes = info.boxes.filter(b => b.key && (group === 'logo' ? b.key === 'logo' : b.key !== 'logo'));
-  if (!boxes.length) return;
-  const vertical = ['top','middle','bottom'].includes(alignment);
-  const axis = vertical ? 'y' : 'x', size = vertical ? 'h' : 'w';
-  const start = vertical ? 'top' : 'left', end = vertical ? 'bottom' : 'right';
-  const min = Math.min(...boxes.map(b => b[axis])), max = Math.max(...boxes.map(b => b[axis] + b[size]));
-  const bounds = info.alignBounds;
-  const distance = alignment === start ? bounds[start] - min : alignment === end ? bounds[end] - max
-    : (bounds[start] + bounds[end] - min - max)/2;
-  // 반 픽셀 경계의 계산 오차 때문에 반복 정렬이 1px 움직이지 않게 한다.
-  if (Math.abs(distance) <= 0.5 + 1e-7) return;
-  const delta = Math.round(distance);
+  const warning = '정보가 프레임을 넘습니다. 정보 영역·둘레 여백을 넓히거나 글자·로고 크기를 줄여 주세요.';
+  if (!moves.some(m => m.dx || m.dy)){ toast(overflow ? warning : '이미 선택한 방향으로 정렬되어 있습니다'); return; }
   const before = layoutSnapshot(), p = profileFor(state.style, photoDir(shot.img));
-  const offset = vertical ? 'DY' : 'DX';
-  for (const key of new Set(boxes.map(b => b.key)))
-    p[key + offset] = String((Number(p[key + offset]) || 0) + delta/info.renderW);
-  setLayoutUndo(`${group === 'logo' ? '로고·서명' : '촬영 정보'} ${{ left:'좌측', center:'중앙', right:'우측', top:'위', middle:'가운데', bottom:'아래' }[alignment]} 정렬`, before);
+  for (const {key,dx,dy} of moves){
+    if (dx) p[key+'DX'] = String((Number(p[key+'DX']) || 0)+dx/info.renderW);
+    if (dy) p[key+'DY'] = String((Number(p[key+'DY']) || 0)+dy/info.renderW);
+  }
+  setLayoutUndo(`표시한 정보 ${{ left:'좌측', center:'중앙', right:'우측' }[alignment]} 정렬`, before);
   saveSettings(); refresh(true);
+  toast(overflow ? warning : '표시한 정보와 로고를 정렬했습니다');
 }
 $('alignButtons').onclick = e => {
   const b = e.target.closest('button[data-align]');
-  if (b) alignElements(b.dataset.group, b.dataset.align);
+  if (b) alignElements(b.dataset.align);
 };
 
 /* 더블클릭 = 해당 요소 위치 초기화 */

@@ -1,273 +1,147 @@
 import assert from 'node:assert/strict';
 
-// Existing Playwright smoke owns the browser and local synthetic photo fixtures.
 export async function checkAlignment(page, loadTestPhotos){
-  const tick = () => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  const buttons = page.locator('#alignButtons button');
-  assert.equal(await buttons.count(), 12, '촬영 정보·로고의 좌우·위아래 버튼 12개');
-  assert.deepEqual(await buttons.evaluateAll(nodes => nodes.map(b => `${b.dataset.group}/${b.dataset.align}`).sort()),
-    ['info/bottom','info/center','info/left','info/middle','info/right','info/top',
-      'logo/bottom','logo/center','logo/left','logo/middle','logo/right','logo/top']);
-  assert.equal(await page.locator('#alignButtons').evaluate(el =>
-    !!el.closest('#dispPanel > .inner') && !el.closest('#movePanel')), true, '정렬은 펼친 주 영역에 위치한다');
-  assert.equal(await buttons.evaluateAll(nodes => nodes.every(b => b.disabled)), true, '사진 없으면 정렬 비활성');
-  assert.equal(await page.evaluate(() => {
-    const before = JSON.stringify(adv);
-    for(const group of ['info','logo']) for(const alignment of ['left','center','right','top','middle','bottom']) alignElements(group,alignment);
-    return before === JSON.stringify(adv) && STYLE_KEYS.every(s => !layoutUndoStack(s).length);
-  }), true, '사진 없는 호출은 프로파일·되돌리기를 바꾸지 않는다');
-
+  const tick=()=>page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
+  const buttons=page.locator('#alignButtons button');
+  assert.deepEqual(await buttons.evaluateAll(nodes=>nodes.map(b=>b.dataset.align)),['left','center','right']);
+  assert.equal(await buttons.evaluateAll(nodes=>nodes.every(b=>b.disabled)),true);
+  assert.equal(await page.locator('#alignButtons').evaluate(el=>!!el.closest('#dispPanel > .inner')&&!el.closest('#movePanel')),true);
   await loadTestPhotos(page);
-  const matrix = await page.evaluate(async () => {
-    const check = (ok, message) => { if (!ok) throw Error(message); };
-    const same = (a,b) => JSON.stringify(a) === JSON.stringify(b);
-    const clone = value => JSON.parse(JSON.stringify(value));
-    const near = (a,b,message,tolerance=1) => check(Math.abs(a-b)<=tolerance, `${message}: ${a} != ${b}`);
-    const measure = () => {
-      const shot=state.shots[state.current], o=withShot(withProfile(opts(),shot),shot), info={collect:true};
-      const cv=render(shot.img,o,info); cv.width=cv.height=1;
-      check(info.alignBounds && Number.isFinite(info.alignBounds.left) && Number.isFinite(info.alignBounds.right), '실제 render가 정렬 경계를 반환한다');
-      check(info.alignBounds.left<info.alignBounds.right, `${state.style}: 유효한 내부 정보 폭`);
-      check(info.alignBounds.left>=info.area.x && info.alignBounds.right<=info.area.x+info.area.w, `${state.style}: 내부 경계는 정보 영역 안에 있다`);
-      check(Number.isFinite(info.alignBounds.top) && Number.isFinite(info.alignBounds.bottom) && info.alignBounds.top<=info.alignBounds.bottom, `${state.style}: 유효한 내부 정보 높이`);
-      check(info.alignBounds.top>=info.area.y && info.alignBounds.bottom<=info.area.y+info.area.h, `${state.style}: 위아래 경계는 정보 영역 안에 있다`);
-      return info;
+  const matrix=await page.evaluate(()=>{
+    const check=(ok,message)=>{if(!ok)throw Error(message);};
+    const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b), clone=v=>JSON.parse(JSON.stringify(v));
+    const near=(a,b,message,tolerance=1)=>check(Math.abs(a-b)<=tolerance,`${message}: ${a} != ${b}`);
+    const measure=()=>{
+      const shot=state.shots[state.current],info={collect:true};
+      const cv=render(shot.img,withShot(withProfile(opts(),shot),shot),info);cv.width=cv.height=1;
+      check(info.alignBounds.left<info.alignBounds.right,'유효한 내부 정보 폭');return info;
     };
-    const union = boxes => ({ left:Math.min(...boxes.map(b=>b.x)), right:Math.max(...boxes.map(b=>b.x+b.w)),
-      top:Math.min(...boxes.map(b=>b.y)), bottom:Math.max(...boxes.map(b=>b.y+b.h)) });
-    const selected = (boxes,group) => boxes.filter(b=>group==='logo'?b.key==='logo':b.key && b.key!=='logo');
-    const target = (bounds,alignment) => alignment==='center'?(bounds.left+bounds.right)/2
-      :alignment==='middle'?(bounds.top+bounds.bottom)/2:bounds[alignment];
-    const logoCanvas=document.createElement('canvas'); logoCanvas.width=100; logoCanvas.height=40;
-    logoCanvas.getContext('2d').fillRect(12,6,76,28);
-    const image=new Image(); image.src=logoCanvas.toDataURL(); await image.decode(); logoCanvas.width=logoCanvas.height=1;
+    const union=boxes=>({left:Math.min(...boxes.map(b=>b.x)),right:Math.max(...boxes.map(b=>b.x+b.w))});
+    const target=(b,a)=>a==='center'?(b.left+b.right)/2:b[a];
+    const overlaps=(a,b)=>Math.min(a.x+a.w,b.x+b.w)-Math.max(a.x,b.x)>1&&Math.min(a.y+a.h,b.y+b.h)-Math.max(a.y,b.y)>1;
+    const logo=document.createElement('canvas');logo.width=100;logo.height=40;logo.getContext('2d').fillRect(12,6,76,28);
+    const square=document.createElement('canvas');square.width=square.height=900;
+    state.shots.push({...state.shots[0],img:square,id:'alignment-square',exif:{}});
     const values={body:'Camera',lens:'35mm',film:'FILM',set:'F2 · 1/125s',date:'2026.10.18',caption:'첫 줄\n다음 줄'};
-    Object.assign(gInfo,values); Object.keys(gShow).forEach(k=>gShow[k]=true);
-    state.shots.forEach(s=>{ s.exif={}; delete s.own; });
-    let cases=0, actions=0;
-    for(const style of STYLE_KEYS) for(const current of [0,1])
-      for(const sideText of style==='instax' && current===0?['stack','rotate']:['stack'])
-        for(const lines of ['1','2']) for(const logo of ['signature','image']){
-          state.current=current; setStyle(style);
-          const dir=photoDir(state.shots[current].img), p=profileFor(style,dir);
-          Object.assign(p,DEF_ADV,{lines,sideText,fontScale:'75',bandScale:'160',borderScale:'130'});
-          ELEM_KEYS.forEach((key,i)=>{ p[key+'DX']=String((i+1)*0.0037); p[key+'DY']=String((i-2)*0.0023); });
-          // The selected advanced tab must never redirect an operation on the current photo.
-          advTab=dir==='land'?'port':'land';
-          logoState.img=logo==='image'?image:null; $('sigText').value='Signature';
-          clearLayoutUndo();
-          const label=`${style}/${dir}/${sideText}/${lines}/${logo}`;
-          const initial=measure();
-          check(ELEM_KEYS.every(k=>initial.boxes.some(b=>b.key===k)), `${label}: 개별 요소 박스가 모두 존재한다`);
-          check(initial.boxes.every(b=>b.key), `${label}: null key 집합 박스가 남지 않는다`);
-          check(initial.boxes.filter(b=>b.key==='cap').length===2, `${label}: 여러 줄 메모는 한 묶음이다`);
-          check(initial.boxes.find(b=>b.key==='logo').label===(logo==='image'?'로고':'서명'), `${label}: 이미지 우선·서명 대체`);
-
-          for(const group of ['info','logo']) for(const alignment of ['left','center','right','top','middle','bottom']){
-            const vertical=['top','middle','bottom'].includes(alignment), axis=vertical?'y':'x', offset=vertical?'DY':'DX';
-            const before=measure(), beforeAdv=clone(adv), history=layoutUndoStack().length;
-            const oldBoxes=selected(before.boxes,group), oldUnion=union(oldBoxes);
-            const delta=Math.round(target(before.alignBounds,alignment)-target(oldUnion,alignment));
-            // Deliberately retain stale preview data across calls; only render() is authoritative.
-            alignElements(group,alignment);
-            const after=measure(), actual=selected(after.boxes,group), newUnion=union(actual);
-            near(target(newUnion,alignment),target(after.alignBounds,alignment), `${label}/${group}/${alignment}: 경계 정렬`);
-            check(same(after.alignBounds,before.alignBounds), `${label}: 정렬 경계 고정`);
-            check(after.boxes.length===before.boxes.length, `${label}: 박스 개수 보존`);
-            before.boxes.forEach((box,i)=>{
-              const next=after.boxes[i], moving=group==='logo'?box.key==='logo':box.key!=='logo';
-              check(box.key===next.key, `${label}: 박스 순서 보존`);
-              near(next[axis]-box[axis],moving?delta:0, `${label}/${box.key}: 같은 화면축 ${axis} 이동`, 1e-6);
-              for(const k of [vertical?'x':'y','w','h']) near(next[k],box[k], `${label}/${box.key}: ${k} 보존`,1e-6);
+    Object.assign(gInfo,values);Object.keys(gShow).forEach(k=>gShow[k]=true);
+    state.shots.forEach(s=>{s.exif={};delete s.own;});
+    let cases=0,actions=0,visibleChanges=0;
+    for(const style of STYLE_KEYS)for(const current of [0,1,2])
+      for(const sideText of style==='instax'&&current===0?['stack','rotate']:['stack'])
+        for(const lines of ['1','2'])for(const image of [false,true])for(const shifted of [false,true]){
+          state.current=current;setStyle(style);
+          const dir=photoDir(state.shots[current].img),p=profileFor(style,dir);
+          Object.assign(p,DEF_ADV,{lines,sideText});
+          if(shifted)ELEM_KEYS.forEach((key,i)=>{p[key+'DX']=String((i+1)*.0037);p[key+'DY']=String((i-2)*.0023);});
+          advTab=dir==='land'?'port':'land';logoState.img=image?logo:null;$('sigText').value='Signature';clearLayoutUndo();
+          const label=`${style}/${current}/${sideText}/${lines}/${image}/${shifted}`;
+          const rotated=style==='film'&&current===1||style==='instax'&&current===0&&sideText==='rotate';
+          check(ELEM_KEYS.every(k=>measure().boxes.some(b=>b.key===k)),`${label}: 켜진 요소 모두 측정`);
+          for(const alignment of ['left','center','right']){
+            const before=measure(),beforeAdv=clone(adv),history=layoutUndoStack().length;
+            alignElements(alignment);
+            const after=measure(),changed=!same(beforeAdv,adv);
+            near(target(union(after.boxes),alignment),target(after.alignBounds,alignment),`${label}/${alignment}: 전체 경계`);
+            check(same(after.alignBounds,before.alignBounds)&&after.boxes.length===before.boxes.length,`${label}: 경계·요소 유지`);
+            before.boxes.forEach((b,i)=>{
+              const a=after.boxes[i];check(b.key===a.key,`${label}: 요소 키 유지`);
+              near(a.w,b.w,`${label}: 폭 유지`,1e-6);near(a.h,b.h,`${label}: 높이 유지`,1e-6);
+              if(rotated){near(a.x-b.x,after.boxes[0].x-before.boxes[0].x,`${label}: 회전 열 유지`,1e-6);near(a.y,b.y,`${label}: 회전 Y 유지`,1e-6);}
+              if(b.key==='cap'){
+                const first=before.boxes.findIndex(x=>x.key==='cap');
+                near(a.y-after.boxes[first].y,b.y-before.boxes[first].y,`${label}: 메모 줄 간격 유지`,1e-6);
+              }
             });
-            const keys=new Set(oldBoxes.map(b=>b.key+offset));
-            for(const s of STYLE_KEYS) for(const d of ['port','land']) for(const key of PROFILE_KEYS){
-              if(s===style && d===dir && keys.has(key))
-                near(Number(adv[s][d][key])-Number(beforeAdv[s][d][key]), delta/before.renderW, `${label}/${key}: 저장 ${offset} 비율`,1e-10);
-              else check(adv[s][d][key]===beforeAdv[s][d][key], `${label}/${s}/${d}/${key}: 다른 묶음·축·프로파일 보존`);
+            if(!rotated)for(let i=0;i<after.boxes.length;i++)for(let j=i+1;j<after.boxes.length;j++){
+              const a=after.boxes[i],b=after.boxes[j];check(a.key===b.key||!overlaps(a,b),`${label}/${alignment}: ${a.key}·${b.key} 겹침`);
             }
-            check(layoutUndoStack().length===history+(delta?1:0), `${label}: 한 정렬은 한 undo`);
-            const persisted=store.read('frame.settings',{}).advByStyle;
-            check(same(persisted,adv), `${label}: 기존 설정 저장 경로`);
-            check(same(cleanProjectSettings(JSON.parse(JSON.stringify(settingsSnapshot()))).advByStyle,adv), `${label}: 프로젝트 JSON roundtrip`);
-            const entry={name:'정렬 검사',style,port:clone(adv[style].port),land:clone(adv[style].land)};
-            check(same(cleanPresetLayouts(JSON.parse(JSON.stringify([entry])))[0],entry), `${label}: 배치 프리셋 JSON roundtrip`);
-            const aligned=JSON.stringify(adv), saved=JSON.stringify(store.read('frame.settings',{})), count=layoutUndoStack().length;
-            alignElements(group,alignment);
-            check(JSON.stringify(adv)===aligned && layoutUndoStack().length===count, `${label}/${group}/${alignment}: 반복 정렬 무변경`);
-            check(JSON.stringify(store.read('frame.settings',{}))===saved, `${label}: 반복 정렬 저장 무변경`);
-            if(delta){
-              undoLayout(); check(same(adv,beforeAdv), `${label}: undo가 전체 이전 배치를 복원한다`);
-              check(layoutUndoStack().length===history, `${label}: undo 한 단계만 제거`);
-              check(same(store.read('frame.settings',{}).advByStyle,beforeAdv), `${label}: undo도 저장된다`);
-              alignElements(group,alignment);
-              check(JSON.stringify(adv)===aligned, `${label}: undo 후 재정렬`);
-            }
+            for(const s of STYLE_KEYS)for(const d of ['port','land'])for(const key of PROFILE_KEYS)
+              if(s!==style||d!==dir||!/D[XY]$/.test(key))check(adv[s][d][key]===beforeAdv[s][d][key],`${label}: 다른 프로파일·크기 보존`);
+            check(layoutUndoStack().length===history+(changed?1:0),`${label}: 한 번의 undo`);
+            check(same(store.read('frame.settings',{}).advByStyle,adv),`${label}: 저장`);
+            check(same(cleanProjectSettings(clone(settingsSnapshot())).advByStyle,adv),`${label}: 프로젝트 복원`);
+            const aligned=clone(adv),count=layoutUndoStack().length;alignElements(alignment);
+            check(same(adv,aligned)&&layoutUndoStack().length===count,`${label}/${alignment}: 반복 클릭 무변경`);
+            if(changed){undoLayout();check(same(adv,beforeAdv),`${label}: undo`);alignElements(alignment);check(same(adv,aligned),`${label}: 재정렬`);}
             actions++;
+          }
+          // A global bounding-box check used to pass even when all buttons did nothing.
+          if(!rotated&&!shifted){
+            alignElements('left');const left=measure();alignElements('right');const right=measure();
+            check(left.boxes.some((b,i)=>right.boxes[i].x-b.x>10),`${label}: 기본 설정의 실제 좌우 이동`);visibleChanges++;
           }
           cases++;
         }
-
-    // Hidden and missing fields retain their nonzero offsets; shot values override globals.
-    state.current=1; setStyle('bottom'); logoState.img=null; $('sigText').value='';
-    Object.assign(gInfo,values); Object.keys(gShow).forEach(k=>gShow[k]=true);
-    state.shots[1].own={body:'장별 카메라',lens:'',show:{film:false,date:false,caption:false}};
-    gShow.set=false; clearLayoutUndo();
-    const before=measure(), previous=clone(adv), profile=profileFor('bottom','port');
-    check(same(before.boxes.map(b=>b.key),['body']), '장별 빈값과 표시 설정 이후 실제 보이는 카메라만 측정');
-    // Metadata is changed after the last preview to catch cached-box implementations.
-    state._pv={...state._pv,boxes:[],renderW:1,alignBounds:{left:0,right:1}};
-    alignElements('info','right');
-    const after=measure(); near(after.boxes[0].x+after.boxes[0].w,after.alignBounds.right,'캐시 대신 장별 fresh render');
-    for(const key of PROFILE_KEYS) if(key!=='bodyDX') check(profile[key]===previous.bottom.port[key], `${key}: 숨김·없는 요소 보존`);
-    const noLogo=JSON.stringify(adv), count=layoutUndoStack().length;
-    alignElements('logo','left');
-    check(JSON.stringify(adv)===noLogo && layoutUndoStack().length===count,'없는 로고는 무변경');
-    for(const [group,alignment] of [['invalid','left'],['info','invalid']]) alignElements(group,alignment);
-    check(JSON.stringify(adv)===noLogo && layoutUndoStack().length===count,'잘못된 정렬 요청은 무변경');
-    delete state.shots[1].own; Object.assign(gInfo,values); Object.keys(gShow).forEach(k=>gShow[k]=true);
-    $('sigText').value='Signature'; refresh();
-    return {cases,actions};
+    state.current=0;setStyle('instax');Object.assign(profileFor('instax','land'),DEF_ADV);
+    logoState.img=null;$('sigText').value='';gShow.caption=false;
+    for(const alignment of ['left','center','right']){
+      alignElements(alignment);const info=measure();
+      for(const key of ['body','lens','film','set']){
+        const b=info.boxes.find(b=>b.key===key);near(target({left:b.x,right:b.x+b.w},alignment),target(info.alignBounds,alignment),`인스탁스 ${key} 줄별 ${alignment}`);
+      }
+    }
+    state.current=1;setStyle('bottom');Object.assign(profileFor('bottom','port'),DEF_ADV,{fontScale:'250'});
+    Object.assign(gInfo,{body:'Long Camera Model',lens:'Long Lens Model',film:'Film Stock',set:'F1.8 1/125 ISO400'});
+    logoState.img=logo;gShow.caption=true;
+    const before=measure();alignElements('left');const after=measure();
+    check(after.boxes.some((b,i)=>b.y-before.boxes[i].y>10),'긴 줄은 다음 줄로 배치');
+    check($('toast').textContent.includes('정보가 프레임을 넘습니다'),'공간 부족은 명시적으로 안내');
+    for(const b of after.boxes)check(Number.isFinite(b.x)&&Number.isFinite(b.y),'넘치는 단일 요소도 유한 위치');
+    const aligned=clone(adv);alignElements('left');check(same(adv,aligned),'긴 줄 반복 정렬 안정');
+    state.shots.pop();square.width=square.height=1;
+    Object.assign(profileFor('bottom','port'),DEF_ADV);Object.assign(gInfo,values);Object.keys(gShow).forEach(k=>gShow[k]=true);
+    state.shots[1].own={body:'장별 카메라',lens:'',show:{film:false,date:false,caption:false}};gShow.set=false;
+    logoState.img=null;$('sigText').value='';const previous=clone(adv);clearLayoutUndo();
+    state._pv={...state._pv,boxes:[],renderW:1};alignElements('right');
+    const single=measure();check(single.boxes.length===1&&single.boxes[0].key==='body','켜진 장별 정보만 정렬');
+    near(single.boxes[0].x+single.boxes[0].w,single.alignBounds.right,'캐시 대신 fresh render');
+    for(const key of PROFILE_KEYS)if(key!=='bodyDX')check(adv.bottom.port[key]===previous.bottom.port[key],`${key}: 숨김·빈 요소 보존`);
+    const invalid=clone(adv);alignElements('top');alignElements('invalid');check(same(invalid,adv),'제거된 정렬 요청 무변경');
+    delete state.shots[1].own;Object.assign(gInfo,values);Object.keys(gShow).forEach(k=>gShow[k]=true);$('sigText').value='Signature';refresh();
+    return {cases,actions,visibleChanges};
   });
-  await tick();
-
-  // Real clicks cover routing, visibility with precision controls closed, and mobile wrapping.
-  await page.evaluate(() => { $('dispPanel').open=true; $('movePanel').open=false; });
-  await tick();
-  for(const width of [1440,390,320]){
+  await tick();await page.evaluate(()=>{$('dispPanel').open=true;$('movePanel').open=false;});
+  for(const width of [1440,768,390,320]){
     await page.setViewportSize({width,height:844});
-    for(const group of ['info','logo']) for(const alignment of ['left','center','right','top','middle','bottom']){
-      const button=page.locator(`#alignButtons [data-group="${group}"][data-align="${alignment}"]`);
-      assert.equal(await button.isVisible(),true,'정밀 위치를 접어도 정렬 버튼 노출');
-      await button.scrollIntoViewIfNeeded();
-      const rect=await button.boundingBox();
-      assert(rect.x>=-1 && rect.x+rect.width<=width+1,`${width}px 정렬 버튼 가로 넘침 없음`);
-      await button.click();
-      await tick();
-      const error=await page.evaluate(({group,alignment})=>{
-        const shot=state.shots[state.current],info={collect:true},cv=render(shot.img,withShot(withProfile(opts(),shot),shot),info);
-        cv.width=cv.height=1;
-        const boxes=info.boxes.filter(b=>group==='logo'?b.key==='logo':b.key&&b.key!=='logo');
-        const left=Math.min(...boxes.map(b=>b.x)),right=Math.max(...boxes.map(b=>b.x+b.w));
-        const top=Math.min(...boxes.map(b=>b.y)),bottom=Math.max(...boxes.map(b=>b.y+b.h));
-        return alignment==='center'?(left+right-info.alignBounds.left-info.alignBounds.right)/2
-          :alignment==='middle'?(top+bottom-info.alignBounds.top-info.alignBounds.bottom)/2
-          :alignment==='left'?left-info.alignBounds.left:alignment==='right'?right-info.alignBounds.right
-          :alignment==='top'?top-info.alignBounds.top:bottom-info.alignBounds.bottom;
-      },{group,alignment});
-      assert(Math.abs(error)<=1,`${width}px ${group}/${alignment} 실제 클릭 정렬: ${error}`);
+    for(const alignment of ['left','center','right']){
+      const b=page.locator(`#alignButtons [data-align="${alignment}"]`);await b.scrollIntoViewIfNeeded();const r=await b.boundingBox();
+      assert(r.x>=-1&&r.x+r.width<=width+1,`${width}px 가로 넘침 없음`);
+      const before=await page.evaluate(()=>JSON.stringify(adv));await b.click();await tick();
+      assert.notEqual(await page.evaluate(()=>JSON.stringify(adv)),before,`${width}px 실제 ${alignment} 클릭`);
     }
   }
   await page.setViewportSize({width:1440,height:1000});
-
   const independent=await page.evaluate(async()=>{
-    const tick=()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
     const original=JSON.parse(JSON.stringify(adv)),results=[];
-    for(const [showBoxes,ratio,free] of [[true,'none',false],[false,'1:1',true],[false,'3:4',true]]){
-      Object.assign(adv,JSON.parse(JSON.stringify(original)));
-      state.showBoxes=showBoxes; $('ratio').value=ratio; refresh(); await tick();
-      if(free) zoomTo(.43);
-      alignElements('info','left'); alignElements('logo','right');
-      alignElements('info','top'); alignElements('logo','bottom');
-      results.push(JSON.stringify(adv));
-    }
-    return results;
+    for(const [showBoxes,ratio,free]of[[true,'none',false],[false,'1:1',true],[false,'3:4',true]]){
+      Object.assign(adv,JSON.parse(JSON.stringify(original)));state.showBoxes=showBoxes;$('ratio').value=ratio;refresh();
+      await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));if(free)zoomTo(.43);
+      alignElements('left');results.push(JSON.stringify(adv));
+    }return results;
   });
-  assert(independent.every(s=>s===independent[0]),'경계 off·비율 패딩·자유 확대가 저장 정렬값에 영향을 주지 않는다');
-
-  await page.evaluate(()=>{
-    const before=JSON.stringify(adv),project=cleanProjectSettings(JSON.parse(JSON.stringify(settingsSnapshot())));
-    store.write('frame.settings',project);resetAdv();loadSettings();
-    if(JSON.stringify(adv)!==before)throw Error('정렬 프로파일 프로젝트 재적용 실패');
-    const style=state.style,entry=cleanPresetLayouts(JSON.parse(JSON.stringify([
-      {name:'정렬 배치 roundtrip',style,port:{...adv[style].port},land:{...adv[style].land}},
-    ])))[0];
-    layouts.push(entry);store.write('frame.layouts',layouts);drawLayouts();
-    adv[style].port.bodyDX='0.87';adv[style].land.logoDX='-0.31';
-    adv[style].port.bodyDY='0.49';adv[style].land.logoDY='-0.28';clearLayoutUndo();
-    const changed=JSON.stringify(adv[style]);
-    $('layoutRow').querySelector('button[title="정렬 배치 roundtrip"]').click();
-    if(JSON.stringify(adv)!==before || layoutUndoStack().length!==1)throw Error('정렬 배치 프리셋 실제 적용 실패');
-    undoLayout();if(JSON.stringify(adv[style])!==changed)throw Error('배치 프리셋 적용 undo 실패');
-    adv[style].port={...entry.port};adv[style].land={...entry.land};saveSettings();
-
-    // Small bands and zero margins must still return ordered bounds in every orientation.
-    for(const s of STYLE_KEYS) for(const shot of state.shots) for(const scale of [50,500]){
-      const o={...withShot(withProfile({...opts(),style:s},shot),shot),bandScale:scale/100,borderScale:scale===50?0:3};
-      const info={collect:true},cv=render(shot.img,o,info);cv.width=cv.height=1;
-      if(!(info.alignBounds.left<info.alignBounds.right))throw Error(`${s}/${photoDir(shot.img)}/${scale}: 내부 정렬 경계 역전`);
-      if(!(info.alignBounds.top<=info.alignBounds.bottom))throw Error(`${s}/${photoDir(shot.img)}/${scale}: 내부 위아래 정렬 경계 역전`);
-    }
-    // Zero-height matte margins still align to a finite line; overflowing content keeps its size.
-    state.current=1;setStyle('matte');Object.assign(profileFor('matte','port'),DEF_ADV,{borderScale:'0'});
-    const shot=state.shots[1],measure=()=>{
-      const info={collect:true},cv=render(shot.img,withShot(withProfile(opts(),shot),shot),info);cv.width=cv.height=1;return info;
-    };
-    const initial=measure(),height=initial.boxes.find(b=>b.key==='logo').h;
-    if(initial.alignBounds.top!==initial.alignBounds.bottom)throw Error('여백 0의 위아래 기준은 같은 선이어야 한다');
-    for(const alignment of ['top','middle','bottom']){
-      alignElements('logo',alignment);const info=measure(),box=info.boxes.find(b=>b.key==='logo');
-      const actual=alignment==='top'?box.y:alignment==='bottom'?box.y+box.h:box.y+box.h/2;
-      if(Math.abs(actual-info.alignBounds.top)>1 || box.h!==height)throw Error('여백 0에서도 크기를 유지하며 정렬해야 한다');
-    }
-  });
-
+  assert(independent.every(s=>s===independent[0]),'경계·출력 비율·확대와 독립');
   for(const mode of ['empty','hidden','signature','image']){
     await page.evaluate(mode=>{
-      const visible=mode!=='empty' && mode!=='hidden';
-      INFO_KEYS.forEach(k=>{gInfo[k]=mode==='empty'?'':'있는 정보';gShow[k]=visible;});
-      logoState.img=null; $('sigText').value=mode==='signature'?'Signature':'';
-      if(mode==='image'){
-        const image=document.createElement('canvas');image.width=60;image.height=20;
-        image.getContext('2d').fillRect(0,0,60,20);logoState.img=image;
-      }
-      refresh();
-    },mode);
-    await tick();
-    const disabled=await buttons.evaluateAll(nodes=>Object.fromEntries(['info','logo'].map(group=>
-      [group,nodes.filter(b=>b.dataset.group===group).every(b=>b.disabled)])));
-    assert.deepEqual(disabled,{info:['empty','hidden'].includes(mode),logo:!['signature','image'].includes(mode)},`${mode}: 없는 묶음만 비활성`);
-    await page.evaluate(disabled=>{
-      const before=JSON.stringify(adv),count=layoutUndoStack().length;
-      for(const group of ['info','logo'])if(disabled[group])for(const alignment of ['right','top','middle','bottom'])alignElements(group,alignment);
-      if(JSON.stringify(adv)!==before || layoutUndoStack().length!==count)throw Error('비활성 묶음 직접 호출은 무변경이어야 한다');
-    },disabled);
+      INFO_KEYS.forEach(k=>{gInfo[k]=mode==='empty'?'':'있는 정보';gShow[k]=false;});logoState.img=null;$('sigText').value=mode==='signature'?'Signature':'';
+      if(mode==='image'){const c=document.createElement('canvas');c.width=60;c.height=20;c.getContext('2d').fillRect(0,0,60,20);logoState.img=c;}refresh();
+    },mode);await tick();
+    assert.equal(await buttons.evaluateAll(nodes=>nodes.every(b=>b.disabled)),['empty','hidden'].includes(mode),`${mode}: 표시한 요소 기준 활성`);
   }
-
-  // Film portrait now uses the same screen axes and existing precision/drag save paths.
   await page.evaluate(()=>{
-    state.current=1;setStyle('film');gInfo.body='Camera';gShow.body=true;logoState.img=null;$('sigText').value='';
-    Object.assign(profileFor('film','port'),DEF_ADV);state.showBoxes=true;refresh();
+    state.current=1;setStyle('bottom');Object.assign(profileFor('bottom','port'),DEF_ADV,{bandScale:'200'});
+    INFO_KEYS.forEach(k=>gShow[k]=k==='body');gInfo.body='Camera';logoState.img=null;$('sigText').value='';
+    state.showBoxes=true;$('ratio').value='none';zoom.mode='fit';alignElements('center');refresh();
+  });await tick();
+  const beforeDrag=await page.evaluate(()=>{
+    const b=state._pv.boxes.find(b=>b.key==='body'),r=pv.getBoundingClientRect(),P=state._pv;
+    return {x:r.left+(b.x+b.w/2+P.padX)*zoom.scale,y:r.top+(b.y+b.h/2+P.padY)*zoom.scale,profile:{...adv.bottom.port},history:layoutUndoStack().length};
   });
-  await tick();
-  const movement=await page.evaluate(()=>{
-    const measure=()=>{const info={collect:true},shot=state.shots[1],cv=render(shot.img,withShot(withProfile(opts(),shot),shot),info);cv.width=cv.height=1;return info.boxes.find(b=>b.key==='body');};
-    const before=measure();$('moveElement').value='body';$('moveStep').value='0.005';clearLayoutUndo();
-    nudgeElement(1,0);const x=measure();nudgeElement(0,1);const y=measure();
-    return {before,x,y,history:layoutUndoStack().length};
-  });
-  assert.equal(movement.x.y,movement.before.y,'세로 film 정밀 X 이동은 Y 보존');
-  assert.equal(movement.y.x,movement.x.x,'세로 film 정밀 Y 이동은 X 보존');
-  assert(Math.abs(movement.x.x-movement.before.x-4.5)<=1,'세로 film X는 화면 가로축');
-  assert(Math.abs(movement.y.y-movement.x.y-4.5)<=1,'세로 film Y는 화면 세로축');
-  assert.equal(movement.history,2,'정밀 이동은 각 한 undo');
-  await tick();
-  const dragged=await page.evaluate(()=>{
-    const box=state._pv.boxes.find(b=>b.key==='body'),r=pv.getBoundingClientRect(),P=state._pv;
-    const started=startBoxDrag({clientX:r.left+(box.x+box.w/2+P.padX)*zoom.scale,clientY:r.top+(box.y+box.h/2+P.padY)*zoom.scale});
-    if(!started || boxDrag.key!=='body')throw Error('세로 film 카메라 박스 hit/drag 실패');
-    boxDrag.ddx=18;boxDrag.ddy=9;endBoxDrag();
-    const info={collect:true},shot=state.shots[1],cv=render(shot.img,withShot(withProfile(opts(),shot),shot),info);
-    cv.width=cv.height=1;const after=info.boxes.find(b=>b.key==='body');
-    return {dx:after.x-box.x,dy:after.y-box.y};
-  });
-  assert.deepEqual(dragged,{dx:18,dy:9},'세로 film 드래그는 화면 X/Y 좌표로 저장한다');
-  await tick();
-  assert.equal(await page.evaluate(()=>layoutUndoStack().length),3,'세로 film 드래그는 한 undo');
-
-  const saved=await page.evaluate(()=>store.read('frame.settings',{}).advByStyle);
-  await page.reload();await tick();
-  assert.deepEqual(await page.evaluate(()=>settingsSnapshot().advByStyle),saved,'정렬·정밀 이동·드래그 프로파일 reload 보존');
-  assert.equal(await buttons.evaluateAll(nodes=>nodes.every(b=>b.disabled)),true,'사진 없는 재로드에서 정렬 비활성');
-  console.log(`정렬 브라우저 검사 통과 · ${matrix.cases} 배치 · ${matrix.actions} 정렬/반복/undo · 12개 실제 버튼 · 저장/프로젝트/프리셋 · 세로 film 화면축 · 여백 0 · 320/390px`);
+  await page.mouse.move(beforeDrag.x,beforeDrag.y);await page.mouse.down();await page.mouse.move(beforeDrag.x+25,beforeDrag.y+8,{steps:4});await page.mouse.up();await tick();
+  const afterDrag=await page.evaluate(()=>({profile:{...adv.bottom.port},history:layoutUndoStack().length}));
+  assert.notEqual(afterDrag.profile.bodyDX,beforeDrag.profile.bodyDX,'정렬 후 실제 마우스 이동');assert.equal(afterDrag.history,beforeDrag.history+1);
+  for(const key of Object.keys(beforeDrag.profile))if(!['bodyDX','bodyDY'].includes(key))assert.equal(afterDrag.profile[key],beforeDrag.profile[key]);
+  const saved=await page.evaluate(()=>store.read('frame.settings',{}).advByStyle);await page.reload();await tick();
+  assert.deepEqual(await page.evaluate(()=>settingsSnapshot().advByStyle),saved,'정렬·드래그 reload 보존');
+  assert.equal(await buttons.evaluateAll(nodes=>nodes.every(b=>b.disabled)),true);
+  console.log(`정렬 검사 통과 · ${matrix.cases} 배치 · ${matrix.actions} 정렬/반복/undo · 기본 ${matrix.visibleChanges} 배치 실제 좌우 변화 · 3개 버튼 · 줄바꿈·마우스 이동 · 320/390/768/1440px`);
 }

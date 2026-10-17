@@ -122,4 +122,26 @@ for (const h of [
   assert.equal(dragState._dragImg, null);
 }
 assert.match(html, /body\.has-photo \.viewport\{\s*position:sticky/, '좁은 화면의 미리보기 고정 규칙');
+
+const align = new Function('ELEM_KEYS', section('function alignmentMoves(', 'function alignElements(')+';return alignmentMoves;')(
+  ['body','lens','film','set','date','cap','logo']);
+const bounds={left:10,right:410,top:0,bottom:120};
+const boxes=[{key:'body',x:10,y:20,w:70,h:20},{key:'date',x:350,y:20,w:60,h:20},
+  {key:'logo',x:150,y:70,w:40,h:25}];
+const moved=(boxes,moves)=>boxes.map(b=>{const m=moves.find(m=>m.key===b.key);return {...b,x:b.x+m.dx,y:b.y+m.dy};});
+for(const direction of ['left','center','right']){
+  const moves=align(boxes,bounds,direction,10,false),after=moved(boxes,moves);
+  assert(moves.every(m=>m.dy===0),'들어가는 기존 줄의 높이는 유지');
+  assert.equal(after[1].x-after[0].x-after[0].w,10,'양끝의 카메라·날짜를 한 줄로 모음');
+  assert.equal(after[2].x,direction==='left'?10:direction==='center'?190:370,'별도 줄의 로고도 정렬');
+  assert(align(after,bounds,direction,10,false).every(m=>!m.dx&&!m.dy),'반복 정렬 무변경');
+}
+const narrow={left:0,right:100,top:0,bottom:65};
+const long=[{key:'body',x:0,y:40,w:70,h:20},{key:'lens',x:80,y:40,w:60,h:20},{key:'date',x:150,y:40,w:20,h:20}];
+const wrapped=moved(long,align(long,narrow,'left',10,false));
+assert(wrapped[1].y>=wrapped[0].y+20&&wrapped[1].y===wrapped[2].y,'한 줄을 넘으면 겹치지 않게 줄바꿈');
+assert(wrapped.every(b=>b.y>=0&&b.y+b.h<=65),'줄바꿈 시 남은 위쪽 공간 활용');
+assert(align(wrapped,narrow,'left',10,false).every(m=>!m.dx&&!m.dy),'줄바꿈 후 반복 안정');
+assert(align(boxes,bounds,'right',10,true).every(m=>m.dx===0&&m.dy===0),'회전 열의 간격·크기 보존');
+assert.deepEqual(align([],bounds,'left',10,false),[],'빈 정보는 무변경');
 console.log('모바일·조작 검사 통과 · 핀치 중심/범위/종료 · 정밀 이동/초기화/되돌리기 · 프레임 핸들 크기 안정성');
