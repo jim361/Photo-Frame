@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { checkAlignment } from './check-alignment.mjs';
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -127,19 +128,31 @@ try {
     .replace('ctx.fillStyle = legacyTone ? C.edge : ink;','ctx.fillStyle = ink;'));
   const legacyRenders = () => {
     const out = [];
-    for (const [w,h] of [[600,900],[900,600]]) for (const style of ['film','instax','bottom','top'])
-      for (const tone of ['light','dark']) {
+    for (const [w,h] of [[600,900],[900,600]]) for (const style of STYLE_KEYS)
+      for (const tone of ['light','dark']) for (const lines of [1,2])
+        for (const sideText of style==='instax'?['stack','rotate']:['stack']) {
         const src = document.createElement('canvas'); src.width=w; src.height=h;
         const ctx=src.getContext('2d'); ctx.fillStyle='#326a80'; ctx.fillRect(0,0,w,h);
         const o={ style,tone,body:'Camera',lens:'50mm',film:'FILM',set:'F2 · 1/250s',date:'2026.07.19',caption:'메모',
           show:{body:true,lens:true,film:true,set:true,date:true,caption:true}, fontEn:'auto',fontKo:'gothic',ratio:'none',
-          ratioBg:'#ffffff',sigText:'signature',lines:1,fontScale:1,bandScale:1,borderScale:1,logoScale:1,sideText:'stack' };
+          ratioBg:'#ffffff',sigText:'signature',lines,fontScale:1,bandScale:1,borderScale:1,logoScale:1,sideText };
         out.push(render(src,o).toDataURL());
       }
     return out;
   };
-  assert.deepEqual(await page.evaluate(legacyRenders),await legacy.evaluate(legacyRenders),'old four styles preserve exact pixels after intended paper and band date color changes');
+  assert.deepEqual(await page.evaluate(legacyRenders),await legacy.evaluate(legacyRenders),'all eight styles preserve HEAD pixels, including rotated Instax, after intended paper and band date color changes');
   await legacy.close();
+
+  const alignmentContext=await browser.newContext({viewport:{width:1440,height:1000}});
+  const alignmentPage=await alignmentContext.newPage();
+  alignmentPage.on('pageerror',error=>errors.push(error.message));
+  alignmentPage.on('console',message=>{if(['error','assert'].includes(message.type()))errors.push(message.text());});
+  alignmentPage.on('request',request=>{if(/^https?:/.test(request.url()))external.push(request.url());});
+  alignmentPage.on('dialog',dialog=>dialog.accept());
+  try {
+    await alignmentPage.goto(pathToFileURL(join(root,'index.html')).href+'?v=alignment-'+Date.now());
+    await checkAlignment(alignmentPage,loadTestPhotos);
+  } finally {await alignmentContext.close();}
 
   await loadTestPhotos(page);
   await page.evaluate(()=>setStyle('bottom'));
@@ -506,5 +519,5 @@ try {
   for(const id of ['size','ratioBg','ratioCustom']) assert.equal(await page.locator('#'+id).isVisible(),false,`${id} stays hidden when legacy values restore`);
   assert.deepEqual(errors,[],'all browser interactions without console errors');
   assert.deepEqual(external,[],'no external HTTP requests');
-  console.log(`PhotoFrame 브라우저 검사 통과 · ${browser.version()} · 실제 PNG 추가 · 16 방향별 렌더 · 인스탁스 흰색 반영 구버전 16 픽셀 비교 · 제거한 규격 설정/프로젝트/디자인/배치 호환 · 테마별 인스탁스/색/프리셋/부분 복원·저장/현재 내보내기/취소/실패 후 현재 재출력/넘침 · 매트/키라인 실제 마우스·24MP·슬라이더 · 360/390/768px`);
+  console.log(`PhotoFrame 브라우저 검사 통과 · ${browser.version()} · 실제 PNG 추가 · 16 방향별 렌더 · 8종/회전/1·2줄 HEAD 72 픽셀 비교 · 제거한 규격 설정/프로젝트/디자인/배치 호환 · 테마별 인스탁스/색/프리셋/부분 복원·저장/현재 내보내기/취소/실패 후 현재 재출력/넘침 · 매트/키라인 실제 마우스·24MP·슬라이더 · 360/390/768px`);
 } finally { await browser.close(); }

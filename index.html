@@ -242,6 +242,7 @@
 
   .seg{display:grid;grid-template-columns:repeat(4,1fr);gap:0;background:var(--surface);border:2px solid var(--ink)}
   .seg2{grid-template-columns:1fr 1fr}
+  .seg3{grid-template-columns:repeat(3,1fr)}
   .seg button{
     min-height:var(--touch);background:var(--surface);color:var(--muted-ink);
     border:0;border-right:1px solid var(--line);cursor:pointer;
@@ -685,6 +686,25 @@
       <details class="disp" id="dispPanel">
         <summary>표시 · 레이아웃 설정</summary>
         <div class="inner">
+          <div id="alignButtons">
+            <div class="field">
+              <span id="alignInfoLabel">촬영 정보 묶음 정렬</span>
+              <div class="seg seg3" role="group" aria-labelledby="alignInfoLabel" aria-describedby="alignNote">
+                <button type="button" data-group="info" data-align="left" disabled>좌측</button>
+                <button type="button" data-group="info" data-align="center" disabled>중앙</button>
+                <button type="button" data-group="info" data-align="right" disabled>우측</button>
+              </div>
+            </div>
+            <div class="field">
+              <span id="alignLogoLabel">로고 · 서명 정렬</span>
+              <div class="seg seg3" role="group" aria-labelledby="alignLogoLabel" aria-describedby="alignNote">
+                <button type="button" data-group="logo" data-align="left" disabled>좌측</button>
+                <button type="button" data-group="logo" data-align="center" disabled>중앙</button>
+                <button type="button" data-group="logo" data-align="right" disabled>우측</button>
+              </div>
+            </div>
+          </div>
+          <p class="note" id="alignNote" style="margin-bottom:12px">현재 사진의 정보 영역 안에서 화면 기준 좌우로 맞춥니다. 촬영 정보는 날짜·메모를 포함해 간격과 높이를 유지합니다. 같은 스타일·사진 방향에 적용되며 배치 되돌리기로 취소할 수 있습니다.</p>
           <div class="seg seg2" id="advTab" style="margin-bottom:10px">
             <button type="button" data-t="port" aria-pressed="true">세로 사진</button>
             <button type="button" data-t="land" aria-pressed="false">가로 사진</button>
@@ -1626,7 +1646,7 @@ function captionLines(o){
 function drawLogo(ctx, o, left, center, right, yCenter, baseH, align, sigColor, limitH, limitW){
   // 로고·서명 — 이미지가 있으면 이미지, 없으면 텍스트 서명(필기체)을 같은 자리에.
   // limitH/limitW = 텍스트 서명이 여백을 넘지 않게 하는 최대 크기
-  // 위치는 스타일별 기본값(align) — 조정은 경계 드래그로 한다
+  // 위치는 스타일별 기본값(align) — 정렬·이동은 요소 오프셋으로 반영한다
   const maxH = limitH || Infinity, maxW = limitW || Infinity;
   if (o.logoImg){
     const img = o.logoImg;
@@ -1762,9 +1782,8 @@ function render(img, o, info){
   if (collect) info.boxes = [];
   const box = (key, x, y, w, h, label) => {
     if (!collect) return;
-    const k = o._drag === false ? null : key;
-    const off = k && o.off?.[k];
-    info.boxes.push({ label: label || LABEL[key] || key, x, y, w, h, key: k,
+    const off = key && o.off?.[key];
+    info.boxes.push({ label: label || LABEL[key] || key, x, y, w, h, key,
       moved: !!(off && (off.x || off.y)) });
   };
   o._box = box;   // drawLogo에서 로고·서명 박스 기록에 사용
@@ -1797,7 +1816,6 @@ function render(img, o, info){
   if (o.style === 'film' && H > W) {
     // 세로 사진 — 필름이 세로로 지나간다: 퍼포레이션·엣지프린트가 좌우
     // (실제 35mm에서 세로 구도는 카메라를 돌려 찍으므로 스트립이 사진의 긴 변을 따라감)
-    o._drag = false;                          // 회전 좌표계 — 개별 드래그는 지원하지 않는다
     const bar = H * 0.088;                    // 스트립 폭 기준은 긴 변
     const rows = infoRows(o);
     const two = rows.length > 1;
@@ -1805,7 +1823,10 @@ function render(img, o, info){
     const fcap = bar*0.30*o.fontScale, capLH = fcap*1.8;
     const botBar = bar * (two ? 2.3 : 1.75) * o.bandScale;
     cv.width = bar + W + botBar; cv.height = H;   // 왼쪽 얇은 바 + 사진 + 오른쪽 텍스트 바
-    if (collect) info.area = { x: bar + W, y: 0, w: botBar, h: H };
+    if (collect){
+      info.area = { x: bar + W, y: 0, w: botBar, h: H };
+      info.alignBounds = { left:bar + W + Math.min(bar, botBar/2), right:bar + W + botBar - W*0.022 };
+    }
     ctx.fillStyle = C.base; ctx.fillRect(0,0,cv.width,cv.height);
     ctx.drawImage(img, bar, 0, W, H);
 
@@ -1826,11 +1847,10 @@ function render(img, o, info){
     holesV(bar + W + bar*0.70);   // 사진 바로 오른쪽 고정
 
     // 엣지 프린트 — -90° 회전 좌표계에서 가로 필름과 동일 배치 (글씨가 아래→위)
+    const vOff = key => ({ x:-OFF[key].y, y:OFF[key].x });
+    const rotatedBox = (key, x, y, w, h, label) => box(key, y, H - x - w, h, w, label);
     const keepBox = o._box;
-    // 회전 좌표를 캔버스 좌표로 바꿔 경고용 경계만 수집한다(드래그는 비활성).
-    o._box = collect ? (_key, x, y, w, h, label) => info.boxes.push({
-      label, x: y, y: H - x - w, w: h, h: w, key: null, moved: false, warn: true,
-    }) : null;
+    o._box = rotatedBox;
     ctx.save();
     ctx.translate(0, cv.height);
     ctx.rotate(-Math.PI/2);
@@ -1849,9 +1869,11 @@ function render(img, o, info){
     const vBase = bar + W + botBar*(two ? 0.87 : 0.82);
     const drawRow = (keys, y, maxW) => {
       for (const it of rowLayout(ctx, filmItems(keys, fs), gap, maxW, H - pad, 'right')){
+        const off = vOff(it.k), x = it.x + off.x, yy = y + off.y;
         ctx.font = `${it.wt} ${it.size}px ${it.fam}`;
         ctx.fillStyle = it.col;
-        trackedText(ctx, it.t, it.x, y, it.track);
+        trackedText(ctx, it.t, x, yy, it.track);
+        rotatedBox(it.k, x, yy - it.size, it.w, it.size*1.3);
       }
     };
     if (two) drawRow(rows[0], bar + W + botBar*0.63, H - 2*pad);
@@ -1859,17 +1881,22 @@ function render(img, o, info){
     if (dt){
       ctx.font = `600 ${fs}px ${FMONO}`;
       ctx.fillStyle = C.edge;
-      trackedText(ctx, dt, pad, vBase, fs*0.15);
+      const off = vOff('date'), x = pad + off.x, y = vBase + off.y;
+      trackedText(ctx, dt, x, y, fs*0.15);
+      rotatedBox('date', x, y - fs, dateW, fs*1.3);
     }
     caps.forEach((t, i) => {
-      fitSize(ctx, t, fcap, 400, FMONO, H - 2*pad);
+      const sc = fitSize(ctx, t, fcap, 400, FMONO, H - 2*pad);
+      const off = vOff('cap'), w = ctx.measureText(t).width;
+      const x = H - pad - w + off.x, y = vBase + capLH*(i + 1) + off.y;
       ctx.fillStyle = '#6f6a5f';
-      ctx.fillText(t, H - pad - ctx.measureText(t).width, vBase + capLH*(i + 1));
+      ctx.fillText(t, x, y);
+      rotatedBox('cap', x, y - sc, w, sc*1.3);
     });
-    drawLogo(ctx, o, pad, H/2, H - pad, vBase - fs*0.35, bar*0.6, 'center', C.rebate, botBar*0.8, H - 2*pad);
+    const lo = vOff('logo');
+    drawLogo(ctx, o, pad + lo.x, H/2 + lo.x, H - pad + lo.x, vBase - fs*0.35 + lo.y, bar*0.6, 'center', C.rebate, botBar*0.8, H - 2*pad);
     ctx.restore();
     o._box = keepBox;
-    box(null, bar + W, 0, botBar, cv.height, '정보·날짜·메모 (세로 필름)');
   }
 
   else if (o.style === 'film') {
@@ -1882,6 +1909,7 @@ function render(img, o, info){
     cv.width = W; cv.height = H + bar + botBar;
     if (collect){   // 텍스트 영역(아래 바) — 경계 드래그가 쓰는 정보
       info.area = { x: 0, y: H + bar, w: W, h: botBar };
+      info.alignBounds = { left:W*0.022, right:W*(1-0.022) };
       info.areaSide = 'bottom';
       info.units = { bandScale: bar * (two ? 2.3 : 1.75) };
     }
@@ -1971,6 +1999,7 @@ function render(img, o, info){
     const colX = m + W;
     if (collect){   // 텍스트 영역(우측 컬럼) — 글씨 방향과 무관하게 같은 경계를 쓴다
       info.area = { x: colX, y: m, w: colW, h: H };
+      info.alignBounds = { left:colX + H*0.02, right:colX + colW - H*0.02 };
       info.areaSide = 'right';
       info.units = { bandScale: H*0.27, borderScale: H*0.055 };
       info.photo = { x: m, y: m, w: W, h: H };
@@ -2069,6 +2098,7 @@ function render(img, o, info){
     cv.width = W + side*2; cv.height = H + top + bot;
     if (collect){   // 텍스트 영역(카드 하단 여백)
       info.area = { x: side, y: H + top, w: W, h: bot };
+      info.alignBounds = { left:side + W*0.02, right:side + W*(1-0.02) };
       info.areaSide = 'bottom';
       info.units = { bandScale: W*0.27, borderScale: W*0.055 };
       info.photo = { x: side, y: top, w: W, h: H };
@@ -2138,6 +2168,7 @@ function render(img, o, info){
     cv.width = W+2*side; cv.height = H + side + band;
     if (collect){   // 텍스트 영역(띠)
       info.area = { x: side, y: bandTop, w: W, h: band };
+      info.alignBounds = { left:side + W*0.018, right:side + W*(1-0.018) };
       info.areaSide = o.style === 'top' ? 'top' : 'bottom';
       info.units = matte && !gallery ? {} : { bandScale:bandUnit };
       if (matte){
@@ -2229,7 +2260,7 @@ function downscale(cv, longEdge){
 /* 스타일·방향별 프로파일 — 스타일을 오갈 때 서로 다른 프레임의 여백·배치를 섞지 않고,
    가로/세로 사진이 섞인 묶음에서도 각 사진이 자기 프로파일을 자동으로 쓴다 */
 const ADV_KEYS = ['lines','fontScale','bandScale','borderScale','sideText','logoScale'];
-/* 요소별 드래그 오프셋(사진 폭 W 비율) — UI 컨트롤 없이 드래그로만 바뀐다 */
+/* 요소별 위치 오프셋(사진 폭 W 비율) — 드래그·정밀 이동·묶음 정렬이 함께 쓴다 */
 const OFF_KEYS = ELEM_KEYS.flatMap(k => [k + 'DX', k + 'DY']);
 const PROFILE_KEYS = [...ADV_KEYS, ...OFF_KEYS];
 const DEF_ADV = { lines:'1', fontScale:'100', bandScale:'100', borderScale:'100',
@@ -2697,6 +2728,10 @@ function endBoxDrag(){
 
 function syncMoveControls(){
   const keys = new Set((state._pv?.boxes || []).map(b => b.key));
+  $('alignButtons').querySelectorAll('button').forEach(b => {
+    const has = b.dataset.group === 'logo' ? keys.has('logo') : ELEM_KEYS.some(k => k !== 'logo' && keys.has(k));
+    b.disabled = pv.hidden || !has;
+  });
   const select = $('moveElement');
   for (const option of select.options) option.disabled = pv.hidden || !keys.has(option.value);
   if (!keys.has(select.value)) select.value = [...select.options].find(o => !o.disabled)?.value || '';
@@ -2727,6 +2762,31 @@ $('moveButtons').onclick = e => {
 };
 $('moveElement').onchange = syncMoveControls;
 $('moveReset').onclick = () => nudgeElement(0, 0, true);
+
+function alignElements(group, alignment){
+  const shot = state.shots[state.current];
+  if (!shot || boxDrag || edgeDrag || !['info','logo'].includes(group) || !['left','center','right'].includes(alignment)) return;
+  // 연속 클릭·정보 입력 직후에도 최신 내용과 오프셋으로 측정한다.
+  const info = { collect:true };
+  const raw = render(shot.img, withShot(withProfile(opts(), shot), shot), info);
+  raw.width = raw.height = 1;
+  const boxes = info.boxes.filter(b => b.key && (group === 'logo' ? b.key === 'logo' : b.key !== 'logo'));
+  if (!boxes.length) return;
+  const left = Math.min(...boxes.map(b => b.x)), right = Math.max(...boxes.map(b => b.x + b.w));
+  const bounds = info.alignBounds;
+  const dx = Math.round(alignment === 'left' ? bounds.left - left : alignment === 'right' ? bounds.right - right
+    : (bounds.left + bounds.right - left - right)/2);
+  if (!dx) return;
+  const before = layoutSnapshot(), p = profileFor(state.style, photoDir(shot.img));
+  for (const key of new Set(boxes.map(b => b.key)))
+    p[key + 'DX'] = String((Number(p[key + 'DX']) || 0) + dx/info.renderW);
+  setLayoutUndo(`${group === 'logo' ? '로고·서명' : '촬영 정보'} ${{ left:'좌측', center:'중앙', right:'우측' }[alignment]} 정렬`, before);
+  saveSettings(); refresh(true);
+}
+$('alignButtons').onclick = e => {
+  const b = e.target.closest('button[data-align]');
+  if (b) alignElements(b.dataset.group, b.dataset.align);
+};
 
 /* 더블클릭 = 해당 요소 위치 초기화 */
 vp.addEventListener('dblclick', e => {
