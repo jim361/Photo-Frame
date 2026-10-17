@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { checkAlignment } from './check-alignment.mjs';
+import { checkUsability } from './check-usability.mjs';
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -517,7 +518,20 @@ try {
   await page.reload();await tick();
   assert.deepEqual(await page.evaluate(()=>({color:state.frameColors.matte,ratio:opts().ratioBg,outputRatio:$('ratio').value,size:$('size').value,...metadataOptions()})),persisted,'legacy auto ratio, custom padding, output size, color and metadata settings survive reload');
   for(const id of ['size','ratioBg','ratioCustom']) assert.equal(await page.locator('#'+id).isVisible(),false,`${id} stays hidden when legacy values restore`);
+  const usabilityContext=await browser.newContext({viewport:{width:1440,height:1000}});
+  const usabilityPage=await usabilityContext.newPage();
+  usabilityPage.on('pageerror',error=>errors.push(error.message));
+  usabilityPage.on('console',message=>{if(['error','assert'].includes(message.type()))errors.push(message.text());});
+  usabilityPage.on('request',request=>{if(/^https?:/.test(request.url()))external.push(request.url());});
+  usabilityPage.on('dialog',dialog=>dialog.accept());
+  let usabilityError;
+  try {
+    await usabilityPage.goto(pathToFileURL(join(root,'index.html')).href+'?v=usability-'+Date.now());
+    await checkUsability(usabilityPage,loadTestPhotos);
+  } catch(error){usabilityError=error;}
+  finally {await usabilityContext.close();}
   assert.deepEqual(errors,[],'all browser interactions without console errors');
   assert.deepEqual(external,[],'no external HTTP requests');
+  if(usabilityError)throw usabilityError;
   console.log(`PhotoFrame 브라우저 검사 통과 · ${browser.version()} · 실제 PNG 추가 · 16 방향별 렌더 · 8종/회전/1·2줄 HEAD 72 픽셀 비교 · 제거한 규격 설정/프로젝트/디자인/배치 호환 · 테마별 인스탁스/색/프리셋/부분 복원·저장/현재 내보내기/취소/실패 후 현재 재출력/넘침 · 매트/키라인 실제 마우스·24MP·슬라이더 · 360/390/768px`);
 } finally { await browser.close(); }

@@ -15,12 +15,14 @@
     --primary:         #1d4ed8;
     --primary-pressed: #0037b0;
     --primary-soft:    #e8efff;
+    --accent-ink:      var(--primary);
     --neutral-soft:    #e8e8e3;
     --success:         #18794e;
     --warning:         #a15c00;
     --error:           #b42318;
+    --error-ink:       var(--error);
     --base:var(--canvas);--panel:var(--surface);--panel-hi:var(--neutral-soft);
-    --rebate:var(--muted-ink);--bone:var(--ink);--edge:var(--primary);
+    --rebate:var(--muted-ink);--bone:var(--ink);--edge:var(--accent-ink);
     --space-1:4px;--space-2:8px;--space-3:16px;--space-4:24px;--space-5:32px;
     --radius-button:2px;--radius-control:4px;--touch:48px;
     --mono: ui-monospace, "SF Mono", Menlo, "Cascadia Mono", "Roboto Mono", monospace;
@@ -31,6 +33,8 @@
     color-scheme:dark;
     --canvas:#171717;--surface:#000000;--ink:#ffffff;
     --muted-ink:#adada8;--line:#484844;--neutral-soft:#262622;
+    --accent-ink:#8badff;
+    --error-ink:#ff9f93;
   }
   :root[data-theme="dark"] .dropzone:is(:hover,.hot){
     background:var(--neutral-soft);
@@ -72,8 +76,7 @@
     font-family:var(--sans);font-size:24px;line-height:1;font-weight:800;
     letter-spacing:-.04em;color:var(--ink);white-space:nowrap;
   }
-  .wordmark span{font-size:1.2em;color:var(--primary)}
-  :root[data-theme="dark"] .wordmark span{color:#8badff}
+  .wordmark span{font-size:1.2em;color:var(--accent-ink)}
   .headbtn{
     min-height:var(--touch);padding:8px 14px;border:2px solid var(--ink);
     background:var(--surface);color:var(--ink);font-family:var(--mono);font-size:12px;font-weight:700;
@@ -109,7 +112,7 @@
   }
   .dropzone::before{
     content:"01 / INPUT";display:block;margin-bottom:var(--space-4);
-    font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--primary);
+    font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--accent-ink);
   }
   .dropzone:hover,.dropzone.hot{background:var(--primary-soft)}
   .dropzone:focus-visible{outline:3px solid var(--primary);outline-offset:3px}
@@ -124,7 +127,7 @@
     word-break:keep-all;
   }
   .dropzone .guide li{margin-bottom:var(--space-2);padding-left:var(--space-1);text-wrap:pretty}
-  .dropzone .guide li::marker{font-family:var(--mono);font-weight:700;color:var(--primary)}
+  .dropzone .guide li::marker{font-family:var(--mono);font-weight:700;color:var(--accent-ink)}
   .dropzone .guide b{color:var(--ink);font-weight:700}
   .dropzone .guide-note{
     margin-top:var(--space-3);font-size:12px;color:var(--muted-ink);line-height:1.5;
@@ -136,10 +139,14 @@
   .zoombar{
     position:absolute;left:50%;bottom:var(--space-3);transform:translateX(-50%);
     display:flex;align-items:stretch;gap:0;
-    max-width:calc(100% - 32px);overflow-x:auto;
+    max-width:calc(100% - 32px);
     background:var(--surface);border:2px solid var(--ink);
     z-index:5;
   }
+  .zoomControls{display:flex;min-width:0;overflow-x:auto;scrollbar-width:thin;touch-action:pan-x}
+  .zoomControls button:focus-visible{outline:2px solid currentColor;outline-offset:-4px}
+  .zoombar #toExport{flex-shrink:0;background:var(--primary);color:#fff;border-right:0;border-left:2px solid var(--ink);font-weight:700}
+  .zoombar #toExport:hover{background:var(--primary-pressed)}
   .zoombar button{
     min-width:var(--touch);min-height:var(--touch);padding:0 12px;
     flex-shrink:0;word-break:keep-all;white-space:nowrap;
@@ -150,7 +157,9 @@
   .zoombar button:hover{background:var(--primary-soft);color:var(--primary-pressed)}
   .zoombar button[aria-pressed="true"]{background:var(--primary-pressed);color:#fff}
   .zoombar button:disabled{background:var(--neutral-soft);color:var(--muted-ink);cursor:not-allowed}
-  .zoombar button.warn{color:var(--error)}
+  .zoombar button.warn{color:var(--error-ink)}
+  .zoombar button.warn:not([aria-pressed="true"]):hover{color:var(--error)}
+  .zoombar button.warn[aria-pressed="true"]{background:var(--error);color:#fff}
   .zoombar button.warn::after{content:" ●";font-size:9px}
   .zoombar .pct{
     display:grid;place-items:center;min-width:64px;min-height:var(--touch);padding:0 10px;
@@ -201,10 +210,10 @@
     position:absolute;bottom:0;right:0;width:48px;height:48px;
     display:grid;place-items:center;
     padding:0;border:0;background:var(--surface);cursor:pointer;
-    font-size:16px;line-height:1;color:var(--error);opacity:1;
+    font-size:16px;line-height:1;color:var(--error-ink);opacity:1;
     transition:opacity .12s;
   }
-  .chip .x:hover{background:var(--neutral-soft);color:var(--error)}
+  .chip .x:hover{background:var(--neutral-soft);color:var(--error-ink)}
   .chip .x:disabled{opacity:.4;cursor:default}
   .chip .pickTarget{
     position:absolute;left:0;bottom:0;width:48px;height:48px;
@@ -217,7 +226,7 @@
   .chip .stateMark{
     position:absolute;left:4px;top:4px;min-width:20px;height:20px;
     display:grid;place-items:center;padding:0 4px;
-    background:var(--surface);color:var(--primary);border:1px solid var(--ink);
+    background:var(--surface);color:var(--accent-ink);border:1px solid var(--ink);
     font-family:var(--mono);font-size:10px;font-weight:700;line-height:1;
   }
 
@@ -238,7 +247,7 @@
     display:block;font-family:var(--mono);font-size:12px;font-weight:700;
     letter-spacing:.06em;color:var(--ink);margin-bottom:var(--space-3);
   }
-  .group > .glabel::before{content:"0" counter(rail-section) " / ";color:var(--primary)}
+  .group > .glabel::before{content:"0" counter(rail-section) " / ";color:var(--accent-ink)}
 
   .seg{display:grid;grid-template-columns:repeat(4,1fr);gap:0;background:var(--surface);border:2px solid var(--ink)}
   .seg2{grid-template-columns:1fr 1fr}
@@ -281,7 +290,7 @@
   }
   .workStatus span{color:var(--muted-ink)}
   .workStatus b{color:var(--ink)}
-  .scopeTag{color:var(--primary-pressed);font-weight:700}
+  .scopeTag{color:var(--accent-ink);font-weight:700}
   input[type=text],input[type=number],select,textarea{
     width:100%;min-height:var(--touch);background:var(--surface);color:var(--ink);
     border:1px solid var(--line);border-radius:var(--radius-control);
@@ -311,7 +320,7 @@
   .eye{
     width:var(--touch);height:var(--touch);display:grid;place-items:center;flex:0 0 var(--touch);
     background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-button);
-    cursor:pointer;padding:0;line-height:0;color:var(--primary);transition:color .15s,background .15s;
+    cursor:pointer;padding:0;line-height:0;color:var(--accent-ink);transition:color .15s,background .15s;
   }
   #layoutReset{
     min-width:var(--touch);min-height:var(--touch);border:1px solid var(--ink);cursor:pointer;
@@ -358,7 +367,8 @@
   }
   details.disp > summary:hover{color:var(--primary-pressed);background:var(--primary-soft)}
   details.disp > summary::-webkit-details-marker{display:none}
-  details.disp > summary::before{content:"＋";width:20px;color:var(--primary);font-size:16px}
+  details.disp > summary::before{content:"＋";width:20px;color:var(--accent-ink);font-size:16px}
+  details.disp > summary:hover::before{color:var(--primary-pressed)}
   details.disp[open] > summary::before{content:"−"}
   details.disp > .inner{padding:var(--space-2) 12px var(--space-3);border-top:1px solid var(--line)}
   .advpanel h3{
@@ -395,7 +405,7 @@
   .gearDelete{
     flex:0 0 var(--touch);width:var(--touch);min-height:var(--touch);
     background:var(--surface);border:1px solid var(--line);border-left:0;
-    border-radius:0 2px 2px 0;color:var(--error);font-size:18px;cursor:pointer;
+    border-radius:0 2px 2px 0;color:var(--error-ink);font-size:18px;cursor:pointer;
   }
   .gearDelete:hover{background:var(--neutral-soft)}
   .gearadd{
@@ -471,11 +481,9 @@
     .dropzone .guide{margin-top:var(--space-3)}
     .zoombar{
       left:var(--space-3);right:var(--space-3);bottom:var(--space-3);transform:none;
-      display:grid;grid-template-columns:repeat(4,minmax(0,1fr));max-width:none;overflow:visible;
+      max-width:none;
     }
-    .zoombar button,.zoombar .pct{width:100%;min-width:0;padding:0 4px;white-space:normal}
-    .zoombar > :nth-child(4n){border-right:0}
-    .zoombar > :nth-child(n+5){border-top:1px solid var(--line)}
+    .zoombar button,.zoombar .pct{padding:0 8px}
     .strip{padding-bottom:max(var(--space-2), env(safe-area-inset-bottom))}
     .rail{padding:var(--space-3);padding-bottom:max(var(--space-4), env(safe-area-inset-bottom))}
     .railJump{margin:-16px -16px 16px;padding:8px 16px}
@@ -493,7 +501,8 @@
       background:var(--canvas);border-bottom:3px solid var(--ink);
     }
     body.has-photo .rail{scroll-margin-top:clamp(304px,48dvh,520px)}
-    body.has-photo .railJump{position:static}
+    body.has-photo .railJump{display:none}
+    body.has-photo #exportPanel{scroll-margin-top:calc(clamp(304px,48dvh,520px) + 16px)}
   }
 </style>
 </head>
@@ -526,14 +535,17 @@
       <canvas id="preview" role="img" aria-label="프레임 합성 미리보기" hidden></canvas>
 
       <div class="zoombar" id="zoombar" hidden>
-        <button id="zOut" title="축소 (−)">−</button>
-        <button type="button" class="pct" id="zPct" title="클릭하면 화면 맞춤">100%</button>
-        <button id="zIn" title="확대 (+)">＋</button>
-        <button id="zFit" title="화면에 맞추기 (0)">맞춤</button>
-        <button id="z100" title="원본 크기 (1)">1:1</button>
-        <button id="zBox" title="요소 경계 표시 — 결과물에는 포함되지 않습니다" aria-pressed="true">경계</button>
-        <button id="zUndo" title="현재 프레임 스타일의 이전 배치 조작을 취소합니다" disabled>↶ 배치 되돌리기</button>
-        <div class="pct" id="zRatio" title="원본 비율 → 결과물 비율"></div>
+        <div class="zoomControls" role="group" aria-label="미리보기 조작 · 좌우로 스크롤">
+          <button id="zFit" title="화면에 맞추기 (0)">맞춤</button>
+          <button id="zBox" title="요소 경계 표시 — 결과물에는 포함되지 않습니다" aria-pressed="true">경계</button>
+          <button id="zUndo" title="현재 프레임 스타일의 이전 배치 조작을 취소합니다" disabled>↶ 배치 되돌리기</button>
+          <button id="zOut" title="축소 (−)">−</button>
+          <button type="button" class="pct" id="zPct" title="클릭하면 화면 맞춤">100%</button>
+          <button id="zIn" title="확대 (+)">＋</button>
+          <button id="z100" title="원본 크기 (1)">1:1</button>
+          <div class="pct" id="zRatio" title="원본 비율 → 결과물 비율"></div>
+        </div>
+        <button type="button" id="toExport" aria-controls="exportPanel" title="내보내기 설정으로 이동">내보내기 ↓</button>
       </div>
     </div>
 
@@ -820,8 +832,8 @@
 
     <hr>
 
-    <div class="group">
-      <span class="glabel">내보내기</span>
+    <div class="group" id="exportPanel" tabindex="-1" aria-labelledby="exportLabel">
+      <span class="glabel" id="exportLabel">내보내기</span>
       <div class="field">
         <span>비율 맞춤</span>
         <select id="ratio">
@@ -2470,7 +2482,7 @@ const zoom = { scale:1, fit:1, x:0, y:0, mode:'fit' };  // mode: 'fit' | 'free'
 
 function vpSize(){ return { w: vp.clientWidth, h: vp.clientHeight }; }
 
-// 실제 툴바 높이만큼 아래를 비워 2행 툴바에서도 사진을 가리지 않는다.
+// 도구막대와 스크롤바가 사진을 가리지 않게 실제 높이만큼 비운다.
 function fitRoom(){
   const { w, h } = vpSize();
   return { w, h:Math.max(1, h - ($('zoombar').hidden ? 0 : $('zoombar').offsetHeight + 32)) };
@@ -2527,6 +2539,8 @@ $('zOut').onclick = () => zoomTo(zoom.scale / 1.25);
 $('zFit').onclick = zoomFit;
 $('zPct').onclick = zoomFit;
 $('z100').onclick = () => zoomTo(1);
+document.querySelector('.zoomControls').addEventListener('focusin', e =>
+  e.target.scrollIntoView({ block:'nearest', inline:'nearest' }));
 $('zBox').onclick = () => {
   state.showBoxes = !state.showBoxes;
   $('zBox').setAttribute('aria-pressed', state.showBoxes);
@@ -2618,6 +2632,7 @@ function paintOverlay(drag){
     pctx.lineWidth = hov ? lw * 2 : lw;
     pctx.strokeStyle = col;
     pctx.strokeRect(bx - g, by - g, b.w + g * 2, b.h + g * 2);
+    if (!mv && !hov && !over) continue;
     const label = over ? ` ${b.label} — 넘침: 정보 영역을 늘리거나 크기를 줄이세요 ` : ` ${b.label} `;
     const tw = pctx.measureText(label).width;
     pctx.fillStyle = col;
@@ -2928,7 +2943,7 @@ $('alignButtons').onclick = e => {
 
 /* 더블클릭 = 해당 요소 위치 초기화 */
 vp.addEventListener('dblclick', e => {
-  if (pv.hidden || !state.showBoxes || e.target.closest('.masthead')) return;
+  if (pv.hidden || !state.showBoxes || e.target.closest('.masthead, .zoombar')) return;
   const hit = hitBox(e);
   if (!hit) return;
   const s = state.shots[state.current]; if (!s) return;
@@ -2941,7 +2956,7 @@ vp.addEventListener('dblclick', e => {
 });
 
 vp.addEventListener('wheel', e => {
-  if (pv.hidden || e.target.closest('.masthead')) return;
+  if (pv.hidden || e.target.closest('.masthead, .zoombar')) return;
   e.preventDefault();
   const r = vp.getBoundingClientRect();
   const factor = e.deltaY < 0 ? 1.12 : 1/1.12;
@@ -3008,8 +3023,8 @@ vp.addEventListener('pointermove', e => {
     return;
   }
   // 호버 — 조정 가능한 부위 위에서 커서·강조 표시
-  if (!state.showBoxes || pv.hidden || !state._pv || e.target.closest('.masthead')){
-    if (state._hotSig){ state._hotSig = ''; state._hot = null; vp.style.cursor = ''; }
+  if (!state.showBoxes || pv.hidden || !state._pv || e.target.closest('.masthead, .zoombar')){
+    if (state._hotSig){ state._hotSig = ''; state._hot = null; vp.style.cursor = ''; paintOverlay(null); }
     return;
   }
   const he = hitEdge(e);
@@ -3026,6 +3041,10 @@ vp.addEventListener('pointermove', e => {
       : hot.axis === 'y' ? 'ns-resize' : 'ew-resize';
     paintOverlay(null);
   }
+});
+vp.addEventListener('pointerleave', () => {
+  if (boxDrag || edgeDrag || !state._hotSig) return;
+  state._hotSig = ''; state._hot = null; vp.style.cursor = ''; paintOverlay(null);
 });
 ['pointerup','pointercancel','lostpointercapture'].forEach(t => vp.addEventListener(t, e => {
   if (!pointers.delete(e.pointerId)) return;
@@ -3433,6 +3452,10 @@ drop.onkeydown = e => {
 $('picker').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
 $('addPhotos').onclick = () => $('picker').click();
 $('toPreview').onclick = () => vp.scrollIntoView({ behavior:'smooth', block:'start' });
+$('toExport').onclick = () => {
+  $('exportPanel').focus({ preventScroll:true });
+  $('exportPanel').scrollIntoView({ block:'start' });
+};
 ['dragenter','dragover'].forEach(t => vp.addEventListener(t, e => {
   if (e.dataTransfer?.types.includes('Files')) { e.preventDefault(); drop.classList.add('hot'); }
 }));
